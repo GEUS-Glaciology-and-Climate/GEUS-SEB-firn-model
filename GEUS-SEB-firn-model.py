@@ -10,7 +10,7 @@
 # - Layers mass (or water equivalent thickness) is constant in time. Each layer has a part which is snow (snowc), ice (snic) and water (slwc).
 # - sum water equivalent thickness of layer n is thickness_weq(n) = snowc(n)+snic(n)+slwc(n). This number is constant in time.
 # - Partitioning into snow, water and ice varies from time to time, and so does the density of the snow fraction (the variab<= rhofirn).
-# - This means that the actual thickness (as opposed to water eqiv), <=tâ€™s call that â€?actâ€? (as opposed to â€œweqâ€?), is:
+# - This means that the actual thickness (as opposed to water eqiv), is:
 #   thickness_act(n) = snowc(n)*(rho_w/rhofirn(n)) + snic*(rho_w/c.rho_ice) + slwc
 #
 # Update Spring 2016 by Peter Langen, Robert Fausto
@@ -41,110 +41,94 @@
 
 # Main script for running the surface - subsurface model
 # Here you can define which year you want to compute, define your
-# param{kk}eters, plot output variables, evaluate model performance\.
+# parameters, plot output variables, evaluate model performance\.
 #
-# Author: Baptiste Vandecrux (bava@byg.dtu.dk)
+# Author: Baptiste Vandecrux (bav@geus.dk)
 # ========================================================================
-clearvars
-close all
-clc
-addpath(genpath('.\lib'))
-addpath(genpath('Input'),genpath('Output'))
 
-# All param{kk}eters are defined in a csv files in Input folder, however it is
+
+# All parameters are defined in a csv files in Input folder, however it is
 # possible to overwrite the default value by defining them again in the
 # "param{kk}" struct hereunder.
 
-station_list =   {'KAN_M'}
-# station_list = PROMICE_dir #
-RCM_list = {'RACMO'}
+def launch_model():
+	station_list =   {'KAN_M'}
+	# station_list = PROMICE_dir#
+		
+	#
+	# High resolution grid (comment if not needed)
+	NumLayer = 100
+	param{kk}.z_max = 50
+	param{kk}.dz_ice = param{kk}.z_max/NumLayer
+	param{kk}.verbose = 1
+	param{kk}.lim_new_lay = param{kk}.z_max/NumLayer/10
 
-param = cell(size(RCM_list))
-for kk = 1:length(RCM_list)
-    
-    # #####################
-    # High resolution grid (comment if not needed)
-    NumLayer = 100
-    param{kk}.z_max = 50
-    param{kk}.dz_ice = param{kk}.z_max/NumLayer
-    param{kk}.verbose = 1
-    param{kk}.lim_new_lay = param{kk}.z_max/NumLayer/10
+	# param{kk}.ConductionModel = 0# if 1 does CONDUCTION ONLY
+	# In the conduction model, the temperature profile is reseted every night
+	# at 2am local time usingg thermistor string readings
 
-    # param{kk}.ConductionModel = 0      # if 1 does CONDUCTION ONLY
-    # In the conduction model, the temperature profile is reseted every night
-    # at 2am local time usingg thermistor string readings
+	# Heterogeneous precolation from Marchenko et al. (2017)
+	# this considers only redistribution of the water from the first layer into
+	# the rest of the subsurface
+	# An alternative is to go through the whole column and check whether piping
+	# can occur at any depth
+	param{kk}.hetero_percol = 0# 1 = whole scheme on 0 = standard percolation
+	param{kk}.hetero_percol_p = 1# binomial probability for a piping event to be initiated
+								# In Marchenko et al. (2017) this happens at
+								# every time step (probability 1)
+	param{kk}.hetero_percol_frac = 1# fraction of the available water that can be
+								# In Marchenko et al. (2017) all the available
+								# water goes into redistribution (frac = 1)
+	param{kk}.hetero_percol_dist = 5# characteristic distance until which
+								# preferential percolation operates
+								# When using uniform probability distribution 
+								# for the redistribution Marchenko et al. (2017)
+								# recomms between 4.5 and 6 m as cut-off value
 
-    # Heterogeneous precolation from Marchenko et al. (2017)
-    # this considers only redistribution of the water from the first layer into
-    # the rest of the subsurface
-    # An alternative is to go through the whole column and check whether piping
-    # can occur at any depth
-    param{kk}.hetero_percol = 0 # 1 = whole scheme on 0 = standard percolation
-    param{kk}.hetero_percol_p = 1 # binomial probability for a piping event to be initiated
-                                # In Marchenko et al. (2017) this happens at
-                                # every time step (probability 1)
-    param{kk}.hetero_percol_frac = 1 # fraction of the available water that can be
-                                # In Marchenko et al. (2017) all the available
-                                # water goes into redistribution (frac = 1)
-    param{kk}.hetero_percol_dist = 5 # characteristic distance until which
-                                # preferential percolation operates
-                                # When using uniform probability distribution 
-                                # for the redistribution Marchenko et al. (2017)
-                                # recomms between 4.5 and 6 m as cut-off value
+	# result of a tuning of densification schemes
+	#    param{kk}.a_dens = 30.25
+	#    param{kk}.b_dens = 0.7
 
-    # result of a tuning of densification schemes
-    #    param{kk}.a_dens = 30.25
-    #    param{kk}.b_dens = 0.7
+	param{kk}.year    =  0
+	# by defining param{kk}.year, the model will be run only for that melt year
+	# (i.e. 1st. april to 1st april) however you still need to make sure that 
+	# "rows"  is set so that the appropriate values will be read in the weather 
+	# data. To run the model only from 1 to rows, just leave param{kk}.year=0.
 
-    param{kk}.year    =  0
-    # by defining param{kk}.year, the model will be run only for that melt year
-    # (i.e. 1st. april to 1st april) however you still need to make sure that 
-    # "rows"  is set so that the appropriate values will be read in the weather 
-    # data. To run the model only from 1 to rows, just leave param{kk}.year=0.
+	param{kk}.track_density = 0
+	param{kk}.avoid_runoff = 0 
+	param{kk}.retmip = 0
 
-    param{kk}.track_density = 0
-    param{kk}.avoid_runoff = 0 
-    param{kk}.retmip = 0
+	# PROMICE_dir = dir('../AWS_Processing/Output/PROMICE/')
+	# PROMICE_dir = {PROMICE_dir.name}
+	# PROMICE_dir(1:2) = []
+	# for i = 1:length(PROMICE_dir)
+	#     PROMICE_dir{i} = PROMICE_dir{i}(1:(-6))
+	# 
+	param{kk}.vis = 'off'
+			
+	for i =1:length(station_list):
+		param{kk}.station =  station_list{i} 
 
-    # PROMICE_dir = dir('../AWS_Processing/Output/PROMICE/')
-    # PROMICE_dir = {PROMICE_dir.name}
-    # PROMICE_dir(1:2) = []
-    # for i = 1:length(PROMICE_dir)
-    #     PROMICE_dir{i} = PROMICE_dir{i}(1:(-6))
-    # 
-    param{kk}.vis = 'off'
-    ###########################5
-    model_version = RCM_list{kk}
-        
-for i =1:length(station_list)
-    param{kk}.station =  station_list{i} 
+		switch param{kk}.station
+			case 'KAN_M'
+				param{kk}.InputAWSFile = 'Input/Weather data/data_KAN_M_combined_hour.txt'
+		# ======== other stations =================
 
-    switch param{kk}.station
-        case 'KAN_M'
-            param{kk}.InputAWSFile = 'Input/Weather data/data_KAN_M_combined_hour.txt'
-    # ======== other stations =================
+			otherwise
+				disp('Missing data file for the requested station.')
+		
 
-        otherwise
-            disp('Missing data file for the requested station.')
-    
+		# When you add sites
+		# 1) in Main.m: define path of InputAWSFile
+		# 2) in  .m: Define path for density profile
+		# 3) Make sure all information is reported in Input/Constants/InfoStation.csv file
 
-# When you add sites
-# 1) in Main.m: define path of InputAWSFile
-# 2) in  .m: Define path for density profile
-# 3) Make sure all information is reported in Input/Constants/InfoStation.csv file
+		#  ========= Run model with name tag of your choice =======================
+		 [RunName, c] = HHsubsurf(param{kk})
 
-##  ========= Run model with name tag of your choice =======================
- [RunName, c] = HHsubsurf(param{kk})
-
-
-
-
-
-def [RunName, c] = HHsubsurf(param)
-# disp('Running\')
-tic
-
-# #### Constant definition ####
+def HHsubsurf(param):
+# Constant definition#
 # All constant values are defined in a set of csv file in the Input folder.
 # They can be modiefied there or by giving new values in the "param"
 # variable. The values of the constant given in param will overright the
@@ -154,16 +138,9 @@ c = ImportConst(param)
 [RunName, c] = OutputName(c)
 diary(sprintf('#s/log.txt',c.OutputFolder))
 
-[time, year, day, hour, pres,\
-    T1, T2, z_T1, z_T2, o_T1,o_T2, \
-    RH1, RH2, z_RH1, z_RH2, o_RH1, o_RH2, \
-    WS1, WS2, ~, z_WS2, o_WS1, o_WS2,\
-    SRin, SRout, LRin, LRout, T_ice_obs, \
-    depth_thermistor, Surface_Height, Tsurf_obs, data_AWS, c] = \
-    ExtractAWSData(c)
+[time, year, day, hour, pres,    T1, T2, z_T1, z_T2, o_T1,o_T2,     RH1, RH2, z_RH1, z_RH2, o_RH1, o_RH2,     WS1, WS2, ~, z_WS2, o_WS1, o_WS2,    SRin, SRout, LRin, LRout, T_ice_obs,     depth_thermistor, Surface_Height, Tsurf_obs, data_AWS, c] =     ExtractAWSData(c)
 
-[elev, pres, ~, ~, ~, SRin, LRin, rho_atm, nu, ~, ~, Tdeep] \
-    = PrepareTransect(pres, T2, RH2, WS2, SRin, LRin, c)
+[elev, pres, ~, ~, ~, SRin, LRin, rho_atm, nu, ~, ~, Tdeep]     = PrepareTransect(pres, T2, RH2, WS2, SRin, LRin, c)
 
 #Initialization of freshsnow density for both precipitation at the surface
 #and use in the subsurface scheme
@@ -177,13 +154,7 @@ c.rho_snow = IniRhoSnow(T1, WS1, elev, c)
 [RH1, q1] = SpecHumSat(RH1, T1, pres, c)
 [~, q2] = SpecHumSat(RH2, T2, pres, c)
 
-[H_comp, GF, GFsurf, GFsubsurf, melt_mweq,snowbkt_out,\
-sublimation_mweq, SMB_mweq,  ~, L, LHF, meltflux, ~, \
-rho,  runoff,\
-SHF, SRnet,~,  T_ice, grndc, grndd , \
-pdgrain, refreezing,  theta_2m,q_2m,ws_10m, Tsurf, snowthick,\
-z_icehorizon,Re,Ri,err]\
-= IniVar(c)
+[H_comp, GF, GFsurf, GFsubsurf, melt_mweq,snowbkt_out,sublimation_mweq, SMB_mweq,  ~, L, LHF, meltflux, ~, rho,  runoff,SHF, SRnet,~,  T_ice, grndc, grndd , pdgrain, refreezing,  theta_2m,q_2m,ws_10m, Tsurf, snowthick,z_icehorizon,Re,Ri,err]= IniVar(c)
 
 #Calculated precipitation types and temp
 if sum(strcmp(data_AWS.Properties.VariableNames,'Snowfallmweq'))>0
@@ -196,8 +167,7 @@ if sum(strcmp(data_AWS.Properties.VariableNames,'Snowfallmweq'))>0
         T_rain = zeros(size(T1))
     
 else
-    [snowfall, rainfall, T_rain, c] = \
-        Precipitation(time, T1, LRin,RH1, Surface_Height, c)
+    [snowfall, rainfall, T_rain, c] =         Precipitation(time, T1, LRin,RH1, Surface_Height, c)
 
 
 c = CalculateMeanAccumulation(time,snowfall, c)
@@ -205,8 +175,8 @@ c = CalculateMeanAccumulation(time,snowfall, c)
 # Update BV 2018
 if c.track_density
     density_avg_20 = NaN(6,c.M)
-    # figure
-    # hold on
+# figure
+# hold on
 
 
 c.Tdeep = Tdeep(j)
@@ -220,9 +190,7 @@ Tsurf(1,j) = mean(T2(1:24))-2.4
 # radiation is less than 200 Wm2. 
 #  https://doi.org/10.5194/tc-12-907-2018
 
-[T_ice, rhofirn,rho(:,1),snic, snowc, slwc, pdgrain(:,1)] = \
-	InitializationSubsurface(T_ice_obs, depth_thermistor, T_ice, \
-	time, Tsurf(1,j), j, c)
+[T_ice, rhofirn,rho(:,1),snic, snowc, slwc, pdgrain(:,1)] = 	InitializationSubsurface(T_ice_obs, depth_thermistor, T_ice, 	time, Tsurf(1,j), j, c)
 
 # preparing some variables
 #     theta1 = T1(:,j) + z_T1(:,j) * c.g / c.c_pd
@@ -258,9 +226,7 @@ if c.THF_calc == 2 || c.THF_calc == 3
 	err(test,j) = 4
 		
 	if err(:,j) == 0       
-		[LHF(:,j), SHF(:,j), theta_2m(:,j), q_2m(:,j), ws_10m(:,j),Ri(:,j)] \
-			= SensLatFluxes_profile (z_T1(:,j),z_T2(:,j),\
-			T1(:,j),T2(:,j),q1(:,j),q2(:,j),WS1(:,j),WS2(:,j),pres(:,j), c)
+		[LHF(:,j), SHF(:,j), theta_2m(:,j), q_2m(:,j), ws_10m(:,j),Ri(:,j)] 			= SensLatFluxes_profile (z_T1(:,j),z_T2(:,j),			T1(:,j),T2(:,j),q1(:,j),q2(:,j),WS1(:,j),WS2(:,j),pres(:,j), c)
 
 		# Ri out of bound
 		test =  isnan(Ri(:,j))
@@ -299,20 +265,17 @@ if c.THF_calc == 2 || c.THF_calc == 3
 # START OF TIME LOOP -----------------------------------------------------------------------
 for k = 1:c.M
 	#=========== Step 1/*: Update snowthickness and instrument heights ====================================
-	[snowthick, z_icehorizon] = \
-		UpdateSnowThickness(snowthick,z_icehorizon, k, j, c)
+	[snowthick, z_icehorizon] = 		UpdateSnowThickness(snowthick,z_icehorizon, k, j, c)
 	# ========== Step 3/*: shortwave radiation balance snow & ice penetration ====================================
 	if k > 1
 		rho(:,k) = rho(:,k-1)
 		snowbkt_out(k,j) = snowbkt_out(k-1,j)
 	
-	[~, SRnet, T_ice, ~ , ~] = \
-		SRbalance (SRout, SRin, SRnet,\
-			z_icehorizon, snowthick, T_ice, rho, j, k, c)
+	[~, SRnet, T_ice, ~ , ~] = 		SRbalance (SRout, SRin, SRnet,			z_icehorizon, snowthick, T_ice, rho, j, k, c)
 
-	 # ========== Step 5/*:  Surface temperature calculation ====================================
+	# ========== Step 5/*:  Surface temperature calculation ====================================
 
-	k_eff = 0.021 + 2.5e-6*rho(:,k).^2         
+	k_eff = 0.021 + 2.5e-6*rho(:,k).**2         
 	# effective conductivity by Anderson 1976, is ok at limits
 	# thickness of the first layer in m weq for thermal transfer
 	thick_first_lay = snic(1) + snowc(1)
@@ -321,15 +284,15 @@ for k = 1:c.M
 	if and(c.solve_T_surf == 0, ~isnan(Tsurf_obs(k)))
 		# if user asked for using measured surface temperature instead
 		# of solving for it and that there is a measurement available
-		iter_max_EB = 1 # we do one iteration in the solver bellow
-		Tsurf(k,j) = Tsurf_obs(k) # we use measured surface temp
+		iter_max_EB = 1# we do one iteration in the solver bellow
+		Tsurf(k,j) = Tsurf_obs(k)# we use measured surface temp
 	else
-		iter_max_EB = c.iter_max_EB # otherwise just using standard value
+		iter_max_EB = c.iter_max_EB# otherwise just using standard value
 	
 		
 	# Prepare parameters needed for SEB
 	EB_prev = 1
-	dTsurf = c.dTsurf_ini   # Initial surface temperature step in search for EB=0 (C)
+	dTsurf = c.dTsurf_ini# Initial surface temperature step in search for EB=0 (C)
 
 	if o_THF(k,j) == 1
 		# Update BV2017: z_0 is calculated once outside the SEB loop
@@ -340,8 +303,7 @@ for k = 1:c.M
 				z_0 = c.z0_fresh_snow
 			else
 				# old snow from Lefebre et al (2003) JGR
-				z_0 = max(c.z0_old_snow, \
-					c.z0_old_snow + (c.z0_ice -c.z0_old_snow)*(rho(1,k) - 600)/(920 - 600))
+				z_0 = max(c.z0_old_snow, 					c.z0_old_snow + (c.z0_ice -c.z0_old_snow)*(rho(1,k) - 600)/(920 - 600))
 			
 		else
 			# ice roughness length
@@ -352,18 +314,12 @@ for k = 1:c.M
 	for findbalance = 1 : iter_max_EB
 		# SENSIBLE AND LATENT HEAT FLUX -------------------------------
 		if o_THF(k,j) == 1
-			[L(k,j), LHF(k,j), SHF(k,j), theta_2m(k,j), q_2m(k,j), ws_10m(k,j),Re(k,j)] \
-				= SensLatFluxes_bulk (WS2(k,j), nu(k,j), q2(k,j), snowthick(k,j), \
-				Tsurf(k,j), theta2(k,j),theta2_v(k,j), pres(k,j), rho_atm(k,j),  \
-				z_WS2(k,j), z_T2(k,j), z_RH2(k,j), z_0, c)
+			[L(k,j), LHF(k,j), SHF(k,j), theta_2m(k,j), q_2m(k,j), ws_10m(k,j),Re(k,j)] 				= SensLatFluxes_bulk (WS2(k,j), nu(k,j), q2(k,j), snowthick(k,j), 				Tsurf(k,j), theta2(k,j),theta2_v(k,j), pres(k,j), rho_atm(k,j),  				z_WS2(k,j), z_T2(k,j), z_RH2(k,j), z_0, c)
 		
 
 		# SURFACE ENERGY BUDGET ---------------------------------------
 
-		[meltflux(k,j), Tsurf(k,j), dTsurf, EB_prev, stop] \
-			= SurfEnergyBudget (SRnet, LRin(k,j), Tsurf(k,j), k_eff,thick_first_lay, \
-			T_ice(:,k,j), T_rain(k,j),\
-			dTsurf, EB_prev, SHF(k,j), LHF(k,j), rainfall(k,j),c)
+		[meltflux(k,j), Tsurf(k,j), dTsurf, EB_prev, stop] 			= SurfEnergyBudget (SRnet, LRin(k,j), Tsurf(k,j), k_eff,thick_first_lay, 			T_ice(:,k,j), T_rain(k,j),			dTsurf, EB_prev, SHF(k,j), LHF(k,j), rainfall(k,j),c)
 # scatter(findbalance,Tsurf(k,j))
 # xlim([0 iter_max_EB])
 # title(o_THF)
@@ -378,10 +334,9 @@ for k = 1:c.M
 		if stop
 			break
 		
-	 # loop surface energy balance
+	# loop surface energy balance
 
-	if iter_max_EB ~= 1 && \
-		(findbalance == c.iter_max_EB && abs(meltflux(k,j)) >= 10*c.EB_max)
+	if iter_max_EB ~= 1 && 		(findbalance == c.iter_max_EB && abs(meltflux(k,j)) >= 10*c.EB_max)
 		error('Problem closing energy budget')
 	
 	clear findbalance
@@ -389,7 +344,7 @@ for k = 1:c.M
 	# ========== Step 6/*:  Mass Budget ====================================
 	# in mweq
 	melt_mweq(k,j) = meltflux(k,j)*c.dt_obs/c.L_fus/c.rho_water   
-	sublimation_mweq(k,j) = LHF(k,j)*c.dt_obs/c.L_sub/c.rho_water # in mweq
+	sublimation_mweq(k,j) = LHF(k,j)*c.dt_obs/c.L_sub/c.rho_water# in mweq
 	# positive LHF -> deposition -> dH_subl positive
 
 
@@ -398,7 +353,7 @@ for k = 1:c.M
 	if c.ConductionModel == 1
 		smoothed_Surface_Height= smooth(Surface_Height,24*7)
 		if k>1
-			dSurface_Height= -(smoothed_Surface_Height(k) - smoothed_Surface_Height(k-1)) #in real m
+			dSurface_Height= -(smoothed_Surface_Height(k) - smoothed_Surface_Height(k-1))#in real m
 		else
 			dSurface_Height= 0
 		
@@ -406,18 +361,18 @@ for k = 1:c.M
 			# if the surface height increase, it means that snow is
 			# falling
 			melt_mweq(k,j) = 0
-			snowfall(k,j) = -dSurface_Height*c.rho_snow(k,j)/c.rho_water #in m weq
+			snowfall(k,j) = -dSurface_Height*c.rho_snow(k,j)/c.rho_water#in m weq
 			sublimation_mweq(k,j) = 0
 		else
 			#else we just say it has sublimated (quick way to make the
 			#matter disappear in the subsurface scheme)
-			melt_mweq(k,j) = 0 #in m weq
+			melt_mweq(k,j) = 0#in m weq
 			sublimation_mweq(k,j) = -dSurface_Height*rho(1, k)/c.rho_water
 			snowfall(k,j) = 0
 		
 		c.liqmax =0
 		c.calc_CLliq = 0
-		Tsurf(k,j) = ((LRout(k) - (1-c.em)*LRin(k)) /(c.em*c.sigma))^(1/4)
+		Tsurf(k,j) = ((LRout(k) - (1-c.em)*LRin(k)) /(c.em*c.sigma))**(1/4)
 	
 	
 	# ========== Step 7/*:  Sub-surface model ====================================
@@ -444,12 +399,7 @@ for k = 1:c.M
 		[slwc] = MimicAquiferFlow(snowc, rhofirn, snic, slwc, k,  c)
 	
 	
-	[snowc, snic, slwc, T_ice(:,k,j), zrfrz, rhofirn,\
-		supimp, pdgrain, runoff(k,j), ~, grndc, grndd, ~, GFsubsurf(k,j),\
-		dH_comp, snowbkt_out(k,j), compaction, c] \
-		= subsurface(pTsurf, grndc, grndd, slwc, snic, snowc, rhofirn, \
-		ptsoil_in, pdgrain, zsn, raind, snmel,  Tdeep(j),\
-		snowbkt_out(k,j),c)
+	[snowc, snic, slwc, T_ice(:,k,j), zrfrz, rhofirn,		supimp, pdgrain, runoff(k,j), ~, grndc, grndd, ~, GFsubsurf(k,j),		dH_comp, snowbkt_out(k,j), compaction, c] 		= subsurface(pTsurf, grndc, grndd, slwc, snic, snowc, rhofirn, 		ptsoil_in, pdgrain, zsn, raind, snmel,  Tdeep(j),		snowbkt_out(k,j),c)
 	if any(isnan(rhofirn))
 		kewf=0
 	
@@ -473,21 +423,19 @@ for k = 1:c.M
 	
 	
 	# bulk density
-	rho(:,k)= (snowc + snic)./\
-		(snowc./rhofirn + snic./c.rho_ice)
+	rho(:,k)= (snowc + snic)./		(snowc./rhofirn + snic./c.rho_ice)
 	refreezing(:,k,j) = zrfrz + supimp
 	z_icehorizon = floor(snowthick(k,j)/c.dz_ice)
 	
 	if k> 1
-		SMB_mweq(k,j) =  snowfall(k,j) - runoff(k,j) \
-			+ rainfall(k,j) + sublimation_mweq(k,j)
+		SMB_mweq(k,j) =  snowfall(k,j) - runoff(k,j) 			+ rainfall(k,j) + sublimation_mweq(k,j)
 
 		# Update BV2017: With the layer-conservative model, the surface height
 		# can be calculated outside of the sub-surface scheme assuming that the
 		# bottom of the collumn remains at constant depth
 
 		# cumulative dry compaction
-		H_comp(k,j) = H_comp(k-1,j) + dH_comp #in real m
+		H_comp(k,j) = H_comp(k-1,j) + dH_comp#in real m
 	
 	
 	if(snowthick(k,j) < 0)
@@ -499,9 +447,7 @@ for k = 1:c.M
 	if c.ConductionModel == 1
 		if (mod(k-1, 24) == 0)
 			if sum(~isnan(T_ice_obs(k,:)))>0
-				[Tsurf(k,j), T_reset] = \
-					ResetTemp(depth_thermistor, LRin, LRout, T_ice_obs, \
-					rho, T_ice,time, k, c)
+				[Tsurf(k,j), T_reset] = 					ResetTemp(depth_thermistor, LRin, LRout, T_ice_obs, 					rho, T_ice,time, k, c)
 			
 		            
 	
@@ -509,7 +455,7 @@ for k = 1:c.M
 	# MODEL RUN PROGRESS ----------------------------------------------
 	if c.verbose == 1
 	if (mod(k-1 , 24) == 0)
-		fprintf('#.2f,day of the year: #i.\n',time(k), day(k)) # print daily (24) time progress for k being hourly
+		fprintf('#.2f,day of the year:#i.\n',time(k), day(k))# print daily (24) time progress for k being hourly
 	
 	
 
@@ -532,14 +478,13 @@ for k = 1:c.M
 	sav. rhofirn(:,k) = rhofirn
 	sav. subsurf_compaction(:,k) = compaction
 	sav.z_T(k) = z_T2(k)
-  #  OF TIME LOOP -----------------------------------------------------------------------
+#  OF TIME LOOP -----------------------------------------------------------------------
 
 rainHF = c.rho_water.*c.c_w(1).*rainfall./c.dt_obs.*(T_rain-Tsurf(:,j))
 
 
-## Processing few variables
-thickness_act = sav.snowc.*(c.rho_water./sav.rhofirn )+ \
-	sav.snic .*(c.rho_water/c.rho_ice)
+# Processing few variables
+thickness_act = sav.snowc.*(c.rho_water./sav.rhofirn )+ 	sav.snic .*(c.rho_water/c.rho_ice)
 depth_act = cumsum(thickness_act, 1)
 
 H_surf = depth_act(,:)'-depth_act(,1)+snowbkt_out(k,j)*1000/315
@@ -554,19 +499,10 @@ if c.retmip
 	sublimation_mweq(:,j) = min(0,data_AWS.acc_subl_mmweq/1000) 
 
 
-## Writing data to net cdf
-data_surf = {year,       day,            hour,   LRin(:,j), \
-		c.em*c.sigma*Tsurf(:,j).^4+(1-c.em)*LRin(:,j), SHF(:,j), LHF(:,j), \
-		GFsurf(:,j),    rainHF(:,j),        meltflux(:,j),  \
-		H_surf(:,j),    SMB_mweq(:,j),    melt_mweq(:,j),    \
-		sublimation_mweq(:,j),    H_comp(:,j),        runoff(:,j),    snowthick(:,j), \
-		snowfall(:,j),  rainfall(:,j),      SRin(:,j), SRout(:,j), \
-		Tsurf(:,j), sav.z_T, snowbkt_out(:,j),\
-		theta_2m(:,j), RHice2water( spechum2relhum(theta_2m(:,j),\
-		pres, q_2m(:,j),c),theta_2m, pres), ws_10m(:,j)}
+# Writing data to net cdf
+data_surf = {year,       day,            hour,   LRin(:,j), 		c.em*c.sigma*Tsurf(:,j).**4+(1-c.em)*LRin(:,j), SHF(:,j), LHF(:,j), 		GFsurf(:,j),    rainHF(:,j),        meltflux(:,j),  		H_surf(:,j),    SMB_mweq(:,j),    melt_mweq(:,j),    		sublimation_mweq(:,j),    H_comp(:,j),        runoff(:,j),    snowthick(:,j), 		snowfall(:,j),  rainfall(:,j),      SRin(:,j), SRout(:,j), 		Tsurf(:,j), sav.z_T, snowbkt_out(:,j),		theta_2m(:,j), RHice2water( spechum2relhum(theta_2m(:,j),		pres, q_2m(:,j),c),theta_2m, pres), ws_10m(:,j)}
 
-data_subsurf = {T_ice(:,:,j) rho sav.rhofirn sav.slwc sav.snic sav.snowc sav.pdgrain\
-	refreezing(:,:,j) sav.subsurf_compaction}
+data_subsurf = {T_ice(:,:,j) rho sav.rhofirn sav.slwc sav.snic sav.snowc sav.pdgrain	refreezing(:,:,j) sav.subsurf_compaction}
 
 try WritingModelOutput(time,data_surf,depth_act, data_subsurf,j,  c)
 catch me 
@@ -578,11 +514,11 @@ save(strcat(c.OutputFolder,'/run_param.mat'),'c')
 if c.THF_calc == 3
     M = [time SHF LHF o_THF SHF2 LHF2 o_THF2 Re Ri err]
     dlmwrite(sprintf('./Output/THF study/THF_#s_#i.csv',c.station ,c.THF_calc),M,'Delimiter',',','precision',9)
-    # disp ('Done\')
+# disp ('Done\')
 
     toc
 
 
-
+return RunName, c
 
 
