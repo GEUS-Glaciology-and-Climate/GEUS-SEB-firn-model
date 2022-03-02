@@ -55,9 +55,11 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
     # Author: Baptiste Vandecrux (bav@geus.dk)
     #==========================================================================
     
-    # Initial density profile
+    # %% Initial density profile
     filename = '.\Input\Initial state\initial_density_'+ c.station+'.csv'    
     df_ini_dens = pd.read_csv(filename, sep = ';')
+    df_ini_dens.loc[df_ini_dens.density_kgm3.isnull(),'density_kgm3'] = 350
+
     df_ini_dens['thickness_m'] = np.insert(np.diff(df_ini_dens.depth_m),0,df_ini_dens.depth_m[0])
     df_ini_dens['thickness_mweq'] = df_ini_dens['thickness_m']  / c.rho_water * df_ini_dens.density_kgm3
     df_ini_dens['depth_weq']  = np.cumsum(df_ini_dens['thickness_mweq'] )
@@ -65,27 +67,49 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 
     NumLayer = c.z_max/c.dz_ice
 
-    # depth_mod_weq =  np.arange(0, NumLayer+2)**4/(NumLayer+1)**4 *c.z_max
-    # thickness_mod_weq = np.diff(depth_mod_weq)
-    thickness_mod_weq = np.array([0, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.025416835360841, 0.034300532977512, 0.045046702973053, 0.057832723669260, 0.072835973387930, 0.090233830450862, 0.110203673179851, 0.132922879896695, 0.158568828923191, 0.187318898581136, 0.219350467192327, 0.254840913078562, 0.293967614561637, 0.336907949963349, 0.383839297605496, 0.434939035809875, 0.490384542898282, 0.550353197192515, 0.615022377014371, 0.684569460685647, 0.759171826528141, 0.839006852863648, 0.924251918013965, 1.015084400300893, 1.111681678046224, 1.214221129571760, 1.322880133199295, 1.437836067250625, 1.559266310047553, 1.687348239911865, 1.822259235165372, 1.964176674129856, 2.113277935127133, 2.267958628280223, 2.426268780484128, 2.593625227099684, 2.770027968126887, 2.955477003565750, 3.149972333416258, 3.353513957678416, 3.566101876352235, 3.787736089437697])
-    # thickness_mod_weq = np.maximum(c.lim_new_lay, thickness_mod_weq)
-    depth_mod_weq = np.cumsum(thickness_mod_weq)
+    depth_mod_weq =  np.insert(np.arange(1, NumLayer+1)**4/(NumLayer)**4 *c.z_max,0,0)
+    # here we make sure the top layers are thick enough
+    # if they are too thin we augment them to c.lim_new_lay and remove the added mass from the bottom layer so that the total depth weq is still c.z_max
+    thickness_mod_weq = np.diff(depth_mod_weq)
+    tmp = np.maximum(0,c.lim_new_lay - thickness_mod_weq)
+    thickness_mod_weq = thickness_mod_weq + tmp - np.flip(tmp)
+
+    depth_mod_weq = np.cumsum(np.insert(thickness_mod_weq,0,0))
     
     df_mod = pd.DataFrame(depth_mod_weq[1:], columns=['depth_weq'])
     df_mod = df_mod.set_index('depth_weq')
     
     df_ini_dens = pd.concat([df_ini_dens, df_mod]).sort_index()
-    df_ini_dens.density_kgm3 = df_ini_dens.density_kgm3.interpolate().values
-    df_ini_dens.density_kgm3 = df_ini_dens.density_kgm3.fillna(method='bfill').values
+    df_ini_dens['density_kgm3'] = df_ini_dens['density_kgm3'].fillna(method = 'bfill').values
+    
     df_ini_dens['thickness_mweq'] = np.insert(np.diff(df_ini_dens.index), 0, df_ini_dens.index[0])
     df_ini_dens['thickness_m'] = df_ini_dens.thickness_mweq * c.rho_water / df_ini_dens.density_kgm3
     df_ini_dens['depth_m_2'] = np.cumsum(df_ini_dens['thickness_m'])
-    df_mod['density_kgm3'] = df_ini_dens.density_kgm3.groupby(pd.cut(df_ini_dens.index, depth_mod_weq)).mean().values
-    df_mod['density_kgm3'] = df_mod['density_kgm3'].interpolate().values
-    df_mod['density_kgm3'] = df_mod['density_kgm3'].fillna(method = 'bfill').values
+    
+    # finding within which final depth bin each layer of the merged array falls in
+    df_ini_dens['placings'] = np.digitize(df_ini_dens.index, depth_mod_weq, right = True)
+    
+    # within each final depth bin, making the average of densities weighted by the thikcness of the layers that compose each final bin
+    wm = lambda x: np.average(x, weights=df_ini_dens.loc[x.index, "thickness_m"])
+    df_mod['density_kgm3'] =  df_ini_dens.groupby("placings").agg(weighted_density=("density_kgm3", wm)).values
 
-    ind_last = df_mod.density_kgm3.last_valid_index()
-    df_mod.loc[ind_last:, 'density_kgm3'] = 917
+    # df_mod['density_kgm3'] = df_mod['density_kgm3'].interpolate().values
+    # df_mod['density_kgm3'] = df_mod['density_kgm3'].fillna(method = 'bfill').values
+
+    df_mod['density_kgm3'] = np.minimum(np.maximum(300, df_mod['density_kgm3'].values),900)
+
+    if  df_mod['density_kgm3'].last_valid_index() <  df_mod['density_kgm3'].index.values[-1]:
+        tmp = df_mod.loc[df_mod.density_kgm3.notnull(),'density_kgm3']
+        x = np.append(tmp.index.values, [30, 70])
+        y = np.append(tmp.values, [830, 830])
+        fo = np.poly1d(np.polyfit(x, y, 2))
+        
+        df_mod.loc[df_mod.density_kgm3.isnull(),'density_kgm3'] = fo(df_mod.loc[df_mod.density_kgm3.isnull(),'density_kgm3'].index.values)
+       
+        df_mod['density_kgm3'] = np.minimum(np.maximum(300, df_mod['density_kgm3'].values),900)
+
+    # ind_last = df_mod.density_kgm3.last_valid_index()
+    # df_mod.loc[ind_last:, 'density_kgm3'] = 917
     
     df_mod['thickness_mweq'] = np.diff(depth_mod_weq)
     df_mod['thickness_m'] = df_mod['thickness_mweq'] * c.rho_water / df_mod['density_kgm3']
@@ -96,7 +120,7 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
     df_mod['snowc'] = df_mod['thickness_mweq']
     df_mod['snic'] = 0
     
-    # Initial temperature profile
+    # %% Initial temperature profile
     filename = '.\Input\Initial state\initial_temperature_'+ c.station+'.csv'
     df_ini_temp = pd.read_csv(filename, sep = ';')
     df_ini_temp = df_ini_temp.set_index('depth_m')
@@ -106,7 +130,7 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
     df_mod['temp_degC'] = df_mod['temp_degC'].interpolate().values
     df_mod['temp_degC'] = df_mod['temp_degC'].fillna(method='bfill').values
 
-    # Initial grain size
+    # %% Initial grain size
     filename = '.\Input\Initial state\initial_grain_size_' + c.station + '.csv'
     df_ini_gs = pd.read_csv(filename, sep=';')
     df_ini_gs = df_ini_gs.set_index('depth_m')
