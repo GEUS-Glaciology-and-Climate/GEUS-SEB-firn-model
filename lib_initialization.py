@@ -56,7 +56,8 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
     #==========================================================================
     
     # %% Initial density profile
-    filename = '.\Input\Initial state\initial_density_'+ c.station+'.csv'    
+    # filename = '.\Input\Initial state\initial_density_'+ c.station+'.csv'    
+    filename = '.\Input\Initial state\initial_density_IMAU_aws4.csv'    
     df_ini_dens = pd.read_csv(filename, sep = ';')
     df_ini_dens.loc[df_ini_dens.density_kgm3.isnull(),'density_kgm3'] = 350
 
@@ -96,14 +97,13 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
     # df_mod['density_kgm3'] = df_mod['density_kgm3'].interpolate().values
     # df_mod['density_kgm3'] = df_mod['density_kgm3'].fillna(method = 'bfill').values
 
-    df_mod['density_kgm3'] = np.minimum(np.maximum(300, df_mod['density_kgm3'].values),900)
+    # df_mod['density_kgm3'] = np.minimum(np.maximum(300, df_mod['density_kgm3'].values),900)
 
     if  df_mod['density_kgm3'].last_valid_index() <  df_mod['density_kgm3'].index.values[-1]:
         tmp = df_mod.loc[df_mod.density_kgm3.notnull(),'density_kgm3']
-        x = np.append(tmp.index.values, [30, 70])
-        y = np.append(tmp.values, [830, 830])
+        x = np.around(np.append(tmp.index.values, [30, 70]), 4)
+        y = np.around(np.append(tmp.values, [830, 830]),4)
         fo = np.poly1d(np.polyfit(x, y, 2))
-        
         df_mod.loc[df_mod.density_kgm3.isnull(),'density_kgm3'] = fo(df_mod.loc[df_mod.density_kgm3.isnull(),'density_kgm3'].index.values)
        
         df_mod['density_kgm3'] = np.minimum(np.maximum(300, df_mod['density_kgm3'].values),900)
@@ -121,17 +121,27 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
     df_mod['snic'] = 0
     
     # %% Initial temperature profile
-    filename = '.\Input\Initial state\initial_temperature_'+ c.station+'.csv'
+    # filename = '.\Input\Initial state\initial_temperature_'+ c.station+'.csv'
+    filename = '.\Input\Initial state\initial_temperature_IMAU_aws4.csv'
     df_ini_temp = pd.read_csv(filename, sep = ';')
-    df_ini_temp = df_ini_temp.set_index('depth_m')
-    
-    df_mod['temp_degC'] = np.interp(df_mod.depth_m, df_ini_temp.index,
+    df_ini_temp = df_ini_temp.loc[df_ini_temp.depth_m>=0,:]
+    # df_ini_temp = df_ini_temp.loc[df_ini_temp.temperature_degC.notnull(),:]
+    # if df_ini_temp.depth_m.min() != 0:
+    #     depth = [0; depth];
+    #     oldtemp = [Tsurf_ini - c.T_0; oldtemp];    
+    if df_ini_temp.depth_m.max() < df_mod.depth_m.max():
+        tmp = df_ini_temp.iloc[-1,:].copy()
+        tmp.depth_m = df_mod.depth_m.max()
+        df_ini_temp = df_ini_temp.append(tmp)
+        
+    df_mod['temp_degC'] = np.interp(df_mod.depth_m, df_ini_temp.depth_m,
                                      df_ini_temp.temperature_degC)
-    df_mod['temp_degC'] = df_mod['temp_degC'].interpolate().values
-    df_mod['temp_degC'] = df_mod['temp_degC'].fillna(method='bfill').values
+    df_mod['temp_degC'] = df_mod['temp_degC'].fillna(method='bfill').values + c.T_0
+
 
     # %% Initial grain size
     filename = '.\Input\Initial state\initial_grain_size_' + c.station + '.csv'
+    filename = '.\Input\Initial state\initial_grain_size_IMAU_aws4.csv'
     df_ini_gs = pd.read_csv(filename, sep=';')
     df_ini_gs = df_ini_gs.set_index('depth_m')
 
@@ -150,9 +160,9 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
         ax[0].step(df_ini_dens.density_kgm3, -df_ini_dens.depth_m,
                    where='pre', label = 'original')
         ax[0].set_xlabel('density_kgm3')
-        ax[1].step(df_mod.temp_degC, -df_mod.depth_m,
+        ax[1].step(df_mod.temp_degC-c.T_0, -df_mod.depth_m,
                    where='pre', label = 'interpolated')
-        ax[1].step(df_ini_temp.temperature_degC, -df_ini_temp.index, label = 'original')
+        ax[1].step(df_ini_temp.temperature_degC, -df_ini_temp.depth_m, label = 'original')
         ax[1].set_xlabel('temp_degC')
         ax[2].step(df_mod.grain_size_mm, -df_mod.depth_m,
                    where='pre', label = 'interpolated')
