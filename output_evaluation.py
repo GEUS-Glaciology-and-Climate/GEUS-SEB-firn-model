@@ -15,16 +15,16 @@ import matplotlib.pyplot as plt
 
 # var1 = 'rhofirn'
 # var2 = 'rho_firn_only'
-# var1 = 'T_ice'
-# var2 = 'T_ice'
+var1 = 'T_ice'
+var2 = 'T_ice'
 # var1 = 'snowc'
 # var2 = 'snowc'
 # var1 = 'snic'
 # var2 = 'snic'
-var1 = 'slwc'
-var2 = 'slwc'
-filename_python = 'Output/IMAU_aws4_51_layers_13/IMAU_aws4_'+var1+'.nc'
-filename_matlab = '../GEUS model/Output/IMAU_aws4_0_IWC_CL_50_layers_61/IMAU_aws4_'+var2+'.nc'
+# var1 = 'slwc'
+# var2 = 'slwc'
+filename_python = 'Output/IMAU_aws4_51_layers_15/IMAU_aws4_'+var1+'.nc'
+filename_matlab = '../GEUS model/Output/IMAU_aws4_0_IWC_CL_50_layers_77/IMAU_aws4_'+var2+'.nc'
 
 var_p = xr.open_dataset(filename_python)
 var_m = xr.open_dataset(filename_matlab).transpose()

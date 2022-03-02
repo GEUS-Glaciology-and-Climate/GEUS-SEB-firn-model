@@ -281,22 +281,21 @@ def melting_new (psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn, c):
         volume = (psnic[jk] + psnowc[jk])*c.rho_water / prhofirn[jk] 
         # heat capacity in J/K
         heat_capa = heat_capa_vol * volume
-        # energy needed to warm layer to 0degC in J
-        warming_energy = deltaT * heat_capa
-        if zsnout - warming_energy/c.L_fus/c.rho_water>0:
-            # if more melt than cold content
-            # converting that energy into meter of meltwater and removing it from the melt
-            zsnout = zsnout - warming_energy/c.L_fus/c.rho_water
-        else:
-            # if less melt than cold content then melt energy is used to warm
-            # the layer
-            deltaT = zsnout/heat_capa*c.L_fus*c.rho_water
-            ptsoil[jk] = ptsoil[jk] + deltaT
+        # energy needed to warm layer to 0degC
+        cold_content = deltaT*heat_capa; # in J
+        warming_energy = np.minimum(cold_content, zsnout*c.L_fus*c.rho_water) # in J
+        # warming layer
+        ptsoil[jk] = ptsoil[jk] + warming_energy/heat_capa
+        # removing the corresponding amount from the prescribed melt
+        zsnout = zsnout - warming_energy/c.L_fus/c.rho_water # in m weq
     
-    #  How much frozen mass do we have in layer available for melting?       
+        # Now the melting layer is either at melting point or zsnout is
+        # depleted. We can use the rest of zsnout to change phase.
+    
+        #  How much frozen mass do we have in layer available for melting?       
         zdel = min(zsnout, psnowc[jk] + psnic[jk])
     
-    # Update BV2017: Snow and ice are now melted simultaneously
+        # Update BV2017: Snow and ice are now melted simultaneously
         snow_melt = psnowc[jk]/(psnowc[jk]+psnic[jk]) * zdel
         ice_melt = psnic[jk]/(psnowc[jk]+psnic[jk]) * zdel
         
