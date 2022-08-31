@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 # var2 = 'slwc'
 var1 = 'density_bulk'
 var2 = 'rho'
-filename_python = 'Output/IMAU_aws4_51_layers_3/IMAU_aws4_'+var1+'.nc'
+filename_python = 'Output/IMAU_aws4_51_layers_7/IMAU_aws4_'+var1+'.nc'
 filename_matlab = '../GEUS model/Output/IMAU_aws4_0_IWC_CL_50_layers_4/IMAU_aws4_'+var2+'.nc'
 
 var_p = xr.open_dataset(filename_python)

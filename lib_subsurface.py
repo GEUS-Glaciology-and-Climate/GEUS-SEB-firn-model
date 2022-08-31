@@ -1,8 +1,8 @@
 import numpy as np
 import lib_percolation as lp
-# from numba import jit
+from numba import jit
 
-# @jit
+
 def subsurface(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn, ptsoil, pdgrain, zsn, zraind, zsnmel, pTdeep, psnowbkt, c):
     # HIRHAM subsurface scheme - version 2016
     # Developped by Peter Langen (DMI), Robert Fausto (GEUS)
@@ -43,12 +43,12 @@ def subsurface(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn, ptsoil, pdgr
     
     zso_capa, zso_cond = ice_heats(ptsoil, c)
 
-    psnowc, psnic, pslwc, ptsoil, psnowbkt = melting_new(psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil,prhofirn, c)
+    psnowc, psnic, pslwc, ptsoil, psnowbkt = melting_new(psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil,prhofirn)
     
     # if c.hetero_percol
     #     [pslwc] = hetero_percol (prhofirn, psnowc, psnic, pslwc, pdgrain, c)
 
-    prhofirn, psnowc, psnic, pslwc, pdgrain, zrogl = lp.perc_runoff_new(prhofirn, psnowc, psnic, pslwc, pdgrain, c)
+    prhofirn, psnowc, psnic, pslwc, pdgrain, zrogl = lp.perc_runoff_new(prhofirn, psnowc, psnic, pslwc, pdgrain)
     
     psnic, pslwc, ptsoil, zrfrz = refreeze(psnowc, psnic, pslwc, ptsoil, c )
 
@@ -58,11 +58,11 @@ def subsurface(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn, ptsoil, pdgr
 
     psn = calc_snowdepth1D(psnowc, psnic, pslwc, psnowbkt, c)
 
-    pgrndc, pgrndd, pgrndcapc, pgrndhflx = update_tempdiff_params(prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_cond, zso_capa, c)
+    pgrndc, pgrndd, pgrndcapc, pgrndhflx = update_tempdiff_params(prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_cond, zso_capa)
     return psnowc, psnic, pslwc, ptsoil, zrfrz, prhofirn, zsupimp, pdgrain, zrogl, psn, pgrndc, pgrndd, pgrndcapc, pgrndhflx, dH_comp, psnowbkt, compaction
 
 
-# @jit
+@jit(nopython=True)
 def tsoil_diffusion(pts, pgrndc, pgrndd, ptsoil):
     #   tsoil_diffusion: Update subsurface temperatures ptsoil based on previous
     #   time step coefficients for heat conduction
@@ -84,14 +84,6 @@ def tsoil_diffusion(pts, pgrndc, pgrndd, ptsoil):
     return ptsoil
 
 
-# @jit(forceobj=True)
-# def n umba_insert(arr, num, row):
-#     row = np.expand_dims(row, 0)
-#     a = np.hstack((arr[:num], row, arr[num:]))
-#     return a
-
-
-# @jit(forceobj=True)
 def densification(pslwc, psnowc, psnic, prhofirn, ptsoil, c):
     #   densification: updates the subsurface firn/snow density with
     #   gravity-driven densification.
@@ -163,7 +155,7 @@ def densification(pslwc, psnowc, psnic, prhofirn, ptsoil, c):
     dH_comp = np.sum(dV)#in real m, here positive when compaction o
     return prhofirn, dH_comp, dV
 
-# @jit
+
 def dgraindtF(dg, pl, ps, c):
     #     ! The F in the name stands for "def"
     #     ! Calculates d(grainsize-diameter) /dt (in mm/s) as in Hirashima (2010), using saturated
@@ -193,7 +185,6 @@ def dgraindtF(dg, pl, ps, c):
     return dgraindtF
 
 
-# @jit
 def graingrowth ( pslwc, psnowc, pdgrain, c):
     #   graingrowth: Update the subsurface grain size vector after grain growth
     #   due to metamorphism.
@@ -207,7 +198,6 @@ def graingrowth ( pslwc, psnowc, pdgrain, c):
     return pdgrain +  c.zdtime* dgraindtF(pdgrain, pslwc, psnowc, c)
 
 
-# @jit
 def ice_heats(ptsoil, c):
     #ice_heats:computes the subsurface thermal capacity [J/K] and thermal 
     # conductivity zso_cond [J/S/M/K] from the subsurface temperature diffusivity
@@ -237,9 +227,46 @@ def ice_heats(ptsoil, c):
     # zso_cond = zso_capa*c.zdifiz
     return zso_capa, zso_cond
 
+@jit(nopython=True)
+def cpiceF(ptsoil):
+    #cpice: right now constant heat capacity of ice. Can be modified to be
+    #depant on ice caracteristics.
+    #
+    #   This script was originally developped by Peter Langen (pla@dmi.dk) and
+    #   Robert S. Fausto (rsf@geus.dk) in FORTRAN then translated to python by 
+    #   Baptiste Vandecrux (bav@geus.dk).
+    #=========================================================================
+    # Specific heat capacity of ice J/kg/K
+    # cpice = 2.108e+03# standard value at 0degC 
+    
+    # Update BV2017
+    # Yen 1981 originally in J/mol/K converted to J/kg/K
+    # 1kg of ice has same capacity as 1kg snow.
+    return (2.7442 + 0.1282 * ptsoil)/18*1000
 
-# @jit
-def melting_new (psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn, c):
+
+@jit(nopython=True)
+def zsn_capaF(RHOS,ptsoil):
+    # The F in the name zsn_capaF stands for "def"
+    # Here the specific (per kg) heat is converted into volumetric heat (per
+    # m**3) capacity by multiplying by the density.
+    return cpiceF(ptsoil)*RHOS  # snow vol. heat capacity   [J/m**3/K]
+
+@jit(nopython=True)
+def zsn_condF(prhofirn):
+    # The F in the name zsn_condF stands for "def"
+    # older versions
+    # zsn_condF2 = cpice(0)*c.rho_ice*c.zdifiz*((prhofirn/c.rho_water)**1.88)
+    # zsn_condF2 = (1-(c.rho_ice - prhofirn)/c.rho_ice)*2.1
+    # update BV2017
+    # snow thermal conductivity [J/s/m/K]
+    # Yen, Y. (1981), Review of thermal properties of snow, ice and sea ice,
+    # Rep. 81-10, U. S. Army Cold Reg. Res. and Eng. Lab. (CRREL), Hanover, N. H
+    return 2.22362*(prhofirn/1000)**1.88
+
+
+@jit(nopython=True)
+def melting_new (psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn):
     # melting: Transform an amount zsnmel (m eq) of frozen material into liquid
     # water. Starts at the surface and continues downward as long as more
     # material needs to be melted. Update BV2017: The proportion of ice and snow  
@@ -273,52 +300,49 @@ def melting_new (psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn, c):
     
     # First we handle melting. Make sure all melt energy is used. Start by melting in
     # top layer. If necessary go to deeper layers.
-    zsnout = zsnmel
             
     # first  we melt the content of the snow bucket
-    if (psnowbkt > c.smallno) & (zsnout > c.smallno):
-        zdel = min(psnowbkt, zsnout)
-        psnowbkt = psnowbkt - zdel
-        zsnout = zsnout - zdel
-        pslwc[0] = pslwc[0] + zdel
+    if (psnowbkt > 1e-12) & (zsnmel > 1e-12):
+        psnowbkt = psnowbkt - min(psnowbkt, zsnmel)
+        zsnmel = zsnmel - min(psnowbkt, zsnmel)
+        pslwc[0] = pslwc[0] + min(psnowbkt, zsnmel)
         
     for jk in range(len(pslwc)):
         # Exit when melt is depleted
-        if (zsnout < c.smallno):
+        if (zsnmel < 1e-12):
             break
         
         # Update BV2017
         # How much energy is needed to bring the layer to melting point
-        deltaT = c.T_0 - ptsoil[jk]
+        deltaT = 273.15 - ptsoil[jk]
         # volumetric heat capacity of the layer in J/m3/K
         heat_capa_vol = zsn_capaF(prhofirn[jk], ptsoil[jk])
-        volume = (psnic[jk] + psnowc[jk])*c.rho_water / prhofirn[jk] 
+        volume = (psnic[jk] + psnowc[jk])*999.8395 / prhofirn[jk] 
         # heat capacity in J/K
         heat_capa = heat_capa_vol * volume
         # energy needed to warm layer to 0degC
         cold_content = deltaT*heat_capa; # in J
-        warming_energy = np.minimum(cold_content, zsnout*c.L_fus*c.rho_water) # in J
+        warming_energy = np.minimum(cold_content, zsnmel*334000*999.8395) # in J
         # warming layer
         ptsoil[jk] = ptsoil[jk] + warming_energy/heat_capa
         # removing the corresponding amount from the prescribed melt
-        zsnout = zsnout - warming_energy/c.L_fus/c.rho_water # in m weq
+        zsnmel = zsnmel - warming_energy/334000/999.8395 # in m weq
     
-        # Now the melting layer is either at melting point or zsnout is
-        # depleted. We can use the rest of zsnout to change phase.
+        # Now the melting layer is either at melting point or zsnmel is
+        # depleted. We can use the rest of zsnmel to change phase.
     
         #  How much frozen mass do we have in layer available for melting?       
-        zdel = min(zsnout, psnowc[jk] + psnic[jk])
+        # zdel = min(zsnmel, psnowc[jk] + psnic[jk])
     
         # Update BV2017: Snow and ice are now melted simultaneously
-        snow_melt = psnowc[jk]/(psnowc[jk]+psnic[jk]) * zdel
-        ice_melt = psnic[jk]/(psnowc[jk]+psnic[jk]) * zdel
+        snow_melt = psnowc[jk]/(psnowc[jk]+psnic[jk]) * min(zsnmel, psnowc[jk] + psnic[jk])
+        ice_melt = psnic[jk]/(psnowc[jk]+psnic[jk]) * min(zsnmel, psnowc[jk] + psnic[jk])
         
         psnowc[jk] = psnowc[jk] - snow_melt
         psnic[jk] = psnic[jk] - ice_melt
-        pslwc[jk] = pslwc[jk] + zdel
+        pslwc[jk] = pslwc[jk] + min(zsnmel, psnowc[jk] + psnic[jk])
         
-        zsnout = zsnout - zdel
-    
+        zsnmel = zsnmel - min(zsnmel, psnowc[jk] + psnic[jk])
     
     if np.sum((psnowc+psnic)==0)>1:
         print('MELTING MORE THAN ONE LAYER')
@@ -327,7 +351,6 @@ def melting_new (psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn, c):
     return psnowc, psnic, pslwc, ptsoil, psnowbkt
 
 
-# @jit
 def merge_layer(psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil, c):
     # merge_layer: This function finds the two layers in the column that are
     # most similar,merges them and frees the top layer. The similarity between
@@ -365,7 +388,7 @@ def merge_layer(psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil, c):
     depth_mid_weq = (depth_weq_zero[1:] + depth_weq_zero[:-1]) / 2
 
     delta_depth = np.diff(depth_mid_weq)
-    delta_depth = np.diff(psnowc + psnic) # for compatibility with Matlab, will be removed
+    # delta_depth = np.diff(psnowc + psnic) # for compatibility with Matlab, will be removed
 
     # 1st criterion: Difference in temperature
     diff = np.abs(ptsoil[:-1] - ptsoil[1:])/delta_depth
@@ -412,21 +435,26 @@ def merge_layer(psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil, c):
     
     # final rating:
     w1 = 1
-    w2 = 1
+    w2 = 2
     w3 = 1
     w4 = 1
     w5 = 1
-    w6 = 2
+    w6 = 1
     w7 = 3
     crit = (w1*crit_1 + w2*crit_2+ w3*crit_3 + w4*crit_4 + w5*crit_5 + w6 * crit_6+ w7 * crit_7)/(w1+w2+w3+w4+w5+w6+w7)
     i_merg = np.where(crit == max(crit))[-1]
-
+    # for some reason np.where gives back a list of numpy arrays
+    if isinstance(i_merg, list) | (type(i_merg).__module__ == np.__name__):
+        # print(crit)
+        # print(max(crit))
+        # print(np.where(crit == max(crit)))
+        i_merg = i_merg[0]
     # layer of index i_merg and i_merg+1 are merged
-    if (psnowc[i_merg+1] + psnowc[i_merg])> c.smallno:
-        if psnowc[i_merg+1]<c.smallno:
+    if (psnowc[i_merg+1] + psnowc[i_merg])> 1e-12:
+        if psnowc[i_merg+1]<1e-12:
             psnowc[i_merg+1] = 0
         
-        if psnowc[i_merg]<c.smallno:
+        if psnowc[i_merg]<1e-12:
             psnowc[i_merg] = 0
         
         #if there is snow in the two layers
@@ -454,7 +482,7 @@ def merge_layer(psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil, c):
     
     return psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil
 
-# @jit
+
 def merge_small_layers (prhofirn, psnowc, psnic, pslwc, ptsoil, pdgrain, c):
     # Now that the water has percolated and refrozen, we go through the column and check
     # that there is no layer that ed up too small
@@ -506,7 +534,6 @@ def merge_small_layers (prhofirn, psnowc, psnic, pslwc, ptsoil, pdgrain, c):
     return prhofirn, psnowc, psnic, pslwc, ptsoil, pdgrain
 
 
-# @jit
 def rainfall_new (zraind, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts, c):
     #add_rainfall: Routine that adds rain water input on top of the 
     #subsurface column. Update BV2017: No mass shift anymore. Water is just
@@ -541,7 +568,7 @@ def rainfall_new (zraind, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts, 
 
     return psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil
 
-# @jit
+
 def refreeze(psnowc, psnic, pslwc, ptsoil, c):
     # refreeze: Calculates the amount of refreezing undergone in the subsurface
     # column after the meltwater has percolated.
@@ -593,7 +620,7 @@ def refreeze(psnowc, psnic, pslwc, ptsoil, c):
     # pts = ptsoil[0]
     return psnic, pslwc, ptsoil, zrfrz
 
-# @jit
+
 def snowfall_new (zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts, psnowbkt, zraind, zsnmel, c):
     # snowfall_new: Routine that adds new fallen snow (net from 
     # sublimation)on top of the subsurface column. It is first accumulated in 
@@ -656,10 +683,10 @@ def snowfall_new (zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts, psn
     # compartment of the first layer
     if ((zraind>c.smallno) | (zsnmel>c.smallno)) & (psnowbkt>c.smallno):
         # mass-weighted average for temperature
-        ptsoil[0] = (ptsoil[0]*(psnowc[0]+pslwc[0]+psnic[0]) + min(pts,c.T_0)*psnowbkt)        /(psnowc[0]+pslwc[0]+psnic[0]+ psnowbkt)
+        ptsoil[0] = (ptsoil[0]*(psnowc[0]+pslwc[0]+psnic[0]) + min(pts,c.T_0)*psnowbkt) /(psnowc[0]+pslwc[0]+psnic[0]+ psnowbkt)
         
         #snow-mass-weighted average for grain size
-        pdgrain[0] = (psnowc[0] * pdgrain[0] + psnowbkt * c.dgrainNew)            /(psnowc[0] + psnowbkt)
+        pdgrain[0] = (psnowc[0] * pdgrain[0] + psnowbkt * c.dgrainNew) /(psnowc[0] + psnowbkt)
         
         # volume-weighted average for density
         prhofirn[0] = (psnowc[0] + psnowbkt) / (psnowbkt/c.rho_fresh_snow +  psnowc[0]/prhofirn[0])
@@ -668,7 +695,7 @@ def snowfall_new (zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts, psn
         psnowbkt = 0       
     return psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt    
 
-# @jit
+
 def split_layer(psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil, c):
     # split_layer: This def finds the layer that is the best to be
     # splitted. In most cases, since gradients in temperature, water content
@@ -765,7 +792,7 @@ def split_layer(psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil, c):
     return psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil
 
 
-# @jit
+
 def sublimation_new (zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt, c):
     # sublimation_new: Routine that removes sublimation from the first layer of
     # the column. Update BV2017: The proportion of ice and snow that is 
@@ -838,22 +865,7 @@ def sublimation_new (zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnow
     return psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt   
 
 
-# @jit
-def cpiceF(ptsoil):
-    #cpice: right now constant heat capacity of ice. Can be modified to be
-    #depant on ice caracteristics.
-    #
-    #   This script was originally developped by Peter Langen (pla@dmi.dk) and
-    #   Robert S. Fausto (rsf@geus.dk) in FORTRAN then translated to python by 
-    #   Baptiste Vandecrux (bav@geus.dk).
-    #=========================================================================
-    # Specific heat capacity of ice J/kg/K
-    # cpice = 2.108e+03# standard value at 0degC 
-    
-    # Update BV2017
-    # Yen 1981 originally in J/mol/K converted to J/kg/K
-    # 1kg of ice has same capacity as 1kg snow.
-    return (2.7442 + 0.1282 * ptsoil)/18*1000
+
 
 # @jit
 def superimposedice(prhofirn, ptsoil, psnowc, psnic, pslwc, zso_cond, c):
@@ -915,12 +927,12 @@ def superimposedice(prhofirn, ptsoil, psnowc, psnic, pslwc, zso_cond, c):
     # The next layer has bulk density high enough that we will consider it as
     # an ice layer. Therefore we calculate SI-formation:
     snowV = 0.5*psnowc[isfrozen==1]  *c.rho_water/prhofirn[isfrozen==1]
-    iceV = 0.5*psnic[isfrozen==1]  *c.rh2oice
+    iceV = 0.5*psnic[isfrozen==1]  *1.1109327777777778
     totalV = snowV + iceV
     zx1 = snowV / totalV
     zx2 = iceV   / totalV
     # update BV2017 zsn_cond is now vector
-    ki= 1/( zx1/zsn_condF(prhofirn[isfrozen==1], c) + zx2/zso_cond[isfrozen==1] )
+    ki= 1/( zx1/zsn_condF(prhofirn[isfrozen==1]) + zx2/zso_cond[isfrozen==1] )
     dTdz = (c.T_0-ptsoil[isfrozen==1])  / totalV 
     
     # The potential superimposed ice (SI) formation (Only interested in positive SIF):
@@ -942,8 +954,15 @@ def superimposedice(prhofirn, ptsoil, psnowc, psnic, pslwc, zso_cond, c):
     return ptsoil, psnic, pslwc, zsupimp
 
 
-# @jit
-def update_tempdiff_params (prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_cond, zso_capa, c):
+# @jit(nopython=True)
+def numba_insert(arr, num, row):
+    row = np.expand_dims(row, 0)
+    a = np.hstack((arr[:num], row, arr[num:]))
+    return a
+
+
+# @jit(nopython=True)
+def update_tempdiff_params (prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_cond, zso_capa):
     # update_tempdiff_params: Updates the thermal capacity and conductivity of 
     # subsurface column based on the new density and temperature profiles. Also
     # calcualates subsurface heat flux to the surface pgrndhflx and calorific capacity of the
@@ -957,6 +976,7 @@ def update_tempdiff_params (prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_
     # Robert S. Fausto (rsf@geus.dk) in FORTRAN then translated to python by 
     # Baptiste Vandecrux (bav@geus.dk).
     #=========================================================================
+    zdtime = 3600
     
     # PETER AND RUTH's VERSION (Note: we ignore the liquid content in all of 
     # the following). We need physical layer thicknesses (i.e., in
@@ -981,24 +1001,24 @@ def update_tempdiff_params (prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_
     # Therefore first two nodes are seperated by all of layer 1 and half of
     # layer 2.
     # volume of snow in upper layer:
-    snowV1[0] = psnowc[0]*c.rho_water/prhofirn[0] 
+    snowV1[0] = psnowc[0]*999.8395/prhofirn[0] 
     # volume of snow in lower half layer:
-    snowV2[0] = 0.5*psnowc[1]*c.rho_water/prhofirn[1] 
+    snowV2[0] = 0.5*psnowc[1]*999.8395/prhofirn[1] 
     # volume of ice in both layer:
-    iceV[0] = (psnic[0] + 0.5*psnic[1]) * c.rho_water / c.rho_ice 
+    iceV[0] = (psnic[0] + 0.5*psnic[1]) * 999.8395 / 900 
     
     # For following nodes, two neighboring nodes are separated by half of the 
     # upper layer and half of the lower layer
     # volume of snow in upper half layer:
-    snowV1[1:] = 0.5*psnowc[1:]  *    c.rho_water/prhofirn[1:]
+    snowV1[1:] = 0.5*psnowc[1:]  *    999.8395/prhofirn[1:]
     # volume of snow in lower half layer:
-    snowV2[1:-1] = 0.5*psnowc[2:] * c.rho_water/prhofirn[2:]
+    snowV2[1:-1] = 0.5*psnowc[2:] * 999.8395/prhofirn[2:]
     # volume of ice in both half layers:
-    iceV[1:-1] = 0.5*(psnic[1:-1] + psnic[2:]) * c.rh2oice
+    iceV[1:-1] = 0.5*(psnic[1:-1] + psnic[2:]) * 1.1109327777777778
     
     # Bottom layer zcapa asnp.suming below is ice to same thickness (at least)
     snowV2[-1] = 0
-    iceV[-1] = 0.5 * (psnic[-1] + thickness_weq[-1]) *c.rh2oice
+    iceV[-1] = 0.5 * (psnic[-1] + thickness_weq[-1]) *1.1109327777777778
     
     # total mass separating two nodes
     totalV = snowV1 + snowV2 + iceV
@@ -1019,24 +1039,24 @@ def update_tempdiff_params (prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_
     # thick_tt/k_tt_eff = thick_1/k_1 + thick_2/k_2 + thick_3/k_3
     # Warning: It dos not include thermal exchange through air in pore and
     # through water. In W/m/K.
-    zkappa = 1/ ( snow_frac_lay_1/zsn_condF(prhofirn, c) + snow_frac_lay_2/zsn_condF(np.append(prhofirn[1:], prhofirn[-1]), c) + ice_frac/zso_cond)
+    zkappa = 1/ ( snow_frac_lay_1/zsn_condF(prhofirn) + snow_frac_lay_2/zsn_condF(np.append(prhofirn[1:], prhofirn[-1])) + ice_frac/zso_cond)
     
     # Calculate volumetric heat capacity and effective thermal conductivity
     # by multiplying, resp. dividing, by each layer thickness to get to the 
     # effective values
     
     # calculating layer volume (without liquid water)
-    thickness_dry_m = psnowc *c .rho_water/prhofirn + psnic*c.rh2oice
+    thickness_dry_m = psnowc *999.8395/prhofirn + psnic*1.1109327777777778
     # !!! Why here not totalV ?
     
     # Total heat capacity for each layer in W/K
-    zcapa_abs =zcapa *thickness_dry_m / c.zdtime
+    zcapa_abs = zcapa *thickness_dry_m / zdtime
     
     # The following used to go jk=1,c.jpgrnd-1
     # Now we include c.jpgrnd, because it is needed below:
     
     # Real distance between midpoints. Note repeated index for last layer.
-    dist_mid = (np.insert(thickness_dry_m[1:], -1, thickness_dry_m[-1])+thickness_dry_m) / 2
+    dist_mid = (numba_insert(thickness_dry_m[1:], -1, thickness_dry_m[-1])+thickness_dry_m) / 2
     # calculating effective thermal conductivity
     zkappa_abs = zkappa / dist_mid
     # !!! why her not *depth_mid_m
@@ -1054,7 +1074,7 @@ def update_tempdiff_params (prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_
     # Sublayer is all ice (zcapa = zso_capa) and of mass thickness_weq[-1]
     # giving physical thickness thickness_weq[-1]*c.rh2oice:
     # Update BV2017: using the temperature depant heat capacity of ice
-    zcapa_abs_sublayer = zsn_capaF(c.rho_ice,pTdeep) * thickness_weq[-1] * c.rho_water / c.rho_ice / c.zdtime
+    zcapa_abs_sublayer = zsn_capaF(900,pTdeep) * thickness_weq[-1] * 999.8395 / 900 / zdtime
     # corresponds to zcapa_abs(c.jpgrnd+1)
     z1 = zcapa_abs_sublayer + zkappa_abs[-1]
     
@@ -1076,27 +1096,10 @@ def update_tempdiff_params (prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_
     #   CALORIFIC CAPACITY OF THE GROUND:
     #   ---------------------------------------------------------
     pgrndhflx=zkappa_abs[0] * (pgrndc[0] +(pgrndd[0]-1) * ptsoil[0])
-    pgrndcapc=(zcapa_abs[0] * c.zdtime+ c.zdtime * (1-pgrndd[0]) * zkappa_abs[0])
+    pgrndcapc=(zcapa_abs[0] * zdtime + zdtime * (1-pgrndd[0]) * zkappa_abs[0])
     return pgrndc,pgrndd, pgrndcapc, pgrndhflx
 
-# @jit
-def zsn_capaF(RHOS,ptsoil):
-    # The F in the name zsn_capaF stands for "def"
-    # Here the specific (per kg) heat is converted into volumetric heat (per
-    # m**3) capacity by multiplying by the density.
-    return cpiceF(ptsoil)*RHOS  # snow vol. heat capacity   [J/m**3/K]
 
-# @jit
-def zsn_condF(prhofirn, c):
-    # The F in the name zsn_condF stands for "def"
-    # older versions
-    # zsn_condF2 = cpice(0)*c.rho_ice*c.zdifiz*((prhofirn/c.rho_water)**1.88)
-    # zsn_condF2 = (1-(c.rho_ice - prhofirn)/c.rho_ice)*2.1
-    # update BV2017
-    # snow thermal conductivity [J/s/m/K]
-    # Yen, Y. (1981), Review of thermal properties of snow, ice and sea ice,
-    # Rep. 81-10, U. S. Army Cold Reg. Res. and Eng. Lab. (CRREL), Hanover, N. H
-    return 2.22362*(prhofirn/1000)**1.88
 
 # @jit
 def calc_snowdepth1D (psnowc, psnic, pslwc, psnowbkt, c):

@@ -17,6 +17,39 @@ class Struct:
         for property, value in vars(self).items():
             print(property, ":", value)
 
+def IniVar(time, c):
+    df_ini = InitializationSubsurface(c)
+
+    rhofirn = np.empty((c.num_lay, len(time)), dtype='float64')
+    snowc = np.empty((c.num_lay, len(time)), dtype='float64')
+    snic = np.empty((c.num_lay, len(time)), dtype='float64')
+    slwc = np.empty((c.num_lay, len(time)), dtype='float64')
+    dgrain = np.empty((c.num_lay, len(time)), dtype='float64')
+    tsoil = np.empty((c.num_lay, len(time)), dtype='float64')
+    grndc = np.empty((c.num_lay, len(time)), dtype='float64')
+    grndd = np.empty((c.num_lay, len(time)), dtype='float64')
+    compaction = np.empty((c.num_lay, len(time)), dtype='float64')
+    zrfrz = np.empty((c.num_lay, len(time)), dtype='float64')
+    zsupimp = np.empty((c.num_lay, len(time)), dtype='float64')
+    
+    ts = np.empty((len(time)), dtype='float64')
+    zrogl = np.empty((len(time)), dtype='float64')
+    pgrndcapc = np.empty((len(time)), dtype='float64')
+    pgrndhflx = np.empty((len(time)), dtype='float64')
+    dH_comp = np.empty((len(time)), dtype='float64')
+    snowbkt = np.empty((len(time)), dtype='float64')
+    
+    # first time step
+    rhofirn[:, -1] = df_ini.rhofirn
+    snic[:, -1] = df_ini.snic
+    snowc[:, -1] = df_ini.snowc
+    dgrain[:, -1] = df_ini.grain_size_mm
+    tsoil[:, -1] = df_ini.temp_degC
+    grndc[:, -1] = tsoil[:, -1]
+    snowbkt[-1] = 0
+    return rhofirn, snowc, snic, slwc, dgrain, tsoil, grndc, grndd, compaction, \
+        zrfrz, zsupimp, ts, zrogl, pgrndcapc, pgrndhflx, dH_comp, snowbkt
+
 
 def ImportConst(ElevGrad = 0.1):
     # ImportConst: Reads physical, site-depant, simulation-depant and
@@ -27,10 +60,6 @@ def ImportConst(ElevGrad = 0.1):
     #
     # Author: Baptiste Vandecrux (bav@geus.dk)
     # ========================================================================
-    # Import constants for the transect-mode run ----------------------------
-    # originally the surface energy balance was designed to work on transects.
-    # This defnality is not working anymore but might be implemented again
-    # later on.
     
     c = pd.read_csv('Input/Constants/const_phy.csv', sep = ';', header = None).append(
         pd.read_csv('Input/Constants/const_sim.csv', sep = ';', header = None)).append(
@@ -55,9 +84,8 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
     # Author: Baptiste Vandecrux (bav@geus.dk)
     #==========================================================================
     
-    # %% Initial density profile
-    # filename = '.\Input\Initial state\initial_density_'+ c.station+'.csv'    
-    filename = '.\Input\Initial state\initial_density_IMAU_aws4.csv'    
+    # Initial density profile
+    filename = './Input/Initial state/'+ c.station+'_initial_density.csv'    
     df_ini_dens = pd.read_csv(filename, sep = ';')
     df_ini_dens.loc[df_ini_dens.density_kgm3.isnull(),'density_kgm3'] = 350
 
@@ -88,6 +116,7 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
     df_ini_dens['depth_m_2'] = np.cumsum(df_ini_dens['thickness_m'])
     
     # finding within which final depth bin each layer of the merged array falls in
+    df_ini_dens = df_ini_dens.loc[df_ini_dens.index <= depth_mod_weq.max(),:]
     df_ini_dens['placings'] = np.digitize(df_ini_dens.index, depth_mod_weq, right = True)
     
     # within each final depth bin, making the average of densities weighted by the thikcness of the layers that compose each final bin
@@ -120,9 +149,9 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
     df_mod['snowc'] = df_mod['thickness_mweq']
     df_mod['snic'] = 0
     
-    # %% Initial temperature profile
-    # filename = '.\Input\Initial state\initial_temperature_'+ c.station+'.csv'
-    filename = '.\Input\Initial state\initial_temperature_IMAU_aws4.csv'
+    # Initial temperature profile
+    filename = './Input/Initial state/'+ c.station+'_initial_temperature.csv'    
+    # filename = '.\Input\Initial state\initial_temperature_IMAU_aws4.csv'
     df_ini_temp = pd.read_csv(filename, sep = ';')
     df_ini_temp = df_ini_temp.loc[df_ini_temp.depth_m>=0,:]
     # df_ini_temp = df_ini_temp.loc[df_ini_temp.temperature_degC.notnull(),:]
@@ -139,9 +168,9 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
     df_mod['temp_degC'] = df_mod['temp_degC'].fillna(method='bfill').values + c.T_0
 
 
-    # %% Initial grain size
-    filename = '.\Input\Initial state\initial_grain_size_' + c.station + '.csv'
-    filename = '.\Input\Initial state\initial_grain_size_IMAU_aws4.csv'
+    # Initial grain size
+    filename = './Input/Initial state/all_sites_initial_grain_size.csv'    
+    # filename = '.\Input\Initial state\initial_grain_size_IMAU_aws4.csv'
     df_ini_gs = pd.read_csv(filename, sep=';')
     df_ini_gs = df_ini_gs.set_index('depth_m')
 
