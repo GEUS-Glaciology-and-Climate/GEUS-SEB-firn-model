@@ -1,6 +1,6 @@
 ![https://github.com/psf/black](https://img.shields.io/badge/code%20style-black-000000.svg)
 ![License: GPL v2](https://img.shields.io/badge/License-GPL_v2-blue.svg)
-![https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/issues](https://img.shields.io/github/issues-raw/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model)
+[![https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/issues](https://img.shields.io/github/issues-raw/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model)](https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/issues)
 ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model)
 
 
