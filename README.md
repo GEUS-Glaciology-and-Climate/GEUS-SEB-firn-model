@@ -1,8 +1,16 @@
+![https://github.com/psf/black](https://img.shields.io/badge/code%20style-black-000000.svg)
+![License: GPL v2](https://img.shields.io/badge/License-GPL_v2-blue.svg)
+![GitHub issues](https://img.shields.io/github/issues-raw/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model)
+![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model)
+
+
 # The GEUS Surface Energy Balance and Firn Model
  Python version of the GEUS SEB and firn model
 
 Baptiste Vandecrux
+
 bav@geus.dk
+
 All the scripts were adapted from the ![Matlab version](https://github.com/BaptisteVandecrux/SEB_Firn_model) of the GEUS model.
 
 # Table of Contents
