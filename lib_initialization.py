@@ -1,44 +1,47 @@
 # class Dog:
-     
+
 #     # A simple class
 #     # attribute
 #     attr1 = "mammal"
 #     attr2 = "dog"
- 
-#     # A sample method 
+
+#     # A sample method
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
+
 
 class Struct:
     def __init__(self, **entries):
         self.__dict__.update(entries)
+
     def disp(self):
         for property, value in vars(self).items():
             print(property, ":", value)
 
+
 def IniVar(time, c):
     df_ini = InitializationSubsurface(c)
 
-    rhofirn = np.empty((c.num_lay, len(time)), dtype='float64')
-    snowc = np.empty((c.num_lay, len(time)), dtype='float64')
-    snic = np.empty((c.num_lay, len(time)), dtype='float64')
-    slwc = np.empty((c.num_lay, len(time)), dtype='float64')
-    dgrain = np.empty((c.num_lay, len(time)), dtype='float64')
-    tsoil = np.empty((c.num_lay, len(time)), dtype='float64')
-    grndc = np.empty((c.num_lay, len(time)), dtype='float64')
-    grndd = np.empty((c.num_lay, len(time)), dtype='float64')
-    compaction = np.empty((c.num_lay, len(time)), dtype='float64')
-    zrfrz = np.empty((c.num_lay, len(time)), dtype='float64')
-    zsupimp = np.empty((c.num_lay, len(time)), dtype='float64')
-    
-    ts = np.empty((len(time)), dtype='float64')
-    zrogl = np.empty((len(time)), dtype='float64')
-    pgrndcapc = np.empty((len(time)), dtype='float64')
-    pgrndhflx = np.empty((len(time)), dtype='float64')
-    dH_comp = np.empty((len(time)), dtype='float64')
-    snowbkt = np.empty((len(time)), dtype='float64')
-    
+    rhofirn = np.empty((c.num_lay, len(time)), dtype="float64")
+    snowc = np.empty((c.num_lay, len(time)), dtype="float64")
+    snic = np.empty((c.num_lay, len(time)), dtype="float64")
+    slwc = np.empty((c.num_lay, len(time)), dtype="float64")
+    dgrain = np.empty((c.num_lay, len(time)), dtype="float64")
+    tsoil = np.empty((c.num_lay, len(time)), dtype="float64")
+    grndc = np.empty((c.num_lay, len(time)), dtype="float64")
+    grndd = np.empty((c.num_lay, len(time)), dtype="float64")
+    compaction = np.empty((c.num_lay, len(time)), dtype="float64")
+    zrfrz = np.empty((c.num_lay, len(time)), dtype="float64")
+    zsupimp = np.empty((c.num_lay, len(time)), dtype="float64")
+
+    ts = np.empty((len(time)), dtype="float64")
+    zrogl = np.empty((len(time)), dtype="float64")
+    pgrndcapc = np.empty((len(time)), dtype="float64")
+    pgrndhflx = np.empty((len(time)), dtype="float64")
+    dH_comp = np.empty((len(time)), dtype="float64")
+    snowbkt = np.empty((len(time)), dtype="float64")
+
     # first time step
     rhofirn[:, -1] = df_ini.rhofirn
     snic[:, -1] = df_ini.snic
@@ -47,11 +50,28 @@ def IniVar(time, c):
     tsoil[:, -1] = df_ini.temp_degC
     grndc[:, -1] = tsoil[:, -1]
     snowbkt[-1] = 0
-    return rhofirn, snowc, snic, slwc, dgrain, tsoil, grndc, grndd, compaction, \
-        zrfrz, zsupimp, ts, zrogl, pgrndcapc, pgrndhflx, dH_comp, snowbkt
+    return (
+        rhofirn,
+        snowc,
+        snic,
+        slwc,
+        dgrain,
+        tsoil,
+        grndc,
+        grndd,
+        compaction,
+        zrfrz,
+        zsupimp,
+        ts,
+        zrogl,
+        pgrndcapc,
+        pgrndhflx,
+        dH_comp,
+        snowbkt,
+    )
 
 
-def ImportConst(ElevGrad = 0.1):
+def ImportConst(ElevGrad=0.1):
     # ImportConst: Reads physical, site-depant, simulation-depant and
     # user-defined parameters from a set of csv files located in the ./Input
     # folder. It stores all of them in the c structure that is then passed to
@@ -60,149 +80,194 @@ def ImportConst(ElevGrad = 0.1):
     #
     # Author: Baptiste Vandecrux (bav@geus.dk)
     # ========================================================================
-    
-    c = pd.read_csv('Input/Constants/const_phy.csv', sep = ';', header = None).append(
-        pd.read_csv('Input/Constants/const_sim.csv', sep = ';', header = None)).append(
-            pd.read_csv('Input/Constants/const_subsurf.csv', sep = ';', header = None)).transpose()
-    c.columns = c.iloc[0,:]
-    c = c.iloc[1,:]
-    c = c.apply(pd.to_numeric, errors='ignore')
-    c[['ch1', 'ch2','ch3','cq1', 'cq2','cq3']] = c[['ch1', 'ch2','ch3','cq1', 'cq2','cq3']] .apply(np.fromstring, dtype=float, sep=',')
+
+    c = (
+        pd.read_csv("Input/Constants/const_phy.csv", sep=";", header=None)
+        .append(pd.read_csv("Input/Constants/const_sim.csv", sep=";", header=None))
+        .append(pd.read_csv("Input/Constants/const_subsurf.csv", sep=";", header=None))
+        .transpose()
+    )
+    c.columns = c.iloc[0, :]
+    c = c.iloc[1, :]
+    c = c.apply(pd.to_numeric, errors="ignore")
+    c[["ch1", "ch2", "ch3", "cq1", "cq2", "cq3"]] = c[
+        ["ch1", "ch2", "ch3", "cq1", "cq2", "cq3"]
+    ].apply(np.fromstring, dtype=float, sep=",")
     c = c.to_dict()
     c = Struct(**c)
     # Determine local runoff time-scale  (Zuo and Oerlemans 1996). Parameters
     # are set as in Lefebre et al (JGR, 2003) = MAR value (Fettweis pers comm)
-    c.t_runoff = (c.cro_1 + c.cro_2 * np.exp(- c.cro_3 * ElevGrad))*c.t_runoff_fact
+    c.t_runoff = (c.cro_1 + c.cro_2 * np.exp(-c.cro_3 * ElevGrad)) * c.t_runoff_fact
     return c
 
 
-def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_ini, j, c):
+def InitializationSubsurface(
+    c,
+):  # T_obs, depth_thermistor, T_ice, time, Tsurf_ini, j, c):
     # InitializationSubsurface: Sets the initial state of the sub surface parameters:
     # - snow depth
     # - temperature profile
     # - density profile
     # Author: Baptiste Vandecrux (bav@geus.dk)
-    #==========================================================================
-    
+    # ==========================================================================
+
     # Initial density profile
-    filename = './Input/Initial state/'+ c.station+'_initial_density.csv'    
-    df_ini_dens = pd.read_csv(filename, sep = ';')
-    df_ini_dens.loc[df_ini_dens.density_kgm3.isnull(),'density_kgm3'] = 350
+    filename = "./Input/Initial state/" + c.station + "_initial_density.csv"
+    df_ini_dens = pd.read_csv(filename, sep=";")
+    df_ini_dens.loc[df_ini_dens.density_kgm3.isnull(), "density_kgm3"] = 350
 
-    df_ini_dens['thickness_m'] = np.insert(np.diff(df_ini_dens.depth_m),0,df_ini_dens.depth_m[0])
-    df_ini_dens['thickness_mweq'] = df_ini_dens['thickness_m']  / c.rho_water * df_ini_dens.density_kgm3
-    df_ini_dens['depth_weq']  = np.cumsum(df_ini_dens['thickness_mweq'] )
-    df_ini_dens = df_ini_dens.set_index('depth_weq')
+    df_ini_dens["thickness_m"] = np.insert(
+        np.diff(df_ini_dens.depth_m), 0, df_ini_dens.depth_m[0]
+    )
+    df_ini_dens["thickness_mweq"] = (
+        df_ini_dens["thickness_m"] / c.rho_water * df_ini_dens.density_kgm3
+    )
+    df_ini_dens["depth_weq"] = np.cumsum(df_ini_dens["thickness_mweq"])
+    df_ini_dens = df_ini_dens.set_index("depth_weq")
 
-    NumLayer = c.z_max/c.dz_ice
+    NumLayer = c.z_max / c.dz_ice
 
-    depth_mod_weq =  np.insert(np.arange(1, NumLayer+1)**4/(NumLayer)**4 *c.z_max,0,0)
+    depth_mod_weq = np.insert(
+        np.arange(1, NumLayer + 1) ** 4 / (NumLayer) ** 4 * c.z_max, 0, 0
+    )
     # here we make sure the top layers are thick enough
     # if they are too thin we augment them to c.lim_new_lay and remove the added mass from the bottom layer so that the total depth weq is still c.z_max
     thickness_mod_weq = np.diff(depth_mod_weq)
-    tmp = np.maximum(0,c.lim_new_lay - thickness_mod_weq)
+    tmp = np.maximum(0, c.lim_new_lay - thickness_mod_weq)
     thickness_mod_weq = thickness_mod_weq + tmp - np.flip(tmp)
 
-    depth_mod_weq = np.cumsum(np.insert(thickness_mod_weq,0,0))
-    
-    df_mod = pd.DataFrame(depth_mod_weq[1:], columns=['depth_weq'])
-    df_mod = df_mod.set_index('depth_weq')
-    
+    depth_mod_weq = np.cumsum(np.insert(thickness_mod_weq, 0, 0))
+
+    df_mod = pd.DataFrame(depth_mod_weq[1:], columns=["depth_weq"])
+    df_mod = df_mod.set_index("depth_weq")
+
     df_ini_dens = pd.concat([df_ini_dens, df_mod]).sort_index()
-    df_ini_dens['density_kgm3'] = df_ini_dens['density_kgm3'].fillna(method = 'bfill').values
-    
-    df_ini_dens['thickness_mweq'] = np.insert(np.diff(df_ini_dens.index), 0, df_ini_dens.index[0])
-    df_ini_dens['thickness_m'] = df_ini_dens.thickness_mweq * c.rho_water / df_ini_dens.density_kgm3
-    df_ini_dens['depth_m_2'] = np.cumsum(df_ini_dens['thickness_m'])
-    
+    df_ini_dens["density_kgm3"] = (
+        df_ini_dens["density_kgm3"].fillna(method="bfill").values
+    )
+
+    df_ini_dens["thickness_mweq"] = np.insert(
+        np.diff(df_ini_dens.index), 0, df_ini_dens.index[0]
+    )
+    df_ini_dens["thickness_m"] = (
+        df_ini_dens.thickness_mweq * c.rho_water / df_ini_dens.density_kgm3
+    )
+    df_ini_dens["depth_m_2"] = np.cumsum(df_ini_dens["thickness_m"])
+
     # finding within which final depth bin each layer of the merged array falls in
-    df_ini_dens = df_ini_dens.loc[df_ini_dens.index <= depth_mod_weq.max(),:]
-    df_ini_dens['placings'] = np.digitize(df_ini_dens.index, depth_mod_weq, right = True)
-    
+    df_ini_dens = df_ini_dens.loc[df_ini_dens.index <= depth_mod_weq.max(), :]
+    df_ini_dens["placings"] = np.digitize(df_ini_dens.index, depth_mod_weq, right=True)
+
     # within each final depth bin, making the average of densities weighted by the thikcness of the layers that compose each final bin
     wm = lambda x: np.average(x, weights=df_ini_dens.loc[x.index, "thickness_m"])
-    df_mod['density_kgm3'] =  df_ini_dens.groupby("placings").agg(weighted_density=("density_kgm3", wm)).values
+    df_mod["density_kgm3"] = (
+        df_ini_dens.groupby("placings")
+        .agg(weighted_density=("density_kgm3", wm))
+        .values
+    )
 
     # df_mod['density_kgm3'] = df_mod['density_kgm3'].interpolate().values
     # df_mod['density_kgm3'] = df_mod['density_kgm3'].fillna(method = 'bfill').values
 
     # df_mod['density_kgm3'] = np.minimum(np.maximum(300, df_mod['density_kgm3'].values),900)
 
-    if  df_mod['density_kgm3'].last_valid_index() <  df_mod['density_kgm3'].index.values[-1]:
-        tmp = df_mod.loc[df_mod.density_kgm3.notnull(),'density_kgm3']
+    if (
+        df_mod["density_kgm3"].last_valid_index()
+        < df_mod["density_kgm3"].index.values[-1]
+    ):
+        tmp = df_mod.loc[df_mod.density_kgm3.notnull(), "density_kgm3"]
         x = np.around(np.append(tmp.index.values, [30, 70]), 4)
-        y = np.around(np.append(tmp.values, [830, 830]),4)
+        y = np.around(np.append(tmp.values, [830, 830]), 4)
         fo = np.poly1d(np.polyfit(x, y, 2))
-        df_mod.loc[df_mod.density_kgm3.isnull(),'density_kgm3'] = fo(df_mod.loc[df_mod.density_kgm3.isnull(),'density_kgm3'].index.values)
-       
-        df_mod['density_kgm3'] = np.minimum(np.maximum(300, df_mod['density_kgm3'].values),900)
+        df_mod.loc[df_mod.density_kgm3.isnull(), "density_kgm3"] = fo(
+            df_mod.loc[df_mod.density_kgm3.isnull(), "density_kgm3"].index.values
+        )
+
+        df_mod["density_kgm3"] = np.minimum(
+            np.maximum(300, df_mod["density_kgm3"].values), 900
+        )
 
     # ind_last = df_mod.density_kgm3.last_valid_index()
     # df_mod.loc[ind_last:, 'density_kgm3'] = 917
-    
-    df_mod['thickness_mweq'] = np.diff(depth_mod_weq)
-    df_mod['thickness_m'] = df_mod['thickness_mweq'] * c.rho_water / df_mod['density_kgm3']
-    
-    df_mod['depth_m'] = np.cumsum(df_mod.thickness_m)
-    
-    df_mod['rhofirn'] = df_mod.density_kgm3
-    df_mod['snowc'] = df_mod['thickness_mweq']
-    df_mod['snic'] = 0
-    
+
+    df_mod["thickness_mweq"] = np.diff(depth_mod_weq)
+    df_mod["thickness_m"] = (
+        df_mod["thickness_mweq"] * c.rho_water / df_mod["density_kgm3"]
+    )
+
+    df_mod["depth_m"] = np.cumsum(df_mod.thickness_m)
+
+    df_mod["rhofirn"] = df_mod.density_kgm3
+    df_mod["snowc"] = df_mod["thickness_mweq"]
+    df_mod["snic"] = 0
+
     # Initial temperature profile
-    filename = './Input/Initial state/'+ c.station+'_initial_temperature.csv'    
+    filename = "./Input/Initial state/" + c.station + "_initial_temperature.csv"
     # filename = '.\Input\Initial state\initial_temperature_IMAU_aws4.csv'
-    df_ini_temp = pd.read_csv(filename, sep = ';')
-    df_ini_temp = df_ini_temp.loc[df_ini_temp.depth_m>=0,:]
+    df_ini_temp = pd.read_csv(filename, sep=";")
+    df_ini_temp = df_ini_temp.loc[df_ini_temp.depth_m >= 0, :]
     # df_ini_temp = df_ini_temp.loc[df_ini_temp.temperature_degC.notnull(),:]
     # if df_ini_temp.depth_m.min() != 0:
     #     depth = [0; depth];
-    #     oldtemp = [Tsurf_ini - c.T_0; oldtemp];    
+    #     oldtemp = [Tsurf_ini - c.T_0; oldtemp];
     if df_ini_temp.depth_m.max() < df_mod.depth_m.max():
-        tmp = df_ini_temp.iloc[-1,:].copy()
+        tmp = df_ini_temp.iloc[-1, :].copy()
         tmp.depth_m = df_mod.depth_m.max()
         df_ini_temp = df_ini_temp.append(tmp)
-        
-    df_mod['temp_degC'] = np.interp(df_mod.depth_m, df_ini_temp.depth_m,
-                                     df_ini_temp.temperature_degC)
-    df_mod['temp_degC'] = df_mod['temp_degC'].fillna(method='bfill').values + c.T_0
 
+    df_mod["temp_degC"] = np.interp(
+        df_mod.depth_m, df_ini_temp.depth_m, df_ini_temp.temperature_degC
+    )
+    df_mod["temp_degC"] = df_mod["temp_degC"].fillna(method="bfill").values + c.T_0
 
     # Initial grain size
-    filename = './Input/Initial state/all_sites_initial_grain_size.csv'    
+    filename = "./Input/Initial state/all_sites_initial_grain_size.csv"
     # filename = '.\Input\Initial state\initial_grain_size_IMAU_aws4.csv'
-    df_ini_gs = pd.read_csv(filename, sep=';')
-    df_ini_gs = df_ini_gs.set_index('depth_m')
+    df_ini_gs = pd.read_csv(filename, sep=";")
+    df_ini_gs = df_ini_gs.set_index("depth_m")
 
-    df_mod['grain_size_mm'] = df_ini_gs.groupby(pd.cut(df_ini_gs.index, np.insert(df_mod.depth_m.values, 0, 0) )).mean().values
-    df_mod['grain_size_mm'] = df_mod['grain_size_mm'].interpolate().values
-    df_mod['grain_size_mm'] = df_mod['grain_size_mm'].fillna(method = 'bfill').values
+    df_mod["grain_size_mm"] = (
+        df_ini_gs.groupby(
+            pd.cut(df_ini_gs.index, np.insert(df_mod.depth_m.values, 0, 0))
+        )
+        .mean()
+        .values
+    )
+    df_mod["grain_size_mm"] = df_mod["grain_size_mm"].interpolate().values
+    df_mod["grain_size_mm"] = df_mod["grain_size_mm"].fillna(method="bfill").values
 
     # Initial water content
-    df_mod['slwc'] = 0
+    df_mod["slwc"] = 0
 
     if c.verbose == 1:
         fig, ax = plt.subplots(1, 4, sharey=True)
         ax = ax.flatten()
-        ax[0].step(df_mod.density_kgm3, -df_mod.depth_m, 
-                   where='pre', label = 'interpolated')
-        ax[0].step(df_ini_dens.density_kgm3, -df_ini_dens.depth_m,
-                   where='pre', label = 'original')
-        ax[0].set_xlabel('density_kgm3')
-        ax[1].step(df_mod.temp_degC-c.T_0, -df_mod.depth_m,
-                   where='pre', label = 'interpolated')
-        ax[1].step(df_ini_temp.temperature_degC, -df_ini_temp.depth_m, label = 'original')
-        ax[1].set_xlabel('temp_degC')
-        ax[2].step(df_mod.grain_size_mm, -df_mod.depth_m,
-                   where='pre', label = 'interpolated')
-        ax[2].step(df_ini_gs.grain_size_mm, -df_ini_gs.index,
-                   where='pre', label = 'original')
-        ax[2].set_xlabel('grain_size_mm')
+        ax[0].step(
+            df_mod.density_kgm3, -df_mod.depth_m, where="pre", label="interpolated"
+        )
+        ax[0].step(
+            df_ini_dens.density_kgm3,
+            -df_ini_dens.depth_m,
+            where="pre",
+            label="original",
+        )
+        ax[0].set_xlabel("density_kgm3")
+        ax[1].step(
+            df_mod.temp_degC - c.T_0, -df_mod.depth_m, where="pre", label="interpolated"
+        )
+        ax[1].step(df_ini_temp.temperature_degC, -df_ini_temp.depth_m, label="original")
+        ax[1].set_xlabel("temp_degC")
+        ax[2].step(
+            df_mod.grain_size_mm, -df_mod.depth_m, where="pre", label="interpolated"
+        )
+        ax[2].step(
+            df_ini_gs.grain_size_mm, -df_ini_gs.index, where="pre", label="original"
+        )
+        ax[2].set_xlabel("grain_size_mm")
         ax[2].legend()
-        ax[3].step(df_mod.slwc, -df_mod.depth_m,
-                   where='pre', label = 'interpolated')
-        ax[3].set_xlabel('slwc')
-        
+        ax[3].step(df_mod.slwc, -df_mod.depth_m, where="pre", label="interpolated")
+        ax[3].set_xlabel("slwc")
+
     return df_mod
 
 
@@ -216,10 +281,10 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 #         text_Si = 'CL'
 #     else
 #         text_Si = sprintf('#0.2f',c.liqmax)
-    
+
 #     RunName = [RunName, '_IWC_', text_Si]
 #     RunName = [RunName, sprintf('_#i_layers',c.jpgrnd-1)]
-    
+
 #     c.OutputFolder = sprintf('#s/#s',c.OutputRoot,RunName)
 #     [~,~,id] =  mkdir(c.OutputFolder)
 #     count = 1
@@ -228,10 +293,10 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 
 #        c.OutputFolder = sprintf('./Output/#s_#i',RunName,count)
 #        [~,~,id] =  mkdir(c.OutputFolder)
-    
+
 #     if count>1
 #            RunName = sprintf('#s_#i',RunName,count)
-    
+
 # return RunName, c
 
 # def RenamingVariables(data_out,c)
@@ -240,13 +305,13 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 #     year = data_out.Year
 #     hour = data_out.HourOfDayUTC
 #     day = data_out.DayOfYear
-# # leap years    
+# # leap years
 #     time = year + (day + hour/24)/365
 #     leapyear = find(year/4 == floor(year/4))
 #     if sum(leapyear) >0
 #         time(leapyear) = year(leapyear)+(day(leapyear)+hour(leapyear)/24.)/366
-    
-    
+
+
 # # temperature, humidity and wind speed
 #     if sum(strcmp(data_out.Properties.VariableNames,'AirTemperatureC'))
 #         disp('Only one level was detected on the weather station.')
@@ -274,7 +339,7 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 #             z_WS2 = data_out.HeightSensorBoomm_raw + 0.4
 #             z_T2 = data_out.HeightSensorBoomm_raw - 0.12
 #             z_RH2 = data_out.HeightSensorBoomm_raw - 0.12
-        
+
 
 # # assigning origin
 #         if sum(strcmp('WindSpeed1ms_Origin',data_out.Properties.VariableNames))
@@ -286,8 +351,8 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 #             o_T2 = zeros(size(T1))
 #             o_RH2 = zeros(size(T1))
 #             o_WS2 = zeros(size(T1))
-        
-        
+
+
 #     elseif sum(strcmp(data_out.Properties.VariableNames,'AirTemperature1C'))
 #         disp('Two levels detected on the weather station')
 #         T1 = data_out.AirTemperature1C
@@ -296,7 +361,7 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 #         RH2 = data_out.RelativeHumidity2
 #         WS1 = data_out.WindSpeed1ms
 #         WS2 = data_out.WindSpeed2ms
-        
+
 #         o_T1 = data_out.AirTemperature1C_Origin
 #         o_T2 = data_out.AirTemperature2C_Origin
 #         o_RH1 = data_out.RelativeHumidity1_Origin
@@ -312,7 +377,7 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 #         z_WS2 = data_out.HeightWindSpeed2m
 #     else
 #         error('Cannot recognize temperature field in weather data file.')
-    
+
 #     T1 = T1 + c.T_0# Temperature in degrees Kelvin
 #     T2 = T2 + c.T_0# Temperature in degrees Kelvin
 
@@ -327,14 +392,14 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 #     else
 #         SRin = data_out.ShortwaveRadiationDownWm2
 #         SRout = data_out.ShortwaveRadiationUpWm2
-    
+
 
 # # other variables
 #     pres = data_out.AirPressurehPa
-#     Surface_Height = data_out.SurfaceHeightm   
+#     Surface_Height = data_out.SurfaceHeightm
 #     Tsurf_obs = min(c.T_0, ((LRout-(1-c.em)*LRin)/c.em/c.sigma).**0.25)
 #     Tsurf_obs(or(isnan(LRout),isnan(LRin))) = NaN
-    
+
 #     ind = strfind(data_out.Properties.VariableNames,'IceTemperature')
 #     ind = find(~cellfun('isempty', ind))
 #     ind2 = strfind(data_out.Properties.VariableNames,'DepthThermistor')
@@ -347,15 +412,13 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 #         for i = 1:length(ind)
 #             T_ice_obs(:,i) = data_out.(data_out.Properties.VariableNames{ind(i)})
 #             depth_thermistor(:,i) = data_out.(data_out.Properties.VariableNames{ind2(i)})
-        
-    
-        
+
 
 #     ind =  (LRout>316)
 #     if sum(ind)>0
 #         if c.verbose == 1
 #         fprintf('Warning: Observed surface temperature higher than 0degC\n')
-        
+
 # #     before = LRout(ind)
 # #     LRout(ind) = LRout(ind) - (20/15 * (T(ind)-c.T_0))
 # #     figure
@@ -366,7 +429,7 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 # #     xlabel('Temperature (deg C)')
 # #     ylabel('Outgoing long-wave radiation (W/m**2)')
 # #     title('Observed LRout > black body at 0degC')
-    
+
 # return time, year, day, hour, pres,    T1, T2, z_T1, z_T2, o_T1,o_T2,     RH1, RH2, z_RH1, z_RH2, o_RH1, o_RH2,     WS1, WS2, z_WS1, z_WS2, o_WS1, o_WS2,    SRin,SRout, LRin, LRout, T_ice_obs,     depth_thermistor, Surface_Height, Tsurf_obs
 
 # def ResetTemp(depth_thermistor, LRin, LRout, T_obs, rho, T_ice, time, k, c)
@@ -378,15 +441,14 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 #     Tsurf_reset = NaN
 
 
-
-# # if there is thermistor record for the first time step, then reads 
+# # if there is thermistor record for the first time step, then reads
 # # initial subsurface conditions from AWS data
 #     T_ice_reset = NaN(c.jpgrnd,1)
 #     if sum(~isnan(T_obs(k,:)))>1
 #         depth = depth_thermistor(k,(depth_thermistor(k,:)~=0))'
 #         oldtemp = T_obs(k,(depth_thermistor(k,:)~=0))'
-    
-    
+
+
 # # calculates the new depth scale in mweq
 #     depth_weq = cumsum(c.cdel)
 
@@ -402,7 +464,7 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 # #then we use Tsurf_in to initiate the temperature profile
 #         depth = [0 depth]
 #         oldtemp = [Tsurf_reset - c.T_0 oldtemp]
-    
+
 # # the old scale is converted from m to mweq by interpolation
 #     oldscale_weq = interp1(depth_act,depth_weq,depth)
 
@@ -416,7 +478,7 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 # # giving the observed temperature (on appropriate scale) as initial value
 # # for the subsurface temperature profile
 # # There might be a shift to apply deping on whether the first value in
-# # subsurface column represent the temp at depth 0 (=Tsurf) or at depth 
+# # subsurface column represent the temp at depth 0 (=Tsurf) or at depth
 # # c.cdel(1). To be asked.
 #     T_ice_reset(1:length(newtemp)) = newtemp
 
@@ -433,9 +495,8 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 #         T_ice_reset(c.jpgrnd) = c.Tdeep_AWS+ c.T_0
 
 # #         T_ice_reset(length(newtemp)+1:(c.jpgrnd-1)) = NaN
-    
-   
-    
+
+
 # # removing non-freezing temperatures (just in case)
 # subsurfmelt = find(T_ice_reset(:) > c.T_0)
 # if sum(subsurfmelt )>0
@@ -446,10 +507,9 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 #                     depth_act = [0 depth_act]
 
 
-                    
 #                 T_ice(~isnan(T_reset),k,j) = T_reset(~isnan(T_reset))
 
-   
+
 #                     [zso_capa, zso_cond] = ice_heats (c)
 #                     [grndc, grndd, ~, ~]                        = update_tempdiff_params (rho(:,k), Tdeep(j)                                            , snowc, snic, T_ice(:,k,j), zso_cond, zso_capa, c)
 
@@ -458,7 +518,7 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 # def RHice2water(RH_wrt_i, T, pres)
 # # def converting humidity with regards to ice into humidity with
 # # regards to water using GOFF-GRATCH (1945) formula.
-# #   
+# #
 # #   RH_wrt_i is an single value or an array of relative humidity with
 # #   regards to ice given in percent
 # #
@@ -470,7 +530,7 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 # T_0 = 273.15
 # T_100 = 373.15
 # # eps is the ratio of the molecular weights of water and dry air
-# eps = 0.62198 
+# eps = 0.62198
 
 # # Rv = 461.5
 # # es_wtr = eps * exp( 1/Rv * ((L + T_0 * beta)*(1/T_0 - 1/T) - beta* np.log(T./T_0)))
@@ -485,7 +545,7 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 
 # es_ice = 10.**(     -9.09718 * (T_0 ./ T - 1.) - 3.56654 * np.log10(T_0 ./ T) +     0.876793 * (1. - T ./ T_0) + np.log10(6.1071)  )# saturation vapour pressure below 0 C (hPa)
 
-# # es_ice = 10.**(#     -9.09685 * (T_0 ./ T - 1.) - 3.56654 * np.log10(T_0 ./ T) +#     0.87682 * (1. - T ./ T_0) + 0.78614 + 2.0  ) 
+# # es_ice = 10.**(#     -9.09685 * (T_0 ./ T - 1.) - 3.56654 * np.log10(T_0 ./ T) +#     0.87682 * (1. - T ./ T_0) + 0.78614 + 2.0  )
 
 # # q_sat_wtr = eps * es_wtr./(pres-(1-eps)*es_wtr)# specific humidity at saturation over water
 # # q_sat = eps * es_ice./(pres-(1-eps)*es_ice)# specific humidity at saturation over ice
@@ -513,27 +573,26 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 #         - 1.3816E-7 * (10.**(11.344*(1.-T./c.T_100))-1.)         + 8.1328E-3*(10.**(-3.49149*(c.T_100./T-1)) -1.) + np.log10(c.es_100))
 
 #     es_ice = 10.**(-9.09718 * (c.T_0 ./ T - 1.) - 3.56654 * np.log10(c.T_0 ./ T) +         0.876793 * (1. - T ./ c.T_0) + np.log10(c.es_0))# saturation vapour pressure below 0 C (hPa)
-    
+
 #     q_sat = c.es * es_wtr./(pres-(1-c.es)*es_wtr)# specific humidity at saturation (incorrect below melting point)
 
 #     freezing = find(T < c.T_0)# replacing saturation specific humidity values below melting point
 #     RH_wrt_w = q ./ q_sat*100
 #     if sum(freezing) > 0
 #         q_sat(freezing) = c.es * es_ice(freezing)./(pres(freezing)-(1-c.es)*es_ice(freezing))
-    
+
 
 #     RH_wrt_i = q ./ q_sat*100
 #     supersaturated = find(RH_wrt_i > 100)# replacing values of supersaturation by saturation
 
 #     if sum(supersaturated) > 0
 #         RH_wrt_i(supersaturated) = 100
-    
+
 # return RH_wrt_i, RH_wrt_w
 
 
-
 # def ConvertToGivepthScale(depth_old, var_old, depth_new,opt)
-# # Interpolates the depth profile of a given variable old_var 
+# # Interpolates the depth profile of a given variable old_var
 # # (temperature grain size\.) according to a given scale new_depth in real m
 
 #     transpose_at_the_ = 0
@@ -545,14 +604,14 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 #        depth_old=depth_old'
 #        var_old=var_old'
 #        depth_new = depth_new'
-    
+
 #     var_new = NaN(size(depth_new))
 
 #     switch opt
 #         case 'linear'
 # # the variable is interpolated on each stamp of the new scale
 #         var_new = interp1(depth_old,var_old,depth_new,'linear','extrap')
-        
+
 #         case 'intensive'
 # # intensive variables do not dep on the size of the system
 # # f.e. if you know the density of a core section and you cut it
@@ -563,64 +622,64 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 # # new section is the thickness-weighted average of the two
 # # original sections.
 # # example: depth_old = 1:4 density_old = 100:100:400
-# #           depth_new = [0.1 0.2 0.6 1.2 3.5]  
+# #           depth_new = [0.1 0.2 0.6 1.2 3.5]
 # # density_new = [100.0000  100.0000  100.0000  133.3333
 # # 286.9565]
 
 #             if depth_new()>depth_old()
 #                 depth_old = [depth_old, depth_new()]
 #                 var_old = [var_old, var_old()]
-            
+
 #             left_neighbour_in_new = depth_new
 #             left_neighbour_in_new(1) = 0
 #             left_neighbour_in_new(2:) = depth_new(1:-1)
 
 #             left_neighbour_in_old =  interp1([0 depth_old],[0 depth_old],depth_new,'previous')
-            
+
 #             ind_type_1 = left_neighbour_in_new >= left_neighbour_in_old
 #             ind_type_2 = find(left_neighbour_in_new < left_neighbour_in_old)
-            
+
 #             var_new(ind_type_1) = interp1([0 depth_old],                [var_old(1) var_old],                depth_new(ind_type_1),'next')
-            
+
 #             depth_merged = [depth_old depth_new]
 #             var_merged = [var_old var_new]
-            
+
 #             [depth_merged, ind_sorted] = sort(depth_merged)
 #             var_merged = var_merged(ind_sorted)
 #             var_merged(isnan(var_merged)) = interp1([0  depth_merged(~isnan(var_merged))],                [var_merged(1) var_merged(~isnan(var_merged))],                depth_merged(isnan(var_merged)),'next')
 
 #             thick_merged = depth_merged
 #             thick_merged(2:) = depth_merged(2:) - depth_merged(1:-1)
-            
+
 #             for i = ind_type_2
 #                 i_in_merged = discretize(depth_merged,                     [left_neighbour_in_new(i) depth_new(i)])
 #                 i_in_merged(isnan(i_in_merged))= 0
 #                 if i~=1
 #                     i_in_merged(find(i_in_merged,1,'first')) = 0# transforming the first one into 0
-                
+
 #                 var_new(i) = sum(var_merged(i_in_merged==1).*thick_merged(i_in_merged==1))                     ./sum(thick_merged(i_in_merged==1))
-            
-            
+
+
 #         case 'extensive'
 # # extensive values dep on the size of the system
 # # for example when downscaling the liquid water content of one
 # # cell into two equally sized cells then the lwc in the new
 # # cells are half of the lwc of the original ones
 # # example: depth_old = 1:4 lwc_old = [1 0 0 1]
-# #           depth_new = [0.1 0.2 0.6 1.2 3.5]  
-            
+# #           depth_new = [0.1 0.2 0.6 1.2 3.5]
+
 #             if depth_new()>depth_old()
 #                 thick_last_old = depth_old()-depth_old(-1)
 #                 depth_old = [depth_old, depth_new()]
 #                 thick_last_old_new = depth_old()-depth_old(-1)
 #                 var_old = [var_old, var_old()/thick_last_old*thick_last_old_new]
-            
-            
+
+
 #             depth_merged = sort([depth_old depth_new])
-                        
+
 #             thick_merged = depth_merged
 #             thick_merged(2:) = depth_merged(2:) - depth_merged(1:-1)
-            
+
 #             thick_old = depth_old
 #             thick_old(2:) = depth_old(2:) - depth_old(1:-1)
 
@@ -628,18 +687,17 @@ def InitializationSubsurface(c): #T_obs, depth_thermistor, T_ice, time, Tsurf_in
 
 #             if sum(isnan(ind_bin))>1
 #                 error('Some depths asked in depth_new not covered by depth_old')
-            
+
 #             var_merged = var_old(ind_bin).* thick_merged ./ thick_old(ind_bin)
-            
+
 #             ind_bin_new = discretize(depth_merged,[0 depth_new],'IncludedEdge','right')
 #             var_merged(isnan(ind_bin_new)) =  []
 #             ind_bin_new(isnan(ind_bin_new)) =  []
-            
+
 #             var_new = accumarray(ind_bin_new', var_merged')'
-    
-    
+
+
 #     if transpose_at_the_==1
 #        var_new=var_new'
-    
-# return var_new
 
+# return var_new
