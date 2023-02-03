@@ -1,5 +1,5 @@
 side analysis
-Output
+*.nc
 Input/Weather data
 # Byte-compiled / optimized / DLL files
 __pycache__/
