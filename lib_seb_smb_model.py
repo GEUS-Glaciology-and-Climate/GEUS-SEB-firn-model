@@ -1,4 +1,7 @@
 import numpy as np
+from pandas import DataFrame
+from numba import jit
+
 import lib_initialization as ini
 import lib_subsurface as sub
 from progressbar import progressbar
@@ -57,7 +60,7 @@ from progressbar import progressbar
 # "param{kk}" struct hereunder.
 
 
-def HHsubsurf(df_aws, c):
+def HHsubsurf(df_aws: DataFrame, c: ini.Struct):
 
     (
         time,
@@ -229,6 +232,7 @@ def HHsubsurf(df_aws, c):
                 c,
             )
 
+        
             # SURFACE ENERGY BUDGET
             meltflux[k], Tsurf[k], dTsurf, EB_prev, stop = SurfEnergyBudget(
                 SRnet,
@@ -253,6 +257,8 @@ def HHsubsurf(df_aws, c):
 
             if stop:
                 break
+        
+       
 
         if (iter_max_EB != 1) & (
             (findbalance == c.iter_max_EB) & (abs(meltflux[k]) >= 10 * c.EB_max)
@@ -356,7 +362,7 @@ def HHsubsurf(df_aws, c):
     )
 
 
-def IniRhoSnow(T, WS, c):
+def IniRhoSnow(T, WS, c: ini.Struct):
     # IniRhoSnow: Initialization of fresh snow density using different
     # parametreization. If modified, check that the chosen parametrization is
     # sent properly to the subsurface scheme.
@@ -397,7 +403,7 @@ def IniRhoSnow(T, WS, c):
     return rho_snow
 
 
-def variables_preparation(df_aws, c):
+def variables_preparation(df_aws: DataFrame, c: ini.Struct):
     df_aws = df_aws.interpolate()
     time = df_aws.index.values
 
@@ -432,7 +438,7 @@ def variables_preparation(df_aws, c):
 
     # c = CalculateMeanAccumulation(time, snowfall, c)
     # Initial value for surface temperature
-    Tsurf = np.empty((len(time)), dtype="float64")
+    Tsurf = np.empty((len(time)), dtype="float64") 
     Tsurf[-1] = np.mean(T[:24]) - 2.4
     # The 2 m air temperature and IR skin temperature are similar during peak
     # solar irradiance, with the mean difference in temperature equal to -0.32oC
@@ -641,7 +647,7 @@ def SurfEnergyBudget(
     return meltflux, Tsurf, dTsurf, EB_prev, stop
 
 
-def SRbalance(SRout, SRin, z_icehorizon, snowthick, T_ice, rho, k, c):
+def SRbalance(SRout, SRin, z_icehorizon, snowthick, T_ice, rho, k, c: ini.Struct):
     # SRbalance: Calculates the amount of Shortwave Radiation that is
     # penetrating at each layer (SRnet).
     # uses it to warm each layer and eventually calculates the melt that is
@@ -808,9 +814,11 @@ def RoughSurf(WS, z_0, psi_m1, psi_m2, nu, z_WS, c):
     z_q = z_h
     return z_h, z_q, u_star, Re
 
-
+#@profile
 def SmoothSurf(WS, z_0, psi_m1, psi_m2, nu, z_WS, c):
-    u_star = c.kappa * WS / (np.log(z_WS / z_0) - psi_m2 + psi_m1)
+   # u_star = c.kappa * WS / (np.log(z_WS / z_0) - psi_m2 + psi_m1)
+    u_star = GetUStar(c.kappa, WS, z_WS, z_0, psi_m2, psi_m1 )
+
     Re = u_star * z_0 / nu
     if Re <= 0.135:
         ind = 0
@@ -829,12 +837,14 @@ def SmoothSurf(WS, z_0, psi_m1, psi_m2, nu, z_WS, c):
         print(ind)
 
     # smooth surfaces: Andreas 1987
-    z_h = z_0 * np.exp(
-        c.ch1[ind] + c.ch2[ind] * np.log(Re) + c.ch3[ind] * (np.log(Re)) ** 2
-    )
-    z_q = z_0 * np.exp(
-        c.cq1[ind] + c.cq2[ind] * np.log(Re) + c.cq3[ind] * (np.log(Re)) ** 2
-    )
+    z_h, z_q = GetZhZq(z_0, c.ch1, c.ch2, c.ch3, ind, Re, c.cq1, c.cq2, c.cq3)
+
+    # z_h = z_0 * np.exp(
+    #     c.ch1[ind] + c.ch2[ind] * np.log(Re) + c.ch3[ind] * (np.log(Re)) ** 2
+    # )
+    # z_q = z_0 * np.exp(
+    #     c.cq1[ind] + c.cq2[ind] * np.log(Re) + c.cq3[ind] * (np.log(Re)) ** 2
+    # )
 
     if z_h < 1e-6:
         z_h = 1e-6
@@ -843,15 +853,30 @@ def SmoothSurf(WS, z_0, psi_m1, psi_m2, nu, z_WS, c):
 
     return z_h, z_q, u_star, Re
 
+@jit
+def GetUStar(kappa, WS, z_WS, z_0, psi_m2, psi_m1):
+    return kappa * WS / (np.log(z_WS / z_0) - psi_m2 + psi_m1)
+
+@jit
+def GetZhZq(z_0, ch1, ch2, ch3, ind, Re, cq1, cq2, cq3):
+    z_h = z_0 * np.exp(
+        ch1[ind] + ch2[ind] * np.log(Re) + ch3[ind] * (np.log(Re)) ** 2
+    )
+    z_q = z_0 * np.exp(
+        cq1[ind] + cq2[ind] * np.log(Re) + cq3[ind] * (np.log(Re)) ** 2
+    )
+    return z_h, z_q
+
 
 # (WS, nu, q, snowthick, Tsurf,theta, theta_v , pres,rho_atm,  z_WS, z_T, z_RH, z_0, c) = \
 #     (WS[k], nu[k], q[k], snowthick[k], \
 #      Tsurf[k], theta[k], theta_v[k], pres[k], rho_atm[k], \
 #          z_WS[k], z_T[k], z_RH[k], z_0, c)
 
-
 def SensLatFluxes_bulk(
-    WS, nu, q, snowthick, Tsurf, theta, theta_v, pres, rho_atm, z_WS, z_T, z_RH, z_0, c
+    WS: np.float64, nu: np.float64, q: np.float64, snowthick: np.float64, 
+    Tsurf: np.float64, theta: np.float64, theta_v: np.float64, pres: np.float64,
+    rho_atm: np.float64, z_WS: np.float64, z_T: np.float64, z_RH: np.float64, z_0: float, c: ini.Struct
 ):
     # SensLatFluxes: Calculates the Sensible Heat Flux (SHF), Latent Heat Fluxes
     # (LHF) and Monin-Obhukov length (L). Corrects for atmospheric stability.
@@ -862,6 +887,7 @@ def SensLatFluxes_bulk(
     # Author: Dirk Van As (dva@geus.dk) & Robert S. Fausto (rsf@geus.dk)
     # translated to python by Baptiste Vandecrux (bav@geus.dk)
     # ==========================================================================
+   
     psi_m1 = 0
     psi_m2 = 0
 
@@ -881,12 +907,15 @@ def SensLatFluxes_bulk(
             else:
                 z_h, z_q, u_star, Re = RoughSurf(WS, z_0, psi_m1, psi_m2, nu, z_WS, c)
 
-        es_ice_surf = 10 ** (
-            -9.09718 * (c.T_0 / Tsurf - 1.0)
-            - 3.56654 * np.log10(c.T_0 / Tsurf)
-            + 0.876793 * (1.0 - Tsurf / c.T_0)
-            + np.log10(c.es_0)
-        )
+        #Fredrika
+        # es_ice_surf = 10 ** (
+        #     -9.09718 * (c.T_0 / Tsurf - 1.0)
+        #     - 3.56654 * np.log10(c.T_0 / Tsurf)
+        #     + 0.876793 * (1.0 - Tsurf / c.T_0)
+        #     + np.log10(c.es_0)
+        # )
+        es_ice_surf = GetEsIceSurf(Tsurf, c.T_0, c.es_0)        
+        
         q_surf = c.es * es_ice_surf / (pres - (1 - c.es) * es_ice_surf)
         L = 10e4
 
@@ -894,49 +923,61 @@ def SensLatFluxes_bulk(
             # correction from Holtslag, A. A. M. and De Bruin, H. A. R.: 1988, ‘Applied Modelling of the Night-Time
             # Surface Energy Balance over Land’, J. Appl. Meteorol. 27, 689–704.
             for i in range(0, c.iter_max_flux):
-                psi_m1 = -(
-                    c.aa * z_0 / L
-                    + c.bb * (z_0 / L - c.cc / c.dd) * np.exp(-c.dd * z_0 / L)
-                    + c.bb * c.cc / c.dd
-                )
-                psi_m2 = -(
-                    c.aa * z_WS / L
-                    + c.bb * (z_WS / L - c.cc / c.dd) * np.exp(-c.dd * z_WS / L)
-                    + c.bb * c.cc / c.dd
-                )
-                psi_h1 = -(
-                    c.aa * z_h / L
-                    + c.bb * (z_h / L - c.cc / c.dd) * np.exp(-c.dd * z_h / L)
-                    + c.bb * c.cc / c.dd
-                )
-                psi_h2 = -(
-                    c.aa * z_T / L
-                    + c.bb * (z_T / L - c.cc / c.dd) * np.exp(-c.dd * z_T / L)
-                    + c.bb * c.cc / c.dd
-                )
-                psi_q = -(
-                    c.aa * z_q / L
-                    + c.bb * (z_q / L - c.cc / c.dd) * np.exp(-c.dd * z_q / L)
-                    + c.bb * c.cc / c.dd
-                )
-                psi_q2 = -(
-                    c.aa * z_RH / L
-                    + c.bb * (z_RH / L - c.cc / c.dd) * np.exp(-c.dd * z_RH / L)
-                    + c.bb * c.cc / c.dd
-                )
 
-                if WS < c.smallno:
-                    z_h = 1e-10
-                    z_q = 1e-10
+                psi_m1, psi_m2, psi_h1, psi_h2, psi_q, psi_q2 = GetPsi(c.aa, c.bb, c.cc, c.dd, z_0, L, z_WS, z_h, z_T, z_q, z_RH)
+                # psi_m1 = -(
+                #     c.aa * z_0 / L
+                #     + c.bb * (z_0 / L - c.cc / c.dd) * np.exp(-c.dd * z_0 / L)
+                #     + c.bb * c.cc / c.dd
+                # )
+                # psi_m2 = -(
+                #     c.aa * z_WS / L
+                #     + c.bb * (z_WS / L - c.cc / c.dd) * np.exp(-c.dd * z_WS / L)
+                #     + c.bb * c.cc / c.dd
+                # )
+                # psi_h1 = -(
+                #     c.aa * z_h / L
+                #     + c.bb * (z_h / L - c.cc / c.dd) * np.exp(-c.dd * z_h / L)
+                #     + c.bb * c.cc / c.dd
+                # )
+                # psi_h2 = -(
+                #     c.aa * z_T / L
+                #     + c.bb * (z_T / L - c.cc / c.dd) * np.exp(-c.dd * z_T / L)
+                #     + c.bb * c.cc / c.dd
+                # )
+                # psi_q = -(
+                #     c.aa * z_q / L
+                #     + c.bb * (z_q / L - c.cc / c.dd) * np.exp(-c.dd * z_q / L)
+                #     + c.bb * c.cc / c.dd
+                # )
+                # psi_q2 = -(
+                #     c.aa * z_RH / L
+                #     + c.bb * (z_RH / L - c.cc / c.dd) * np.exp(-c.dd * z_RH / L)
+                #     + c.bb * c.cc / c.dd
+                # )
+
+                #Same func? Har ändå en funktion, kanske kan man bara ta bort den yttre if-satsen?
+                #Update z_h, z_q, u_star, Re with new psi values
+                # if WS < c.smallno:
+                #     z_h = 1e-10
+                #     z_q = 1e-10
+                # else:
+                #     if snowthick > 0:
+                #         z_h, z_q, u_star, Re = SmoothSurf(
+                #             WS, z_0, psi_m1, psi_m2, nu, z_WS, c
+                #         )
+                #     else:
+                #         z_h, z_q, u_star, Re = RoughSurf(
+                #             WS, z_0, psi_m1, psi_m2, nu, z_WS, c
+                #         )
+                if snowthick > 0:
+                    z_h, z_q, u_star, Re = SmoothSurf(
+                    WS, z_0, psi_m1, psi_m2, nu, z_WS, c
+                    )
                 else:
-                    if snowthick > 0:
-                        z_h, z_q, u_star, Re = SmoothSurf(
-                            WS, z_0, psi_m1, psi_m2, nu, z_WS, c
-                        )
-                    else:
-                        z_h, z_q, u_star, Re = RoughSurf(
-                            WS, z_0, psi_m1, psi_m2, nu, z_WS, c
-                        )
+                    z_h, z_q, u_star, Re = RoughSurf(
+                    WS, z_0, psi_m1, psi_m2, nu, z_WS, c
+                    )
 
                 th_star = (
                     c.kappa * (theta - Tsurf) / (np.log(z_T / z_h) - psi_h2 + psi_h1)
@@ -971,12 +1012,16 @@ def SensLatFluxes_bulk(
             # Paulson, C. A.: 1970, ‘The Mathematical Representation of Wind Speed and Temperature Profiles in the Unstable Atmospheric Surface Layer’, J. Appl. Meteorol. 9, 857–861.
 
             for i in range(0, c.iter_max_flux):
+
                 x1 = (1 - c.gamma * z_0 / L) ** 0.25
                 x2 = (1 - c.gamma * z_WS / L) ** 0.25
                 y1 = (1 - c.gamma * z_h / L) ** 0.5
                 y2 = (1 - c.gamma * z_T / L) ** 0.5
                 yq = (1 - c.gamma * z_q / L) ** 0.5
                 yq2 = (1 - c.gamma * z_RH / L) ** 0.5
+                
+
+                #Fredrika flytta nedan också till egen jit funktion 
                 psi_m1 = (
                     np.log(((1 + x1) / 2) ** 2 * (1 + x1 ** 2) / 2)
                     - 2 * np.arctan(x1)
@@ -1020,6 +1065,7 @@ def SensLatFluxes_bulk(
                     / (c.g * c.kappa * th_star * (1 + ((1 - c.es) / c.es) * q_star))
                 )
 
+                #Fredrika flytta nedan ? 
                 if abs((L_prev - L)) < c.L_dif:
                     # calculating 2m temperature, humidity and wind speed
                     theta_2m = Tsurf + th_star / c.kappa * (
@@ -1030,6 +1076,10 @@ def SensLatFluxes_bulk(
                     )
                     ws_10m = u_star / c.kappa * (np.log(10 / z_0) - psi_m2 + psi_m1)
                     break
+                    # theta_2m, q_2m, ws_10m = Calculate2mParam(L_prev, L, c.L_dif, Tsurf, th_star, c.kappa, 
+                    #                                       z_h, z_q, z_0, psi_h1, psi_h2, q_surf, q_star, 
+                    #                                       psi_q, psi_q2, u_star, psi_m1, psi_m2)
+                    # break
 
     else:
         # threshold in windspeed ensuring the stability of the SHF/THF
@@ -1057,8 +1107,7 @@ def SensLatFluxes_bulk(
 
     return L, LHF, SHF, theta_2m, q_2m, ws_10m, Re
 
-
-def SpecHumSat(RH, T, pres, c):
+def SpecHumSat(RH, T, pres, c: ini.Struct):
     # SpecHumSat
     # - calculates saturation vapour pressure of water (es_wtr) ice (es_ice)
     # given the temperature T
@@ -1087,6 +1136,10 @@ def SpecHumSat(RH, T, pres, c):
         + 0.876793 * (1.0 - T / c.T_0)
         + np.log10(c.es_0)
     )  # saturation vapour pressure below 0 C (hPa)
+
+    #Fredrika - why can't I call this one here?
+    #es_ice = GetEsIceSurf(T, c.T_0, c.es_0)
+
     q_sat = (
         c.es * es_wtr / (pres - (1 - c.es) * es_wtr)
     )  # specific humidity at saturation (incorrect below melting point)
@@ -1105,3 +1158,71 @@ def SpecHumSat(RH, T, pres, c):
     #
     q = RH * q_sat / 100  # specific humidity in kg/kg
     return RH, q
+
+
+# A function computing es_ice_surf parameter in a faster way.
+# Parameters: Tsurf from SensLatFluxes_bulk(), (T from SpecHumSat())
+#             cT_0_const: gets T_0 from Struct c, c.T_0 
+#             ces_0_const: gets es_0 from Struct c, c.es_0
+# Returns: value for es_ice_surf
+@jit(nopython=True)
+def GetEsIceSurf(Tsurf, cT_0_const, ces_0_const):
+    return (10 ** (
+        -9.09718 * (cT_0_const / Tsurf - 1.0)
+            - 3.56654 * np.log10(cT_0_const / Tsurf)
+            + 0.876793 * (1.0 - Tsurf / cT_0_const)
+            + np.log10(ces_0_const)
+        )) 
+
+
+# A function computing values for psi in a faster way.
+# Parameters: Values from Struct c, c.aa, c.bb, c.cc, c.dd
+#             Values of z_0, L, z_WS, z_h, z_T, z_q, z_RH
+# Returns: calculated values for psi_m1, psi_m2, psi_h1, psi_h2, psi_q, psi_q2
+@jit 
+def GetPsi(caa_const, cbb_const, ccc_const, cdd_const, z_0, L, z_WS, z_h, z_T, z_q, z_RH):
+    psi_m1 = -(
+        caa_const * z_0 / L
+        + cbb_const * (z_0 / L - ccc_const / cdd_const) * np.exp(-cdd_const * z_0 / L)
+        + cbb_const * ccc_const / cdd_const
+        )
+    psi_m2 = -(
+        caa_const * z_WS / L
+        + cbb_const * (z_WS / L - ccc_const / cdd_const) * np.exp(-cdd_const * z_WS / L)
+        + cbb_const * ccc_const / cdd_const
+        )
+    psi_h1 = -(
+        caa_const * z_h / L
+        + cbb_const * (z_h / L - ccc_const / cdd_const) * np.exp(-cdd_const * z_h / L)
+        + cbb_const * ccc_const / cdd_const
+        )
+    psi_h2 = -(
+        caa_const * z_T / L
+        + cbb_const * (z_T / L - ccc_const / cdd_const) * np.exp(-cdd_const * z_T / L)
+        + cbb_const * ccc_const / cdd_const
+        )
+    psi_q = -(
+        caa_const * z_q / L
+        + cbb_const * (z_q / L - ccc_const / cdd_const) * np.exp(-cdd_const * z_q / L)
+        + cbb_const * ccc_const / cdd_const
+        )
+    psi_q2 = -(
+        caa_const* z_RH / L
+        + cbb_const * (z_RH / L - ccc_const / cdd_const) * np.exp(-cdd_const * z_RH / L)
+        + cbb_const * ccc_const / cdd_const
+        )
+    return psi_m1, psi_m2, psi_h1, psi_h2, psi_q, psi_q2
+
+# @jit
+# def Calculate2mParam(L_prev, L, L_dif, Tsurf, th_star, kappa, z_h, z_q, z_0, psi_h1, 
+#                      psi_h2, q_surf, q_star, psi_q, psi_q2, u_star, psi_m1, psi_m2):
+#     # calculating 2m temperature, humidity and wind speed
+#     theta_2m = Tsurf + th_star / kappa * (
+#         np.log(2 / z_h) - psi_h2 + psi_h1
+#     )
+#     q_2m = q_surf + q_star / kappa * (
+#         np.log(2 / z_q) - psi_q2 + psi_q
+#     )
+#     ws_10m = u_star / kappa * (np.log(10 / z_0) - psi_m2 + psi_m1)    
+    
+#     return theta_2m, q_2m, ws_10m

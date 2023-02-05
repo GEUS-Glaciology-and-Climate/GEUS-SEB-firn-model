@@ -9,6 +9,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import json
 
 
 class Struct:
@@ -71,7 +72,7 @@ def IniVar(time, c):
     )
 
 
-def ImportConst(ElevGrad=0.1):
+def ImportConst(json_path: str,ElevGrad:float=0.1):
     # ImportConst: Reads physical, site-depant, simulation-depant and
     # user-defined parameters from a set of csv files located in the ./Input
     # folder. It stores all of them in the c structure that is then passed to
@@ -81,12 +82,35 @@ def ImportConst(ElevGrad=0.1):
     # Author: Baptiste Vandecrux (bav@geus.dk)
     # ========================================================================
 
-    c = (
-        pd.read_csv("Input/Constants/const_phy.csv", sep=";", header=None)
-        .append(pd.read_csv("Input/Constants/const_sim.csv", sep=";", header=None))
-        .append(pd.read_csv("Input/Constants/const_subsurf.csv", sep=";", header=None))
-        .transpose()
+    #Fredrika:
+    with open(json_path) as parameter_file:
+        parameters = json.load(parameter_file)
+
+    constants_dict = parameters['constants']
+
+    const_py_path, const_sim_path, const_subsurf_path = (
+        constants_dict['const_py']['path'], 
+        constants_dict['const_sim']['path'], 
+        constants_dict['const_subsurf']['path'] 
     )
+    
+    #const_sim_path = str(initialization_files_obj['const_sim_path'])
+    #const_subsurf_path = str(initialization_files_obj['const_subsurf_path'])
+
+    df1, df2, df3 = (pd.read_csv(const_py_path, sep=";", header=None),
+                     pd.read_csv(const_sim_path, sep=";", header=None),
+                     pd.read_csv(const_subsurf_path, sep=";", header=None)
+    )
+    df_concat = pd.concat([df1, df2, df3])
+    c = (
+        #pd.read_csv("Input/Constants/const_phy.csv", sep=";", header=None)
+        #.append(pd.read_csv("Input/Constants/const_sim.csv", sep=";", header=None))
+        #.append(pd.read_csv("Input/Constants/const_subsurf.csv", sep=";", header=None))
+
+        df_concat.transpose()
+    )
+   
+
     c.columns = c.iloc[0, :]
     c = c.iloc[1, :]
     c = c.apply(pd.to_numeric, errors="ignore")
@@ -102,7 +126,7 @@ def ImportConst(ElevGrad=0.1):
 
 
 def InitializationSubsurface(
-    c,
+    c, 
 ):  # T_obs, depth_thermistor, T_ice, time, Tsurf_ini, j, c):
     # InitializationSubsurface: Sets the initial state of the sub surface parameters:
     # - snow depth
@@ -112,7 +136,14 @@ def InitializationSubsurface(
     # ==========================================================================
 
     # Initial density profile
+    
     filename = "./Input/Initial state/" + c.station + "_initial_density.csv"
+    #Fredrika
+    #filename = initial_state_path + c.station + "_initial_density.csv"
+    #läs in json
+    #initial_state_dict = parameters['initial_state']
+    #initial_state_path =  initial_state_dict['initial_state_folder_path']
+
     df_ini_dens = pd.read_csv(filename, sep=";")
     df_ini_dens.loc[df_ini_dens.density_kgm3.isnull(), "density_kgm3"] = 350
 
@@ -210,10 +241,12 @@ def InitializationSubsurface(
     # if df_ini_temp.depth_m.min() != 0:
     #     depth = [0; depth];
     #     oldtemp = [Tsurf_ini - c.T_0; oldtemp];
+
+
     if df_ini_temp.depth_m.max() < df_mod.depth_m.max():
         tmp = df_ini_temp.iloc[-1, :].copy()
         tmp.depth_m = df_mod.depth_m.max()
-        df_ini_temp = df_ini_temp.append(tmp)
+        df_ini_temp = pd.concat([df_ini_temp, tmp.to_frame().T], ignore_index=True)
 
     df_mod["temp_degC"] = np.interp(
         df_mod.depth_m, df_ini_temp.depth_m, df_ini_temp.temperature_degC

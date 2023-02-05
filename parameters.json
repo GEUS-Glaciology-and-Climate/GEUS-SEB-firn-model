@@ -1,0 +1,27 @@
+{
+    "constants":{
+        "const_py":{
+            "path": "Input/Constants/const_phy.csv"
+        },
+        "const_sim": {
+            "path": "Input/Constants/const_sim.csv"
+        },
+        "const_subsurf": {
+            "path": "Input/Constants/const_subsurf.csv"     
+        }
+    },
+
+    "weather_data": {
+        "weather_input_path" : "./Input/Weather data/data_KAN_M_combined_hour.txt"
+    },
+
+    "initial_state" : {
+        "initial_state_folder_path" : "./Input/Initial state/",
+        "grain_size_path": "./Input/Initial state/all_sites_initial_grain_size.csv"
+    },
+
+
+    "output_path": "./Output/"
+
+   
+}

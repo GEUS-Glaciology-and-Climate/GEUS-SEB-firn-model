@@ -122,6 +122,9 @@ def run_GEUS_model(site, filename):
     c.RunName = c.station + "_" + str(c.num_lay) + "_layers"
     i = 0
     succeeded = 0
+
+    
+
     while succeeded == 0:
         try:
             os.mkdir(c.OutputFolder + "/" + c.RunName)
@@ -154,12 +157,14 @@ if __name__ == "__main__":
     ]  # ['EGP', 'DYE-2','CP1','Saddle', 'Summit', 'KAN_U', 'NASA-SE']
     # other sites to add:   'FA'
 
+   
     for site in site_list:
         print(site)
         filename = "Firn viscosity/Input files/" + site + ".csv"
         run_name = run_GEUS_model(site, filename)
         print(run_name)
-
+    
+    run_GEUS_model(site, filename)
 # %% debbuging
 # i = 0
 # (pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn, ptsoil, pdgrain, zsn, zraind, zsnmel, pTdeep, psnowbkt, c) = (ts[i].copy(), grndc[:,i-1].copy(), grndd[:, i-1].copy(),

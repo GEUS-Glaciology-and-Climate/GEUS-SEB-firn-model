@@ -1020,7 +1020,7 @@ def sublimation_new(zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowb
 
 
 # @jit
-def superimposedice(prhofirn, ptsoil, psnowc, psnic, pslwc, zso_cond, c):
+def superimposedice(prhofirn, ptsoil, psnowc, psnic, pslwc: np.ndarray, zso_cond, c):
     # superimposedice: Calculates the amount (zsupimp in mm eq) of liquid water
     # that is refrozen on top of perched ice layers. New version from 2016.
     # Does not use slush bucket.
@@ -1091,6 +1091,11 @@ def superimposedice(prhofirn, ptsoil, psnowc, psnic, pslwc, zso_cond, c):
     potSIform = np.maximum(0, ki * dTdz / (c.rho_water * c.L_fus) * c.zdtime)
 
     # Make as much SI as there is water available in the layer above the ice [jk]
+    
+   
+    #if pslwc[nextisfrozen == 1].shape != potSIform.shape:
+     #   print("not same shape")
+    
     SIform = np.minimum(pslwc[nextisfrozen == 1], potSIform)
     zsupimp = np.zeros_like(pslwc)
     zsupimp[nextisfrozen == 1] = SIform
