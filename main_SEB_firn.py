@@ -19,46 +19,15 @@ import lib_io as io
 import __init__
 
 def run_SEB_firn():
-    # # Constant definition#
-    # # All constant values are defined in a set of csv file in the Input folder.
-    # # They can be modiefied there or by giving new values in the "param"
-    # # variable. The values of the constant given in param will overright the
-    # # ones extracted from the csv files. The fieldnames in param should be the
-    # # same as is c.
-    # c = ini.ImportConst("parameters.json")
-    # c.station = "KAN_M"
-    # c.elev = 2000
-    # c.rh2oice = c.rho_water / c.rho_ice
-    # c.zdtime = 3600
-    # c.ElevGrad = 0.1
-    # c.z_max = 50
-    # c.dz_ice = 1
-    # NumLayer = int(c.z_max / c.dz_ice)
-    # c.num_lay = NumLayer
-    # c.verbose = 1
-
-    # c.Tdeep = 250.15
-    # # c.lim_new_lay = c.accum_AWS/c.new_lay_frac;
-    # c.lim_new_lay = 0.02
-    # c.rho_fresh_snow = 315
-
-    # c.snowthick_ini = 1
-    # c.dz_ice = 1
-    # c.z_ice_max = 50
-    # c.dt_obs = 3600
-
     # Create struct c with all constant values
     c = setConstants()
 
-    #Fredrika
     with open("parameters.json") as parameter_file:
         parameters = json.load(parameter_file)
-
     output_path = str(parameters['output_path'])
     weather_data_input_path = str(parameters['weather_data']['weather_input_path'])
 
     # DataFrame with the weather data is created
-    #df_aws = io.load_promice("./Input/Weather data/data_KAN_M_combined_hour.txt")[:6000]
     df_aws = io.load_promice(weather_data_input_path)[:6000]
     df_aws = df_aws.set_index("time").resample("H").mean()
 
@@ -101,13 +70,12 @@ def run_SEB_firn():
     depth_act = np.cumsum(thickness_act, 0)
     density_bulk = (snowc + snic) / (snowc / rhofirn + snic / c.rho_ice)
 
-    # writing output
+    # Writing output
     c.RunName = c.station + "_" + str(c.num_lay) + "_layers"
     i = 0
     succeeded = 0
     while succeeded == 0:
         try:
-            #os.mkdir("./Output/" + c.RunName)
             os.mkdir(output_path + c.RunName)
             succeeded = 1
         except:
@@ -116,8 +84,6 @@ def run_SEB_firn():
             else:
                 c.RunName = c.RunName[: -len(str(i - 1))] + str(i)
             i = i + 1
-
-    #c.OutputFolder = "./Output/"
     c.OutputFolder = output_path
 
     # io.write_2d_netcdf(snowc, 'snowc', depth_act, df_aws.index, c)
@@ -133,13 +99,12 @@ def run_SEB_firn():
     # io.write_2d_netcdf(compaction, 'compaction', depth_act, df_aws.index, RunName)
 
    
+# Constant definition
+# All constant values are defined in a set of csv file in the Input folder.
+# They can be modiefied there or by giving new values in the "param" variable. 
+# The values of the constant given in param will overright the ones extracted 
+# from the csv files. The fieldnames in param should be the same as is c.
 def setConstants():
-    # Constant definition
-    # All constant values are defined in a set of csv file in the Input folder.
-    # They can be modiefied there or by giving new values in the "param"
-    # variable. The values of the constant given in param will overright the
-    # ones extracted from the csv files. The fieldnames in param should be the
-    # same as is c.
     c = ini.ImportConst("parameters.json")
     c.station = "KAN_M"
     c.elev = 2000
@@ -151,21 +116,19 @@ def setConstants():
     NumLayer = int(c.z_max / c.dz_ice)
     c.num_lay = NumLayer
     c.verbose = 1
-
     c.Tdeep = 250.15
     # c.lim_new_lay = c.accum_AWS/c.new_lay_frac;
     c.lim_new_lay = 0.02
     c.rho_fresh_snow = 315
-
     c.snowthick_ini = 1
     c.dz_ice = 1
     c.z_ice_max = 50
     c.dt_obs = 3600   
-
     return c 
 
 
-run_SEB_firn()
+#run_SEB_firn()
+
 
     #%% Plot output
     #import lib_plot as lpl
