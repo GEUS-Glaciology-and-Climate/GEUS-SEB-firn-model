@@ -124,6 +124,7 @@ def setConstants():
     c.dz_ice = 1
     c.z_ice_max = 50
     c.dt_obs = 3600   
+    c.kappa = np.float64(c.kappa)
     return c 
 
 

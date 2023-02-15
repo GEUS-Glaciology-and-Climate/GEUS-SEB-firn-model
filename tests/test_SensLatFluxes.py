@@ -4,7 +4,7 @@ import pandas as pd
 import json
 import numpy as np
 from main_SEB_firn import setConstants
-from lib_seb_smb_model import SensLatFluxes_bulk, SensLatFluxes_bulk_opt, HHsubsurf
+from lib_seb_smb_model import SensLatFluxes_bulk_old, SensLatFluxes_bulk_opt, HHsubsurf, SmoothSurf_opt, SmoothSurf_opt_2
 import lib_io as io
 
 class SensLatFluxesTestCase(unittest.TestCase):
@@ -29,7 +29,7 @@ class SensLatFluxesTestCase(unittest.TestCase):
         z_0 = 0.0013
         c = setConstants()
         
-        for i in range(500):
+        for i in range(1000):
 
             (
                 L, 
@@ -39,7 +39,7 @@ class SensLatFluxesTestCase(unittest.TestCase):
                 q_2m, 
                 ws_10m, 
                 Re
-            ) = SensLatFluxes_bulk(
+            ) = SensLatFluxes_bulk_old(
                 WS,
                 nu,
                 q,
@@ -88,6 +88,28 @@ class SensLatFluxesTestCase(unittest.TestCase):
             assert q_2m == q_2m_opt
             assert ws_10m == ws_10m_opt
             assert Re == Re_opt
+
+    # def testSmoothSurf():
+
+    #     # Initializing parameters with static, synthetic values from run k=4
+    #     WS= 4.88
+    #     nu= 1.5471445341359545e-05
+    #     q = 0.002983881449656623
+    #     snowthick = 1.0
+    #     Tsurf = 50.00032543036966
+    #     theta = 269.23442297512435
+    #     theta_v = 269.72264072580384
+    #     pres = 857.105524
+    #     rho_atm = 1.109137923478789
+    #     z_WS = 2.9995
+    #     z_T = 2.4995
+    #     z_RH = 2.4995
+    #     z_0 = 0.0013
+    #     c = setConstants()
+
+        #res = SmoothSurf_opt(WS, z_0, psi_m1, psi_m2, nu, z_WS, c)
+        #res2 = SmoothSurf_opt_2(WS, z_0, psi_m1, psi_m2, nu, z_WS, c)
+
         
 
          
@@ -95,46 +117,46 @@ if __name__ == '__main__':
     unittest.main()
 
 
-#def writeOutput():
-        # '''Test and compare output from SensLatFluxes with old code output'''
-        # c = setConstants()
+def writeOutput():
+        '''Test and compare output from SensLatFluxes with old code output'''
+        c = setConstants()
 
-        # with open("parameters.json") as parameter_file:
-        #     parameters = json.load(parameter_file)
+        with open("parameters.json") as parameter_file:
+            parameters = json.load(parameter_file)
 
-        # weather_data_input_path = str(parameters['weather_data']['weather_input_path'])
-        # df_aws = io.load_promice(weather_data_input_path)[:6000]
-        # df_aws = df_aws.set_index("time").resample("H").mean()
+        weather_data_input_path = str(parameters['weather_data']['weather_input_path'])
+        df_aws = io.load_promice(weather_data_input_path)[:6000]
+        df_aws = df_aws.set_index("time").resample("H").mean()
 
-        # # Call HHsubsurf, which gets L, LHF, SHF, theta_2m, q_2m, ws_10m and Re from SensLatFluxes
-        # (L,
-        # LHF,
-        # SHF,
-        # theta_2m,
-        # q_2m,
-        # ws_10m,
-        # Re,
-        # melt_mweq,
-        # sublimation_mweq,
-        # snowc,
-        # snic,
-        # slwc,
-        # T_ice,
-        # zrfrz,
-        # rhofirn,
-        # zsupimp,
-        # dgrain,
-        # zrogl,
-        # Tsurf,
-        # grndc,
-        # grndd,
-        # pgrndcapc,
-        # pgrndhflx,
-        # dH_comp,
-        # snowbkt,
-        # compaction) = HHsubsurf(df_aws, c)
+        # Call HHsubsurf, which gets L, LHF, SHF, theta_2m, q_2m, ws_10m and Re from SensLatFluxes
+        (L,
+        LHF,
+        SHF,
+        theta_2m,
+        q_2m,
+        ws_10m,
+        Re,
+        melt_mweq,
+        sublimation_mweq,
+        snowc,
+        snic,
+        slwc,
+        T_ice,
+        zrfrz,
+        rhofirn,
+        zsupimp,
+        dgrain,
+        zrogl,
+        Tsurf,
+        grndc,
+        grndd,
+        pgrndcapc,
+        pgrndhflx,
+        dH_comp,
+        snowbkt,
+        compaction) = HHsubsurf(df_aws, c)
         
-        # #Read in the above created files, compare with new calculations
+        #Read in the above created files, compare with new calculations
         # path = r'C:\Users\brink\Documents\Exjobb\Old_version_code\GEUS-SEB-firn-model\tests\ValuesSensLatFlux'
         # old_L = pd.read_csv(path + '\L_OldCodeSensLatFlux.csv', index_col=False)
         # new_L = pd.DataFrame(L)
@@ -151,7 +173,7 @@ if __name__ == '__main__':
         # old_Re = pd.read_csv(path + '\Re_OldCodeSensLatFlux.csv', index_col=False)
         # new_Re = pd.DataFrame(Re)
         
-        # # Write results from SensLatFluxes_bulk to one csv file
+        # Write results from SensLatFluxes_bulk to one csv file
         # new_data = new_L
         # new_data = new_data.assign(new_LHF = new_LHF)
         # new_data = new_data.assign(new_SHF = new_SHF)
@@ -166,9 +188,7 @@ if __name__ == '__main__':
         # print("End of comparision.")
 
 
-
-
-        # Print differences between old output to newly computed output
+        #Print differences between old output to newly computed output
         # print("Old L:")
         # print(old_L)
         # print("New L:")
@@ -203,3 +223,5 @@ if __name__ == '__main__':
         # print(old_Re)
         # print("New Re: ")
         # print(new_Re)
+
+#writeOutput()

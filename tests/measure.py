@@ -26,8 +26,7 @@ def run_measure():
 def measure_SensLatFluxes():
     '''Measure time diff between optimized and not optimized SensLatFluxes,
       looping 500 times, with synthetic values'''
-    # Does not really work to measure, as the looping inside the function is lost when only
-    # sending in one line of data. The effect is not seen.  
+
     time_not_opt = []
     time_opt = []
 
@@ -45,62 +44,64 @@ def measure_SensLatFluxes():
     z_RH = 2.4995
     z_0 = 0.0013
     c = main.setConstants()
+    
 
-    # Measure with optimization
     for i in range(1000):
+        # Measure with optimization
         cpu_start_opt = time.process_time()
-        seb.SensLatFluxes_bulk_opt(
-                WS,
-                nu,
-                q,
-                snowthick,
-                Tsurf,
-                theta,
-                theta_v,
-                pres,
-                rho_atm,
-                z_WS,
-                z_T,
-                z_RH,
-                z_0,
-                c
-            )
+        for i in range(300):
+            seb.SensLatFluxes_bulk_opt(
+                    WS,
+                    nu,
+                    q,
+                    snowthick,
+                    Tsurf,
+                    theta,
+                    theta_v,
+                    pres,
+                    rho_atm,
+                    z_WS,
+                    z_T,
+                    z_RH,
+                    z_0,
+                    c
+                )
         cpu_end_opt = time.process_time()
         cpu_time_opt = (cpu_end_opt - cpu_start_opt)
         time_opt.append(cpu_time_opt)
 
-    # Measure without optimization
-    for i in range(1000):
+        # Measure without optimization
         cpu_start_notopt = time.process_time()
-        seb.SensLatFluxes_bulk(
-                WS,
-                nu,
-                q,
-                snowthick,
-                Tsurf,
-                theta,
-                theta_v,
-                pres,
-                rho_atm,
-                z_WS,
-                z_T,
-                z_RH,
-                z_0,
-                c
-            )
+        for i in range(300):
+            seb.SensLatFluxes_bulk_opt_2(
+                    WS,
+                    nu,
+                    q,
+                    snowthick,
+                    Tsurf,
+                    theta,
+                    theta_v,
+                    pres,
+                    rho_atm,
+                    z_WS,
+                    z_T,
+                    z_RH,
+                    z_0,
+                    c
+                )
         cpu_end_notopt = time.process_time()
         cpu_time_notopt = (cpu_end_notopt - cpu_start_notopt)
         time_not_opt.append(cpu_time_notopt)
-
-    print("Not optimized code: ")
-   # print(time_not_opt)
-    print("Mean:")
-    print(str(np.mean(time_not_opt)))
 
     print("Optimized code: ")
    # print(time_opt)
     print("Mean:")
     print(str(np.mean(time_opt)))
+
+    print("2 optimized code: ")
+   # print(time_not_opt)
+    print("Mean:")
+    print(str(np.mean(time_not_opt)))
 
 
 #measure_SensLatFluxes()
