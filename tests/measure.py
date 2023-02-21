@@ -19,6 +19,9 @@ def run_measure():
             print ("error "+str(IOError))
             pass
 
+    for i in range(len(time_array)):
+        print(time_array[i])
+
     print(time_array)
     print("Mean:")
     print(str(np.mean(time_array)))
@@ -44,7 +47,6 @@ def measure_SensLatFluxes():
     z_RH = 2.4995
     z_0 = 0.0013
     c = main.setConstants()
-    
 
     for i in range(1000):
         # Measure with optimization
@@ -73,7 +75,7 @@ def measure_SensLatFluxes():
         # Measure without optimization
         cpu_start_notopt = time.process_time()
         for i in range(300):
-            seb.SensLatFluxes_bulk_opt_2(
+            seb.SensLatFluxes_bulk_old(
                     WS,
                     nu,
                     q,
@@ -98,23 +100,15 @@ def measure_SensLatFluxes():
     print("Mean:")
     print(str(np.mean(time_opt)))
 
-    print("2 optimized code: ")
+    print("Not optimized code: ")
    # print(time_not_opt)
     print("Mean:")
     print(str(np.mean(time_not_opt)))
 
 
-#measure_SensLatFluxes()
+measure_SensLatFluxes()
 
-run_measure()
+#run_measure()
 
-
-
-
-
-
-# arr = np.array()
-# print(arr)
-# print(np.mean(arr))
 
 
