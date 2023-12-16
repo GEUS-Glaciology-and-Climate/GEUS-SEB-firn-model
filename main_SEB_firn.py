@@ -10,7 +10,7 @@ tip list:
 import pandas as pd
 import numpy as np
 import os
-
+import time
 import lib_initialization as ini
 import lib_seb_smb_model as seb
 import lib_io as io
@@ -28,7 +28,7 @@ c.rh2oice = c.rho_water / c.rho_ice
 c.zdtime = 3600
 c.ElevGrad = 0.1
 c.z_max = 50
-c.dz_ice = 1
+c.dz_ice = 0.5
 NumLayer = int(c.z_max / c.dz_ice)
 c.num_lay = NumLayer
 c.verbose = 1
@@ -39,17 +39,17 @@ c.lim_new_lay = 0.02
 c.rho_fresh_snow = 315
 
 c.snowthick_ini = 1
-c.dz_ice = 1
 c.z_ice_max = 50
 c.dt_obs = 3600
 
-df_aws = io.load_promice("./Input/Weather data/data_KAN_M_combined_hour.txt")[:6000]
+df_aws = io.load_promice("./Input/Weather data/data_KAN_U_2009-2019.txt").iloc[:1000,:]
 df_aws = df_aws.set_index("time").resample("H").mean()
 
 df_surface = pd.DataFrame()
 df_surface["time"] = df_aws.index
 df_surface = df_surface.set_index("time")
 
+start_time = time.time()
 (
     df_surface["L"],
     df_surface["LHF"],
@@ -78,6 +78,7 @@ df_surface = df_surface.set_index("time")
     snowbkt,
     compaction,
 ) = seb.HHsubsurf(df_aws, c)
+print('hHsubsurf took %0.03f sec'%(time.time() -start_time))
 
 thickness_act = snowc * (c.rho_water / rhofirn) + snic * (c.rho_water / c.rho_ice)
 depth_act = np.cumsum(thickness_act, 0)
@@ -101,7 +102,7 @@ c.OutputFolder = "./Output/"
 # io.write_2d_netcdf(snowc, 'snowc', depth_act, df_aws.index, c)
 # io.write_2d_netcdf(snic, 'snic', depth_act, df_aws.index, c)
 # io.write_2d_netcdf(slwc, 'slwc', depth_act, df_aws.index, c)
-# io.write_2d_netcdf(density_bulk, 'density_bulk', depth_act, df_aws.index, c)
+io.write_2d_netcdf(density_bulk, 'density_bulk', depth_act, df_aws.index, c)
 # io.write_2d_netcdf(rhofirn, 'rhofirn', depth_act, df_aws.index, c)
 io.write_1d_netcdf(df_surface, c)
 # io.write_2d_netcdf(tsoil, 'T_ice', depth_act, df_aws.index, c)

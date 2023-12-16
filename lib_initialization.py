@@ -81,12 +81,11 @@ def ImportConst(ElevGrad=0.1):
     # Author: Baptiste Vandecrux (bav@geus.dk)
     # ========================================================================
 
-    c = (
-        pd.read_csv("Input/Constants/const_phy.csv", sep=";", header=None)
-        .append(pd.read_csv("Input/Constants/const_sim.csv", sep=";", header=None))
-        .append(pd.read_csv("Input/Constants/const_subsurf.csv", sep=";", header=None))
-        .transpose()
-    )
+    c = pd.concat((
+        pd.read_csv("Input/Constants/const_phy.csv", sep=";", header=None),
+        pd.read_csv("Input/Constants/const_sim.csv", sep=";", header=None),
+        pd.read_csv("Input/Constants/const_subsurf.csv", sep=";", header=None),
+        )).transpose()
     c.columns = c.iloc[0, :]
     c = c.iloc[1, :]
     c = c.apply(pd.to_numeric, errors="ignore")
@@ -213,7 +212,7 @@ def InitializationSubsurface(
     if df_ini_temp.depth_m.max() < df_mod.depth_m.max():
         tmp = df_ini_temp.iloc[-1, :].copy()
         tmp.depth_m = df_mod.depth_m.max()
-        df_ini_temp = df_ini_temp.append(tmp)
+        df_ini_temp = pd.concat((df_ini_temp, tmp))
 
     df_mod["temp_degC"] = np.interp(
         df_mod.depth_m, df_ini_temp.depth_m, df_ini_temp.temperature_degC

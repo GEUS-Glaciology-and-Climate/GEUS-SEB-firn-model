@@ -528,11 +528,11 @@ def merge_layer(psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil, c):
     ) / (w1 + w2 + w3 + w4 + w5 + w6 + w7)
     i_merg = np.where(crit == max(crit))[-1]
     # for some reason np.where gives back a list of numpy arrays
-    if isinstance(i_merg, list) | (type(i_merg).__module__ == np.__name__):
+    # if isinstance(i_merg, list) | (type(i_merg).__module__ == np.__name__):
         # print(crit)
         # print(max(crit))
         # print(np.where(crit == max(crit)))
-        i_merg = i_merg[0]
+        # i_merg = i_merg[0]
     # layer of index i_merg and i_merg+1 are merged
     if (psnowc[i_merg + 1] + psnowc[i_merg]) > 1e-12:
         if psnowc[i_merg + 1] < 1e-12:

@@ -88,7 +88,7 @@ def plot_var(site, run_name, var_name, ylim=[], zero_surf=True):
     ax.xaxis.set_major_formatter(myFmt)
     ax.set_ylabel("Depth (m)")
 
-    fig.savefig("Output/" + run_name + "/" + site + "_" + var_name + ".png")
+    fig.savefig("output/" + run_name + "/" + site + "_" + var_name + ".png")
     return fig, ax
 
 

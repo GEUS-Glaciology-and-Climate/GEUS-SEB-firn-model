@@ -1,7 +1,7 @@
 import numpy as np
 import lib_initialization as ini
 import lib_subsurface as sub
-from progressbar import progressbar
+import sys
 
 # Surface energy and mass budget model for ice sheets, by Dirk van As.
 # The model can be run for a single location with a time series of p, T, RH, WS, SR, and LRin,
@@ -137,7 +137,10 @@ def HHsubsurf(df_aws, c):
     theta = T + z_T * c.g / c.c_pd
     theta_v = theta * (1 + ((1 - c.es) / c.es) * q)
 
-    for k in progressbar(range(len(time))):
+    for k in range(len(time)):
+        if k in np.round(np.linspace(0,len(time),51)):
+            sys.stdout.write("%.0f %% "%(100*k/len(time)))
+            sys.stdout.flush()
         # Step 1/*: Update snowthickness and instrument heights
         if k == 0:
             snowthick = np.empty((len(time)), dtype="float64")
@@ -401,12 +404,12 @@ def variables_preparation(df_aws, c):
     df_aws = df_aws.interpolate()
     time = df_aws.index.values
 
-    T = df_aws.AirTemperature1C.values + 273.15
-    z_T = df_aws.HeightTemperature1m.values
-    RH = df_aws.RelativeHumidity1.values
-    z_RH = df_aws.HeightHumidity1m.values
-    WS = df_aws.WindSpeed1ms.values
-    z_WS = df_aws.HeightWindSpeed1m.values
+    T = df_aws.AirTemperature2C.values + 273.15
+    z_T = df_aws.HeightTemperature2m.values
+    RH = df_aws.RelativeHumidity2.values
+    z_RH = df_aws.HeightHumidity2m.values
+    WS = df_aws.WindSpeed2ms.values
+    z_WS = df_aws.HeightWindSpeed2m.values
     pres = df_aws.AirPressurehPa.values
     SRin = df_aws.ShortwaveRadiationDownWm2.values
     SRout = df_aws.ShortwaveRadiationUpWm2.values
