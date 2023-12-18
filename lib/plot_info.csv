@@ -1,0 +1,5 @@
+variable_name, label, cmap, vmin, vmax
+slwc, Liquid water content (mm m$^{-3}$), gist_ncar_r, 0,0.01
+density_bulk, Bulk density (kg m$^{-3}$), Blues, 300, 900
+rhofirn="Firn density (kg m$^{-3}$), Blues, 300, 900
+T_ice, Subsurface temperature (K), magma, 250, 273.15

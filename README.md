@@ -53,16 +53,25 @@ The working directory should contain:
 
 - Download the scripts from Github
 - Place the input data file in the Input/Weather data folder. For the example, let's continue with the data_KAN_M_combined_hour.txt previously generated using the [AWS data treatment suite](https://github.com/BaptisteVandecrux/AWS_processing). A short version of that file is already present in the Weather data folder.
-
-- Open Main.m in Matlab and set the name of the station you want to process:
+- For main_SEB_firn: Open parameters.json in Python and set the name of the station you want to process, for example KAN_U:
 ```
-station_list =   {'KAN_M'};
+"weather_station" : "KAN_U"
 ```
-and RCM that was used for gap-filling (only used for naming of folders)
+- You can also change the folder and path names in parameters.json, for example change the weather data input path in the following line (the {} will input the weather_station name, when called in main) 
+```
+"weather_data": {
+        "weather_input_path" : "./Input/Weather data/data_{}_combined_hour.txt"
+    }
+```
+- However, the files you read from must be named correctly, for example for inital state input, the format should be as follow:
+```
+KAN_U_initial_density.csv
+```
+- And, RCM that was used for gap-filling (only used for naming of folders)
 ```
 RCM_list = {'RACMO'};
 ```
-add the station and its location to the list of station data location (~line 85):
+- Add the station and its location to the list of station data location (~line 85):
 ```
         case 'KAN_M'
             param{kk}.InputAWSFile = './Input/Weather data/data_KAN_M_combined_hour.txt';

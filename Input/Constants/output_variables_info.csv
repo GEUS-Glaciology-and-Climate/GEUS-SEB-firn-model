@@ -23,6 +23,7 @@ meltflux,Melt energy,Wm-2
 H_surf,Surface height above model lower boundary at start in meters,m
 SMB_mweq,Surface mass balance water equivalent,m_weq
 melt_mweq,Melt per time step in water equivalent,m_weq
+zrogl,Runoff per time step in water equivalent,m_weq
 sublimation_mweq,Sublimation per time step,m_weq
 H_comp,Cumulated compaction in meters,m
 runoff,Runoff per time step,m_weq
