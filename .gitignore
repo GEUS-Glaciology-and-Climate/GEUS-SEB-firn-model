@@ -17,3 +17,12 @@ ipython_config.py
 # pyenv
 .python-version
 input/weather data/data_KAN_L_combined_hour.txt
+input/weather data/IMAU_aws11_high-res_meteo.csv
+input/weather data/IMAU_aws14_high-res_meteo.csv
+input/weather data/IMAU_aws15_high-res_meteo.csv
+input/weather data/IMAU_aws16_high-res_meteo.csv
+input/weather data/IMAU_aws17_high-res_meteo.csv
+input/weather data/IMAU_aws18_high-res_meteo.csv
+input/weather data/IMAU_aws19_high-res_meteo.csv
+input/weather data/IMAU_aws5_high-res_meteo.csv
+input/weather data/IMAU_aws6_high-res_meteo.csv

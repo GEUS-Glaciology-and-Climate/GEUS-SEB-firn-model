@@ -156,7 +156,7 @@ plt.legend()
 #     plt.plot(df_out.index, -depth_act[-1,0] + depth_act[-1,:])
 #     plt.plot(df_in.index, df_in.SurfaceHeightm)
 # else:
-path_aws_l4 = 'C:/Users/bav/OneDrive - Geological survey of Denmark and Greenland/Code/PROMICE/PROMICE-AWS-toolbox/out/L4/'
+path_aws_l4 = '../PROMICE/PROMICE-AWS-toolbox/out/L4/'
 df_obs = pd.read_csv(path_aws_l4+c.station+'_L4.csv')
 df_obs.time= pd.to_datetime(df_obs.time)
 df_obs = df_obs.set_index('time')
@@ -169,7 +169,7 @@ plt.title(c.station)
 
 # %% 
 if c.station in ['KAN_M']:
-    file = 'C:/Users/bav/OneDrive - Geological survey of Denmark and Greenland/Data/SUMup/data/SMB data/to add/SnowFox_GEUS/SF_KAN_M.txt'
+    file = '../../Data/SUMup/data/SMB data/to add/SnowFox_GEUS/SF_KAN_M.txt'
 
     df_sf = pd.read_csv(file,delim_whitespace=True)
     df_sf[df_sf==-999] = np.nan
