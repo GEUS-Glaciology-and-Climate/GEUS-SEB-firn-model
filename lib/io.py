@@ -228,3 +228,4 @@ def write_1d_netcdf(data, c, var_list=None, time=None, name_file="surface"):
     ds.to_netcdf(
         c.output_path + "/" + c.RunName + "/" + c.station + "_" + name_file + ".nc"
     )
+

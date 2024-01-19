@@ -7,10 +7,8 @@ tip list:
     %matplotlib qt
     import pdb; pdb.set_trace()
 """
-import xarray as xr
-ds = xr.open_zarr("https://snow.univ-grenoble-alpes.fr/opendata/SMOS-Greenland-25km.zarr")
+import pandas as pd
 
-compression = {'zlib': True, 'complevel': 4}
+df = pd.read_csv('input/weather data/CARRA_vs_AWS.csv')
 
-ds.to_netcdf("SMOS-Greenland-25km.nc", encoding={var: compression for var in ds.variables}, format="NETCDF4")
-
+print(df.groupby('var')[['ME','RMSE']].mean())

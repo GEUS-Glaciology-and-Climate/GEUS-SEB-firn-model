@@ -13,28 +13,31 @@ from lib.io import load_CARRA_data, load_promice_old
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
-
-station= 'KAN_L'
+import pandas as pd
+station= 'QAS_U'
 
 # path_aws = 'output/KAN_M_100_layers_3'
 # path_carra = 'output/KAN_M_100_layers_4'
 
-path_aws = 'output/KAN_L_100_layers_0'
-path_carra = 'output/KAN_L_100_layers_1'
+path_aws = 'C:/Users/bav/OneDrive - Geological survey of Denmark and Greenland/Code/GEUS model/Output/QAS_U_0_IWC_CL_100_layers_4'
+path_carra = 'output/QAS_U_100_layers_2'
 
 df_out_aws = xr.open_dataset(path_aws+'/'+station+'_surface.nc').to_dataframe()
-df_in_aws = load_promice_old("./input/weather data/data_"+station+"_combined_hour.txt")
-df_out_aws [ df_in_aws.columns] = df_in_aws.loc[df_out_aws.index]
+df_out_aws.index = df_out_aws.index.round('H')
+df_in_aws = load_promice_old("QAS_U_CARRA.txt")
+df_out_aws [ df_in_aws.columns] = df_in_aws.values
+df_out_aws.index = df_out_aws.index - pd.Timedelta('1D')
 del df_in_aws
 
 df_out_carra = xr.open_dataset(path_carra+'/'+station+'_surface.nc').to_dataframe()
+df_out_carra.index = df_out_carra.index.round('H')
 df_in_carra = load_CARRA_data("./input/weather data/CARRA_at_AWS.nc", station)
-df_out_carra [ df_in_carra.columns] = df_in_carra.loc[df_out_carra.index]
+df_out_carra [ df_in_carra.columns] = df_in_carra
 del df_in_carra
 
 df_out_aws['melt_cumul'] = df_out_aws.melt_mweq.cumsum()
 df_out_carra['melt_cumul'] = df_out_carra.melt_mweq.cumsum()
-df_out_aws['runoff_cumul'] = df_out_aws.zrogl.cumsum()
+# df_out_aws['runoff_cumul'] = df_out_aws.zrogl.cumsum()
 df_out_carra['runoff_cumul'] = df_out_carra.zrogl.cumsum()
 df_out_aws['SR_net'] = df_out_aws.SRin - df_out_aws.SRout
 df_out_carra['SR_net'] = df_out_carra.SRin - df_out_carra.SRout
@@ -42,13 +45,17 @@ df_out_carra['SR_net'] = df_out_carra.SRin - df_out_carra.SRout
 df_out_carra.loc[df_out_carra.Albedo<0.2, 'Albedo'] = np.nan
 df_out_aws.loc[df_out_aws.Albedo<0.2, 'Albedo'] = np.nan
 
+df_out_aws = df_out_aws[~df_out_aws.index.duplicated(keep='first')]
+df_out_carra = df_out_carra[~df_out_carra.index.duplicated(keep='first')]
+# df_out_carra['Tsurf']  = (df_out_aws.LRout_mdl / 0.98 / 5.67e-08 -(1 - 0.98) * df_out_carra.LRin)**(1/4)  
+df_out_carra['Tsurf']  = (df_out_aws.LRout_mdl / 5.67e-08)**(1/4)  
 common_idx = df_out_aws.index.intersection(df_out_carra.index)
 df_out_aws = df_out_aws.loc[common_idx, :]
 df_out_carra = df_out_carra.loc[common_idx, :]
 plt.close('all')
-for var in ['LHF', 'SHF', 'AirTemperature2C', 'q_2m', 'ws_10m',
-        'SRin', 'SRout', 'LRin', 'LRout_mdl', 
-       'snowthick', 'melt_cumul', 'runoff_cumul', 'SR_net','Albedo']:
+#%%
+plt.close('all')
+for var in ['LRin', 'Tsurf', 'melt_cumul', 'melt_mweq']:
     ME = np.mean(df_out_carra[var] - df_out_aws[var])
     RMSE = np.sqrt(np.mean((df_out_carra[var] - df_out_aws[var])**2))
 
@@ -86,3 +93,17 @@ for var in ['LHF', 'SHF', 'AirTemperature2C', 'q_2m', 'ws_10m',
                                         edgecolor='black', facecolor='white'))
 
 
+
+# %% Producing old format
+# df_old = pd.read_csv('data_KAN_M_combined_hour.txt',sep='\t')
+# df_old = pd.DataFrame(columns=df_old.columns)
+
+# df_old['Year'] = df_in.index.year.values
+# df_old['MonthOfYear'] = df_in.index.month.values
+# df_old['HourOfDayUTC'] = df_in.index.hour.values
+# df_old['DayOfYear'] = df_in.index.dayofyear.values
+# for v in df_in.columns:
+#     if v in df_old.columns:
+#         df_old[v] = df_in[v].values
+        
+# df_old.replace({np.nan: -999}).to_csv('QAS_U_CARRA.txt', sep ='\t', index=None)

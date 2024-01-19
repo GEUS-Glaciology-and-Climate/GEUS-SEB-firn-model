@@ -21,6 +21,12 @@ class Struct:
     def disp(self):
         for property, value in vars(self).items():
             print(property, ":", value)
+    def write(self, path):
+        with open(path, 'w+') as the_file:
+            the_file.write('key,value\n')
+            for key, value in vars(self).items():
+                the_file.write(key+","+str(value)+'\n')
+
 
 def IniVar(time, c):
     df_ini = InitializationSubsurface(c)
@@ -55,10 +61,9 @@ def IniVar(time, c):
     grndc[:, -1] = tsoil[:, -1]
     snowbkt[-1] = 0
     snowthick[-1] = c.snowthick_ini
-    Tsurf[-1] = 263
 
     return (
-        rhofirn,
+        rhofirn, 
         rho,
         snowc,
         snic,
@@ -70,7 +75,6 @@ def IniVar(time, c):
         compaction,
         zrfrz,
         zsupimp,
-        Tsurf,
         zrogl,
         pgrndcapc,
         pgrndhflx,
@@ -89,7 +93,6 @@ def ImportConst(ElevGrad:float=0.1):
     #
     # Author: Baptiste Vandecrux (bav@geus.dk)
     # ========================================================================
-
 
     const_phy_path = "input/constants/const_phy.csv"
     const_sim_path = "input/constants/const_sim.csv"
@@ -150,6 +153,8 @@ def InitializationSubsurface(
     depth_mod_weq = np.insert(
         np.arange(1, NumLayer + 1) ** 4 / (NumLayer) ** 4 * c.z_max, 0, 0
     )
+    depth_mod_weq = np.array([0.0500,   0.1000,   0.1500,   0.2000,   0.2500,   0.3000,   0.3500,   0.4000,   0.4500,   0.5000,   0.5500,   0.6000,   0.6500,   0.7000,   0.7500,   0.8000,   0.8500,   0.9000,   0.9500,   1.0000,   1.0500,   1.1000,   1.1500,   1.2000,   1.2500,   1.3000,   1.3500,   1.4000,   1.4500,   1.5000,   1.5545,   1.6146,   1.6806,   1.7529,   1.8318,   1.9178,   2.0113,   2.1127,   2.2224,   2.3409,   2.4686,   2.6059,   2.7535,   2.9117,   3.0811,   3.2622,   3.4554,   3.6614,   3.8807,   4.1139,   4.3614,   4.6240,   4.9021,   5.1964,   5.5076,   5.8362,   6.1829,   6.5483,   6.9331,   7.3380,   7.7636,   8.2107,   8.6799,   9.1721,   9.6879,  10.2280,  10.7932,  11.3843,  12.0021,  12.6474,  13.3209,  14.0228,  14.7497,  15.5029,  16.2834,  17.0925,  17.9313,  18.8009,  19.7026,  20.6374,  21.6066,  22.6114,  23.6528,  24.7321,  25.8504,  27.0089,  28.2087,  29.4510,  30.7371,  32.0679,  33.4448,  34.8688,  36.3412,  37.8631,  39.4356,  41.0600,  42.7373,  44.4688,  46.2557,  48.0990,  50.0000])
+    
     # here we make sure the top layers are thick enough
     # if they are too thin we augment them to c.lim_new_lay and remove the added mass from the bottom layer so that the total depth weq is still c.z_max
     thickness_mod_weq = np.diff(depth_mod_weq)
@@ -163,7 +168,7 @@ def InitializationSubsurface(
 
     df_ini_dens = pd.concat([df_ini_dens, df_mod]).sort_index()
     df_ini_dens["density_kgm3"] = (
-        df_ini_dens["density_kgm3"].fillna(method="bfill").values
+        df_ini_dens["density_kgm3"].fillna(method="bfill").fillna(method="ffill").values
     )
 
     df_ini_dens["thickness_mweq"] = np.insert(
@@ -172,39 +177,39 @@ def InitializationSubsurface(
     df_ini_dens["thickness_m"] = (
         df_ini_dens.thickness_mweq * c.rho_water / df_ini_dens.density_kgm3
     )
-    df_ini_dens["depth_m_2"] = np.cumsum(df_ini_dens["thickness_m"])
+    # df_ini_dens["depth_m_2"] = np.cumsum(df_ini_dens["thickness_m"])
 
     # finding within which final depth bin each layer of the merged array falls in
-    df_ini_dens = df_ini_dens.loc[df_ini_dens.index <= depth_mod_weq.max(), :]
-    df_ini_dens["placings"] = np.digitize(df_ini_dens.index, depth_mod_weq, right=True)
+    # df_ini_dens = df_ini_dens.loc[df_ini_dens.index <= depth_mod_weq.max(), :]
+    # df_ini_dens["placings"] = np.digitize(df_ini_dens.index, depth_mod_weq, right=True)
 
     # within each final depth bin, making the average of densities weighted by the thikcness of the layers that compose each final bin
-    wm = lambda x: np.average(x, weights=df_ini_dens.loc[x.index, "thickness_m"])
-    df_mod["density_kgm3"] = (
-        df_ini_dens.groupby("placings")
-        .agg(weighted_density=("density_kgm3", wm))
-        .values
-    )
+    # wm = lambda x: np.average(x, weights=df_ini_dens.loc[x.index, "thickness_m"])
+    # df_mod["density_kgm3"] = (
+    #     df_ini_dens.groupby("placings")
+    #     .agg(weighted_density=("density_kgm3", wm))
+    #     .values
+    # )
 
-    if (
-        df_mod["density_kgm3"].last_valid_index()
-        < df_mod["density_kgm3"].index.values[-1]
-    ):
-        tmp = df_mod.loc[df_mod.density_kgm3.notnull(), "density_kgm3"]
-        x = np.around(np.append(tmp.index.values, [30, 70]), 4)
-        y = np.around(np.append(tmp.values, [830, 830]), 4)
-        fo = np.poly1d(np.polyfit(x, y, 2))
-        df_mod.loc[df_mod.density_kgm3.isnull(), "density_kgm3"] = fo(
-            df_mod.loc[df_mod.density_kgm3.isnull(), "density_kgm3"].index.values
-        )
+    # if (
+    #     df_mod["density_kgm3"].last_valid_index()
+    #     < df_mod["density_kgm3"].index.values[-1]
+    # ):
+    #     tmp = df_mod.loc[df_mod.density_kgm3.notnull(), "density_kgm3"]
+    #     x = np.around(np.append(tmp.index.values, [30, 70]), 4)
+    #     y = np.around(np.append(tmp.values, [830, 830]), 4)
+    #     fo = np.poly1d(np.polyfit(x, y, 2))
+    #     df_mod.loc[df_mod.density_kgm3.isnull(), "density_kgm3"] = fo(
+    #         df_mod.loc[df_mod.density_kgm3.isnull(), "density_kgm3"].index.values
+    #     )
 
-        df_mod["density_kgm3"] = np.minimum(
-            np.maximum(300, df_mod["density_kgm3"].values), 900
-        )
+    #     df_mod["density_kgm3"] = np.minimum(
+    #         np.maximum(300, df_mod["density_kgm3"].values), 900
+    #     )
 
     # ind_last = df_mod.density_kgm3.last_valid_index()
     # df_mod.loc[ind_last:, 'density_kgm3'] = 917
-
+    df_mod["density_kgm3"] =  df_ini_dens["density_kgm3"]
     df_mod["thickness_mweq"] = np.diff(depth_mod_weq)
     df_mod["thickness_m"] = (
         df_mod["thickness_mweq"] * c.rho_water / df_mod["density_kgm3"]

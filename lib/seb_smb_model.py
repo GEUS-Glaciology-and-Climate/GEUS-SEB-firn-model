@@ -63,41 +63,12 @@ plt.close('all')
 
 def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
     (
-        time,
-        T,
-        z_T,
-        WS,
-        z_WS,
-        RH,
-        z_RH,
-        pres,
-        SRin,
-        SRout,
-        LRin,
-        LRout,
-        snowfall,
-        rainfall,
-        T_rain,
-        theta,
-        theta_v,
-        q,
-        Tsurf,
-        rho_snow,
-        rho_atm,
-        nu,
-        mu,
-        L,
-        SHF,
-        LHF,
-        Re,
-        theta_2m,
-        q_2m,
-        ws_10m,
-        meltflux,
-        melt_mweq,
-        sublimation_mweq,
+     time,  T, z_T, WS, z_WS, RH, z_RH, pres, SRin, SRout, LRin, LRout, 
+     snowfall, rainfall, T_rain, theta, theta_v, q, Tsurf, rho_snow, rho_atm, 
+     nu, mu, L, SHF, LHF, Re, theta_2m, q_2m, ws_10m, meltflux, melt_mweq, 
+     sublimation_mweq,
     ) = variables_preparation(weather_df, c)
-
+    T = np.round(T,7)
     # Converts RH from relative to water to relative to ice
     # RH_wrt_w = RH
     # RH = RHwater2ice(RH_wrt_w, T, pres)
@@ -106,25 +77,8 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
     [RH, q] = SpecHumSat(RH, T, pres, c)
 
     (
-        rhofirn,
-        rho,
-        snowc,
-        snic,
-        slwc,
-        dgrain,
-        T_ice,
-        grndc,
-        grndd,
-        compaction,
-        zrfrz,
-        zsupimp,
-        Tsurf,
-        zrogl,
-        pgrndcapc,
-        pgrndhflx,
-        dH_comp,
-        snowbkt,
-        snowthick
+     rhofirn, rho, snowc, snic, slwc, dgrain, T_ice, grndc, grndd, compaction,
+     zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp, snowbkt, snowthick
     ) = IniVar(time, c)
 
     # c = CalculateMeanAccumulation(time,snowfall, c)
@@ -133,7 +87,7 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
     theta = T + z_T * c.g / c.c_pd
     # virtual potential temperature
     theta_v = theta * (1 + ((1 - c.es) / c.es) * q)
-    
+
     # start of the time loop
     for k in range(len(time)):
         if k in np.round(np.linspace(0,len(time),51)):
@@ -143,7 +97,6 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
         # Step 1/*: Initiate surface variables from previous time step. 
         # The value for k=0 was placed at the end of the array in IniVar.
         snowthick[k] = snowthick[k - 1]
-        # print(snowthick[k])
         Tsurf[k] = Tsurf[k - 1]
         snowbkt[k] = snowbkt[k - 1]
         
@@ -163,26 +116,23 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
         )
 
         (
-            SRnet, 
-            T_ice[:, k], 
-            internal_melting
+            SRnet, T_ice[:, k],  internal_melting
         ) = SRbalance(
-            SRin[k] - SRout[k], 
-            ind_ice, 
-            thickness_m, 
-            T_ice[:, k - 1], 
-            rho[:, k], 
-            c
+            SRin[k] - SRout[k],  ind_ice,  thickness_m,  T_ice[:, k - 1], 
+            rho[:, k],  c
         )
+        SRnet_tot = np.sum(SRnet)
+        SRnet=SRnet*0
+        SRnet[0] = SRnet_tot
 
         # Step 5/*:  Surface temperature calculation
+        
         k_eff = 0.021 + 2.5e-6 * rho[:, k] ** 2
 
         # effective conductivity by Anderson 1976, is ok at limits
         # thickness of the first layer in m weq for thermal transfer
         thick_first_lay = snic[0, k - 1] + snowc[0, k - 1]
 
-            
         # Prepare parameters needed for SEB
         EB_prev = 1
         dTsurf = c.dTsurf_ini  # Initial surface temperature step in search for EB=0 (C)
@@ -204,68 +154,42 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
         else:
             # ice roughness length
             z_0 = c.z0_ice
+        snowthick[k]=1
+        z_0 = c.z0_ice
 
+        # plt.figure()
+        # print(Tsurf[k])
+        # import pdb; pdb.set_trace()
+        
         for findbalance in range(1, c.iter_max_EB):
             assert ~np.isnan(Tsurf[k]), "nan Tsurf at step "+str(k)
-
+            
             # SENSIBLE AND LATENT HEAT FLUX
-
             (
-                L[k],
-                LHF[k],
-                SHF[k],
-                theta_2m[k],
-                q_2m[k],
-                ws_10m[k],
-                Re[k],
+                L[k], LHF[k], SHF[k], theta_2m[k], q_2m[k],
+                ws_10m[k], Re[k],
             ) = SensLatFluxes_bulk_opt(
-                WS[k],
-                nu[k],
-                q[k],
-                snowthick[k],
-                Tsurf[k],
-                theta[k],
-                theta_v[k],
-                pres[k],
-                rho_atm[k],
-                z_WS[k],
-                z_T[k],
-                z_RH[k],
-                z_0,
-                c,
-                k
+                WS[k], nu[k], q[k], snowthick[k], Tsurf[k], theta[k], 
+                theta_v[k], pres[k], rho_atm[k], z_WS[k], z_T[k], z_RH[k],
+                z_0, c, k
             )
 
             # SURFACE ENERGY BUDGET
             (
-                meltflux[k],
-                Tsurf[k],
-                dTsurf,
-                EB_prev,
-                stop,
-                LRout[k]
+                meltflux[k], Tsurf[k], dTsurf, EB_prev, stop, LRout[k]
              ) = SurfEnergyBudget(
-                SRnet,
-                LRin[k],
-                Tsurf[k],
-                k_eff,
-                thick_first_lay,
-                T_ice[:, k],
-                T_rain[k],
-                dTsurf,
-                EB_prev,
-                SHF[k],
-                LHF[k],
-                rainfall[k],
-                c,
+                SRnet, LRin[k], Tsurf[k], k_eff, thick_first_lay, T_ice[:, k],
+                T_rain[k], dTsurf, EB_prev, SHF[k], LHF[k], rainfall[k], c,
             )
-
+            # plt.plot([findbalance],[ Tsurf[k]], marker='o')
+            # print(k, Tsurf[k], meltflux[k])
             if stop:
                 break
 
         if (findbalance == c.iter_max_EB) & (abs(meltflux[k]) >= 10 * c.EB_max):
             print("Problem closing energy budget")
-
+        # plt.show()
+        
         # Step 6/*:  Mass Budget
         # in mweq
         melt_mweq[k] = meltflux[k] * c.zdtime / c.L_fus / c.rho_water
@@ -275,39 +199,20 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
         # ========== Step 7/*:  Sub-surface model ====================================
         c.rho_fresh_snow = rho_snow
         (
-            snowc[:, k],
-            snic[:, k],
-            slwc[:, k],
-            T_ice[:, k],
-            zrfrz[:, k],
-            rhofirn[:, k],
-            zsupimp[:, k],
-            dgrain[:, k],
-            zrogl[k],
-            Tsurf[k],
-            grndc[:, k],
-            grndd[:, k],
-            pgrndcapc[k],
-            pgrndhflx[k],
-            dH_comp[k],
-            snowbkt[k],
-            compaction[:, k],
+            snowc[:, k], snic[:, k], slwc[:, k],
+            T_ice[:, k],  zrfrz[:, k], rhofirn[:, k],
+            zsupimp[:, k], dgrain[:, k], zrogl[k],
+            Tsurf[k], grndc[:, k], grndd[:, k],
+            pgrndcapc[k], pgrndhflx[k], dH_comp[k],
+            snowbkt[k], compaction[:, k],
         ) = subsurface_opt(
-            Tsurf[k],
-            grndc[:, k - 1].copy(),
-            grndd[:, k - 1].copy(),
-            slwc[:, k - 1].copy(),
-            snic[:, k - 1].copy(),
-            snowc[:, k - 1].copy(),
-            rhofirn[:, k - 1].copy(),
-            T_ice[:, k].copy(),
-            dgrain[:, k - 1].copy(),
+            Tsurf[k], grndc[:, k - 1], grndd[:, k - 1],
+            slwc[:, k - 1], snic[:, k - 1], snowc[:, k - 1],
+            rhofirn[:, k - 1], T_ice[:, k], dgrain[:, k - 1],
             snowfall[k] + sublimation_mweq[k],  # net accumulation
             rainfall[k],  # rain
             melt_mweq[k],  # melt
-            c.Tdeep,
-            snowbkt[k - 1].copy(),
-            c
+            c.Tdeep, snowbkt[k - 1], c
         )
 
         # bulk density
@@ -323,39 +228,11 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
             )
         if snowthick[k] < 0: snowthick[k] = 0
                     
-    return (
-        L,
-        LHF,
-        SHF,
-        theta_2m,
-        q_2m,
-        ws_10m,
-        Re,
-        melt_mweq,
-        sublimation_mweq,
-        SRin,
-        SRout,
-        LRin,
-        LRout,
-        snowc,
-        snic,
-        slwc,
-        T_ice,
-        zrfrz,
-        rhofirn,
-        zsupimp,
-        dgrain,
-        zrogl,
-        Tsurf,
-        grndc,
-        grndd,
-        pgrndcapc,
-        pgrndhflx,
-        dH_comp,
-        snowbkt,
-        compaction,
-        snowthick
-    )
+    return (L, LHF, SHF, theta_2m, q_2m, ws_10m, Re, melt_mweq,
+            sublimation_mweq, SRin, SRout, LRin, LRout, 
+            snowc, snic, slwc, T_ice, zrfrz, rhofirn, zsupimp, dgrain, 
+            zrogl, Tsurf, grndc, grndd, pgrndcapc, pgrndhflx, dH_comp, 
+            snowbkt, compaction, snowthick)
 
 
 def IniRhoSnow(T, WS, c: Struct):
@@ -407,7 +284,7 @@ def variables_preparation(weather_df: pd.DataFrame, c: Struct):
     # Initial value for surface temperature
 
     Tsurf = np.empty((len(time)), dtype="float64") 
-    Tsurf[0] = np.mean(T[:24]) - 2.4
+    Tsurf[-1] = np.mean(T[:24]) - 2.4
     LRout = np.empty((len(time)), dtype="float64") 
 
     # The 2 m air temperature and IR skin temperature are similar during peak
@@ -438,41 +315,11 @@ def variables_preparation(weather_df: pd.DataFrame, c: Struct):
     melt_mweq = np.empty((len(time)), dtype="float64")
     sublimation_mweq = np.empty((len(time)), dtype="float64")
     
-    return (
-        time,
-        T,
-        z_T,
-        WS,
-        z_WS,
-        RH,
-        z_RH,
-        pres,
-        SRin,
-        SRout,
-        LRin,
-        LRout,
-        snowfall,
-        rainfall,
-        T_rain,
-        theta,
-        theta_v,
-        q,
-        Tsurf,
-        rho_snow,
-        rho_atm,
-        nu,
-        mu,
-        L,
-        SHF,
-        LHF,
-        Re,
-        theta_2m,
-        q_2m,
-        ws_10m,
-        meltflux,
-        melt_mweq,
-        sublimation_mweq,
-    )
+    return (time, T, z_T, WS, z_WS, RH, z_RH, pres, SRin, SRout, LRin, LRout, 
+            snowfall, rainfall, T_rain, theta, theta_v, q, Tsurf, rho_snow, 
+            rho_atm, nu, mu, L, SHF, LHF, Re, theta_2m, q_2m, ws_10m, meltflux,
+            melt_mweq, sublimation_mweq,
+            )
 
 
 # # SEB_SMB(rho_bulk[:, k-1], snowbkt[k-1],
@@ -553,19 +400,8 @@ def variables_preparation(weather_df: pd.DataFrame, c: Struct):
 
 
 def SurfEnergyBudget(
-    SRnet,
-    LRin,
-    Tsurf,
-    k_eff,
-    thick_first_lay,
-    T_ice,
-    T_rain,
-    dTsurf,
-    EB_prev,
-    SHF,
-    LHF,
-    rainfall,
-    c,
+    SRnet,  LRin,  Tsurf,  k_eff,  thick_first_lay,  T_ice,  T_rain, 
+    dTsurf,  EB_prev,  SHF,  LHF,  rainfall,  c,
 ):
     # meltflux[k], Tsurf[k], dTsurf, EB_prev, stop  \
     # = SurfEnergyBudget (SRnet, LRin[k], Tsurf[k], k_eff,thick_first_lay, \
@@ -579,18 +415,14 @@ def SurfEnergyBudget(
     # translated to python by Baptiste Vandecrux (bav@geus.dk)
     # ==========================================================================
     stop = 0
-
     # SURFACE ENERGY BUDGET
     
     LRout_mdl = c.em * c.sigma * Tsurf ** 4 + (1 - c.em) * LRin
     
     meltflux = (
-        SRnet[0]
-        - SRnet[1]
-        + LRin
-        - LRout_mdl
-        + SHF
-        + LHF
+        SRnet[0] - SRnet[1]
+        + LRin - LRout_mdl
+        + SHF + LHF
         - (k_eff[0]) * (Tsurf - T_ice[1]) / thick_first_lay
         + c.rho_water * c.c_w * rainfall * c.dev / c.zdtime * (T_rain - c.T_0)
     )
@@ -614,8 +446,10 @@ def SurfEnergyBudget(
 
     # Update BV
     if meltflux < 0:
+        # print(str(meltflux)+'subtracting '+str(dTsurf))
         Tsurf = Tsurf - dTsurf
     else:
+        # print(str(meltflux)+'adding '+str(dTsurf))
         Tsurf = min(c.T_0, Tsurf + dTsurf)
 
     return meltflux, Tsurf, dTsurf, EB_prev, stop, LRout_mdl
