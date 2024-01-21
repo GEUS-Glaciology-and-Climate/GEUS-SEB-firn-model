@@ -22,12 +22,7 @@ import time
 start_time = time.time()
 print('start processing')
 
-for station in ['KAN_M','KAN_L','KAN_U','QAS_M','QAS_U','DYE-2','CP1',
-                'CEN2','Saddle', 'South Dome', 'Summit','NASA-SE','NASA-E'
-                'NASA-U','SCO_U','SCO_L','KPC_U','KPC_L', 'NUK_L','NUK_U',
-                'UPE_U','UPE_L','THU_L','THU_U','THU_U2','JAR1','SWC','EGP',
-                'TAS_A','TAS_L','TAS_U', 'Tunu-N',
-                ]:
+for station in ['KAN_L','KAN_M','KAN_U','Summit','Dye-2','CP1','THU_U2','THU_L','THU_U','UPE_L','UPE_U','SCO_L','SCO_U','QAS_L','QAS_M']:
     try:
         # importing standard values for constants
         c = ImportConst()
@@ -51,7 +46,7 @@ for station in ['KAN_M','KAN_L','KAN_U','QAS_M','QAS_U','DYE-2','CP1',
         
         df_in = io.load_surface_input_data(c)
         
-        # df_in = df_in.loc['2007-09-01':'2013-09-01',:]
+        # df_in = df_in.loc['2007-09-01':,:]
         
         print('start/end of input file', df_in.index[0], df_in.index[-1])
         # DataFrame for the surface is created, indexed with time from df_aws
@@ -81,7 +76,7 @@ for station in ['KAN_M','KAN_L','KAN_U','QAS_M','QAS_U','DYE-2','CP1',
         depth_act = np.cumsum(thickness_act, 0)
         density_bulk = (snowc + snic) / (snowc / rhofirn + snic / c.rho_ice)
         
-        # Writing output
+        # %%Writing output
         c.RunName = c.station + "_" + str(c.num_lay) + "_layers"
         i = 0
         succeeded = 0
@@ -116,9 +111,8 @@ for station in ['KAN_M','KAN_L','KAN_U','QAS_M','QAS_U','DYE-2','CP1',
         plt.close("all")
         #lpl.plot_summary(df_in, c, 'input_summary', var_list = ['RelativeHumidity1','RelativeHumidity2'])
         # %%
-        lpl.plot_summary(df_out, c, 'SEB_output')
-        for var in ['slwc','T_ice','density_bulk']:
-            lpl.plot_var(c.station, c.RunName, var, zero_surf=False)
+        import plot_output as po
+        po.main(c.RunName, c.station)
         
         print('plotting took %0.03f sec'%(time.time() -start_time))
         start_time = time.time()

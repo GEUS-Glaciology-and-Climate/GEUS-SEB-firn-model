@@ -137,10 +137,10 @@ def load_CARRA_data(*args):
     cut_off_temp = 0
     df_carra.loc[df_carra.AirTemperature2C < cut_off_temp,
                  'Snowfallmweq'] = df_carra.loc[
-                     df_carra.AirTemperature2C < cut_off_temp,'tp'] /3/ 1000/1.5
+                     df_carra.AirTemperature2C < cut_off_temp,'tp'] /3/ 1000
     df_carra.loc[df_carra.AirTemperature2C >= cut_off_temp,
                  'Rainfallmweq'] = df_carra.loc[
-                     df_carra.AirTemperature2C >= cut_off_temp,'tp'] /3/ 1000/1.5
+                     df_carra.AirTemperature2C >= cut_off_temp,'tp'] /3/ 1000
     return df_carra
 
 

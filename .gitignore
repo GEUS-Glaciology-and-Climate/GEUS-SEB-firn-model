@@ -26,3 +26,5 @@ input/weather data/IMAU_aws18_high-res_meteo.csv
 input/weather data/IMAU_aws19_high-res_meteo.csv
 input/weather data/IMAU_aws5_high-res_meteo.csv
 input/weather data/IMAU_aws6_high-res_meteo.csv
+
+output

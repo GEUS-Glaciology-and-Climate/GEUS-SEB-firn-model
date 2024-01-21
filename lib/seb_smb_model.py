@@ -154,8 +154,6 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
         else:
             # ice roughness length
             z_0 = c.z0_ice
-        snowthick[k]=1
-        z_0 = c.z0_ice
 
         # plt.figure()
         # print(Tsurf[k])
