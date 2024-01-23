@@ -75,6 +75,88 @@ def plot_var(site, run_name, var_name, ylim=[], zero_surf=True):
     fig.savefig("output/" + run_name + "/" + site + "_" + var_name + ".png")
     return fig, ax
 
+def plot_var_start_end(site, run_name, var_name, ylim=[]):
+    print('plotting',var_name, 'from',run_name)
+    filename = "Output/" + run_name + "/" + site + "_" + var_name + ".nc"
+    ds = xr.open_dataset(filename).transpose()
+    ds = ds.resample(time='6H').nearest()
+    
+    if var_name == "slwc":
+        # change unit to mm / m3
+        ds[var_name] = ds[var_name] * 1000 / ds.depth
+    if var_name == "T_ice":
+        # change unit to mm / m3
+        ds[var_name] = ds[var_name] -273.15
+        
+                
+    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+    # plt.subplots_adjust(left=0.07, right=0.99, top=0.95, bottom=0.1, hspace=0.2)
+    plt.plot( ds[var_name].isel(time=0), 
+             ds.depth.isel(time=0),
+             marker='o',
+             color='tab:blue',
+             label=ds[var_name].time.isel(time=0),
+             )
+    plt.plot( ds[var_name].isel(time=-1), 
+             ds.depth.isel(time=-1),
+             marker='o',
+             color='tab:red',
+             label=ds[var_name].time.isel(time=-1),
+             )
+    plt.legend()
+    plt.title(site)
+    plt.gca().invert_yaxis()
+    if ylim:
+        if len(ylim)==1: ax.set_ylim(ylim, ax.get_ylim()[1])
+        if len(ylim)==2: ax.set_ylim(np.max(ylim), np.min(ylim))
+    ax.set_ylabel("Depth (m)")
+    
+    fig.savefig("output/" + run_name + "/" + site + "_" + var_name + "_start_end.png")
+    return fig, ax
+
+def plot_movie(site, run_name, var_name, ylim=[]):
+    print('plotting',var_name, 'from',run_name)
+    filename = "Output/" + run_name + "/" + site + "_" + var_name + ".nc"
+    ds = xr.open_dataset(filename).transpose()
+    ds = ds.resample(time='6H').nearest()
+    
+    if var_name == "slwc":
+        # change unit to mm / m3
+        ds[var_name] = ds[var_name] * 1000 / ds.depth
+    if var_name == "T_ice":
+        # change unit to mm / m3
+        ds[var_name] = ds[var_name] -273.15
+        
+    import matplotlib.pyplot as plt
+    from matplotlib.animation import FuncAnimation
+    from tqdm import tqdm
+    
+    # Assuming ds is your dataset and var_name is the variable name
+    # Adjust the parameters accordingly
+    
+    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+    
+    def update(frame):
+        ax.clear()
+        ax.plot(ds[var_name].isel(time=frame), 
+                ds.depth.isel(time=frame),
+                marker='o',
+                color='tab:blue',
+                label=ds[var_name].time.isel(time=frame),
+                )
+        ax.set_title(f'Timestamp: {ds[var_name].time.isel(time=frame).values}')
+        ax.set_xlim(ds[var_name].min(), ds[var_name].max())
+        ax.set_ylim(80,0)
+        
+    animation = FuncAnimation(fig, update, 
+                              frames=range(0,len(ds.time),24*7),
+                              interval=100, repeat=False)
+    
+    # Save the animation as an MP4 file
+    animation.save('output/'+run_name+'/'+var_name+'.gif', fps=30, writer='pillow')
+    plt.show()
+
+
 
 def evaluate_compaction(site, run_name):
     filename = "Output/" + run_name + "/" + site + "_compaction.nc"
