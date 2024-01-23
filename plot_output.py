@@ -15,34 +15,35 @@ from lib.initialization import Struct
 import pandas as pd
 import lib.io as io
 
-def main(run_name = 'UPE_U_100_layers_SU',
+def main(output_path= 'C:/Users/bav/data_save/output firn model/',
+         run_name = 'UPE_U_100_layers_SU',
           station= 'UPE_U'):
     # %%
-    # run_name = 'KAN_U_100_layers_SU'
-    # station= 'KAN_U'
+    run_name = 'UPE_U_100_layers_SU'
+    station= 'UPE_U'
 
-    c = Struct(**pd.read_csv('output/'+run_name+'/constants.csv',
+    c = Struct(**pd.read_csv(output_path+run_name+'/constants.csv',
                              dtype={'key':str})
                .set_index('key').to_dict()['value'] )
     c.RunName=run_name
     df_in = io.load_surface_input_data(c)
     try:
-        df_out = xr.open_dataset('output/'+run_name+'/'+station+'_surface.nc').to_dataframe()
+        df_out = xr.open_dataset(c.output_path+run_name+'/'+station+'_surface.nc').to_dataframe()
         df_in = df_in.loc[df_out.index[0]:df_out.index[-1],:]
         lpl.plot_summary(df_out, c, 'SEB_output')
     except Exception as e:
         print(e)
     for var in ['T_ice','density_bulk','slwc']:
         lpl.plot_var(c.station, c.RunName, var, zero_surf=False)
-    
+    #%%
     lpl.plot_var_start_end(c.station, c.RunName, 'T_ice')
     # extracting surface height
-    filename = "Output/" + run_name + "/" + station + "_T_ice.nc"
+    filename = c.output_path + run_name + "/" + station + "_T_ice.nc"
     ds = xr.open_dataset(filename).transpose()
     df_out['surface_height'] = ds.depth.isel(level=-1) - ds.depth.isel(level=-1).isel(time=0)
     del ds
         
-    #%
+    #%%
     fig = plt.figure()
     ax=plt.gca()
     df_out.melt_mweq.cumsum().plot(ax=ax, label='melt')
@@ -54,7 +55,7 @@ def main(run_name = 'UPE_U_100_layers_SU',
         pass
     df_out.snowthick.plot(ax=ax, label='snowthickness')
     plt.legend()
-    fig.savefig('output/'+c.RunName+'/SMB.png', dpi=120)
+    fig.savefig(c.output_path+c.RunName+'/SMB.png', dpi=120)
     
     # %% Surface height evaluation
     # if 'SurfaceHeightm' in df_in.columns:
@@ -73,7 +74,7 @@ def main(run_name = 'UPE_U_100_layers_SU',
     plt.legend()
     plt.ylabel('Surface height (m)')
     plt.title(c.station)
-    fig.savefig('output/'+c.RunName+'/surface_height.png', dpi=120)
+    fig.savefig(c.output_path+c.RunName+'/surface_height.png', dpi=120)
     
     # %% 
     lpl.plot_movie(station, run_name, 'T_ice')
@@ -97,7 +98,7 @@ def main(run_name = 'UPE_U_100_layers_SU',
         (df_in.loc['2019-09-01':'2020-05-01'].Snowfallmweq).cumsum().plot(ax=ax, label='Snowfall')
         plt.title(c.station)
         plt.ylabel('Snow accumulation (m w.e.)')
-        fig.savefig('output/'+c.RunName+'/snowfox_eval.png', dpi=120)
+        fig.savefig(c.output_path+c.RunName+'/snowfox_eval.png', dpi=120)
 
 # %%
         

@@ -41,14 +41,10 @@ plt.close('all')
 # refreeze def)
 # - Choices between several parametrization for fresh snow density
 # (including a WS depant).
-# - Choice between different definition of precipitation
-# - Possibility to run it as conduction model for use as in Humphrey et al. 2012
 # - Lefebvre et al. 2003 for the roughness scale of snow and ice
 # - Calonne 2012 for permeability
 # - Runoff according to a Darcy flow through saturated snow
 # - variable layer thickness. Dynamic merging/splitting of layers.
-# - initial layer thickness depant on the accumulation
-
 # Main script for running the surface - subsurface model
 # Here you can define which year you want to compute, define your
 # parameters, plot output variables, evaluate model performance\.
@@ -119,14 +115,13 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
             SRnet, T_ice[:, k],  internal_melting
         ) = SRbalance(
             SRin[k] - SRout[k],  ind_ice,  thickness_m,  T_ice[:, k - 1], 
-            rho[:, k],  c
-        )
+            rho[:, k],  c )
+            
         SRnet_tot = np.sum(SRnet)
         SRnet=SRnet*0
         SRnet[0] = SRnet_tot
 
         # Step 5/*:  Surface temperature calculation
-        
         k_eff = 0.021 + 2.5e-6 * rho[:, k] ** 2
 
         # effective conductivity by Anderson 1976, is ok at limits
@@ -159,9 +154,7 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
         # print(Tsurf[k])
         # import pdb; pdb.set_trace()
         
-        for findbalance in range(1, c.iter_max_EB):
-            assert ~np.isnan(Tsurf[k]), "nan Tsurf at step "+str(k)
-            
+        for findbalance in range(1, c.iter_max_EB):            
             # SENSIBLE AND LATENT HEAT FLUX
             (
                 L[k], LHF[k], SHF[k], theta_2m[k], q_2m[k],
@@ -195,6 +188,7 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
         # positive LHF -> deposition -> dH_subl positive
 
         # ========== Step 7/*:  Sub-surface model ====================================
+
         c.rho_fresh_snow = rho_snow
         (
             snowc[:, k], snic[:, k], slwc[:, k],
@@ -212,7 +206,7 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
             melt_mweq[k],  # melt
             c.Tdeep, snowbkt[k - 1], c
         )
-
+            
         # bulk density
         rho[:, k] = (snowc[:, k] + snic[:, k]) / (
             snowc[:, k] / rhofirn[:, k] + snic[:, k] / c.rho_ice

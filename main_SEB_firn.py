@@ -28,6 +28,7 @@ for station in ['KAN_L']:
     # try:
     # importing standard values for constants
     c = ImportConst()
+    c.output_path = 'C:/Users/bav/data_save/output firn model/'
     
     c.station = station
     # c.surface_input_path = "./input/weather data/data_KAN_U_2009-2019.txt"
@@ -55,6 +56,11 @@ for station in ['KAN_L']:
                            df_in.loc['1991':'2001',:]), ignore_index=True)
         df_in.index=pd.to_datetime('1991-01-01T00:00:00') + pd.to_timedelta(df_in.index.astype(str).to_series() + 'H')
     
+    for var in ['AirTemperature2C', 'Albedo', 'ShortwaveRadiationDownWm2', 'LongwaveRadiationDownWm2',
+           'AirPressurehPa', 'WindSpeed2ms', 'RelativeHumidity2', 'LongwaveRadiationUpWm2', 
+           'ShortwaveRadiationUpWm2', 'Snowfallmweq', 'Rainfallmweq', 'HeightTemperature2m', 
+           'HeightHumidity2m', 'HeightWindSpeed2m']:
+        assert ~df_in[var].isnull().any(), var+' has NaNs'
     print('start/end of input file', df_in.index[0], df_in.index[-1])
     # DataFrame for the surface is created, indexed with time from df_aws
     df_out = pd.DataFrame()

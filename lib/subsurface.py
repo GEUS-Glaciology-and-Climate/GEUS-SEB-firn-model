@@ -2,23 +2,8 @@ import numpy as np
 import lib.percolation as lp
 from numba import jit, njit
 
-def subsurface_opt(
-    pts,
-    pgrndc,
-    pgrndd,
-    pslwc,
-    psnic,
-    psnowc,
-    prhofirn,
-    ptsoil,
-    pdgrain,
-    zsn,
-    zraind,
-    zsnmel,
-    pTdeep,
-    psnowbkt,
-    c
-):
+def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn, 
+                   ptsoil, pdgrain, zsn, zraind, zsnmel, pTdeep, psnowbkt, c):
     # HIRHAM subsurface scheme - version 2016
     # Developped by Peter Langen (DMI), Robert Fausto (GEUS)
     # and Baptiste Vandecrux (DTU-GEUS)
@@ -42,7 +27,6 @@ def subsurface_opt(
     # thickness_weq(n) = snowc(n)+snic(n)+slwc(n)
     # This thickness is allowed to vary within certain rules.
 
-    # print(prhofirn[0], psnowc[0], psnic[0], pslwc[0], ptsoil[0])
     ptsoil = tsoil_diffusion(pts, pgrndc, pgrndd, ptsoil)
 
     prhofirn, dH_comp, compaction = densification(
@@ -52,19 +36,9 @@ def subsurface_opt(
     pdgrain = graingrowth(pslwc, psnowc, pdgrain, c)
 
     psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt = snowfall_new(
-        zsn,
-        psnowc,
-        psnic,
-        pslwc,
-        pdgrain,
-        prhofirn,
-        ptsoil,
-        pts,
-        psnowbkt,
-        zraind,
-        zsnmel,
-        c,
-    )
+         zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts, psnowbkt, 
+         zraind, zsnmel, c)
+    
 
     psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt = sublimation_new(
         zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt, c
@@ -97,30 +71,14 @@ def subsurface_opt(
         prhofirn, psnowc, psnic, pslwc, ptsoil, pdgrain, c
     )
 
-    psn = calc_snowdepth1D(psnowc, psnic, pslwc, psnowbkt, c)
+    #psn = calc_snowdepth1D(psnowc, psnic, pslwc, psnowbkt, c)
 
     pgrndc, pgrndd, pgrndcapc, pgrndhflx = update_tempdiff_params_opt(
         prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_cond, zso_capa
     )
-    return (
-        psnowc,
-        psnic,
-        pslwc,
-        ptsoil,
-        zrfrz,
-        prhofirn,
-        zsupimp,
-        pdgrain,
-        zrogl,
-        ptsoil[0],
-        pgrndc,
-        pgrndd,
-        pgrndcapc,
-        pgrndhflx,
-        dH_comp,
-        psnowbkt,
-        compaction,
-    )
+    return (psnowc, psnic, pslwc, ptsoil, zrfrz, prhofirn, zsupimp, pdgrain, 
+            zrogl, ptsoil[0], pgrndc, pgrndd, pgrndcapc, pgrndhflx, dH_comp, 
+            psnowbkt, compaction)
 
 
 @jit(nopython=True)
@@ -171,7 +129,7 @@ def densification(pslwc, psnowc, psnic, prhofirn, ptsoil, c):
 
     #     Wliq is the snow layer water content (kgm−2), D the snow layer thickness and ρw the liquid water density, and
     Wliq = pslwc * c.rho_water
-    D = psnowc * c.rho_water / prhofirn
+    D = (psnowc + c.smallno) * c.rho_water / prhofirn
     f1f2 = 4 / (1 + 60 * Wliq / c.rho_water / D)
     # f1f2 = 4. /(1 + 60.*(pslwc / (psnowc + c.smallno)) * (prhofirn / c.rho_water))
     # ! f2 = 4
@@ -549,8 +507,8 @@ def merge_layer(psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil, c):
             + psnowc[i_merg + 1] / prhofirn[i_merg + 1]
         )
     else:
-        pdgrain[i_merg + 1] = -999
-        prhofirn[i_merg + 1] = -999
+        pdgrain[i_merg + 1] = 1
+        prhofirn[i_merg + 1] = c.rho_ice
 
     ptsoil[i_merg + 1] = (
         (psnic[i_merg] + psnowc[i_merg] + pslwc[i_merg]) * ptsoil[i_merg]
@@ -994,20 +952,16 @@ def sublimation_new(zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowb
                         (psnic[0] + psnowc[0] + pslwc[0]) * ptsoil[0]
                         + (psnic[1] + psnowc[1] + pslwc[1]) * ptsoil[1]
                     ) / (
-                        psnic[0]
-                        + psnowc[0]
-                        + pslwc[0]
-                        + psnic[1]
-                        + psnowc[1]
-                        + pslwc[1]
+                        psnic[0] + psnowc[0] + pslwc[0]
+                        + psnic[1] + psnowc[1] + pslwc[1]
                     )
 
                     psnowc[1] = psnowc[1] + psnowc[0]
                     psnic[1] = psnic[1] + psnic[0]
                     pslwc[1] = pslwc[1] + pslwc[0]
                 else:
-                    pdgrain[1] = -999
-                    prhofirn[1] = -999
+                    pdgrain[1] = 1
+                    prhofirn[1] = c.rho_ice
 
                 # now top layer is free and another layer can be splitted
                 # elsewhere
