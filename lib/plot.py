@@ -20,9 +20,9 @@ import warnings
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-def plot_var(site, run_name, var_name, ylim=[], zero_surf=True):
+def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True):
     print('plotting',var_name, 'from',run_name)
-    filename = "Output/" + run_name + "/" + site + "_" + var_name + ".nc"
+    filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
     ds = xr.open_dataset(filename).transpose()
     ds = ds.resample(time='6H').nearest()
     
@@ -72,12 +72,12 @@ def plot_var(site, run_name, var_name, ylim=[], zero_surf=True):
         if len(ylim)==2: ax.set_ylim(np.max(ylim), np.min(ylim))
     ax.set_ylabel("Depth (m)")
     
-    fig.savefig("output/" + run_name + "/" + site + "_" + var_name + ".png")
+    fig.savefig(output_path+"/" + run_name + "/" + site + "_" + var_name + ".png")
     return fig, ax
 
-def plot_var_start_end(site, run_name, var_name, ylim=[]):
+def plot_var_start_end(site, output_path, run_name, var_name, ylim=[]):
     print('plotting',var_name, 'from',run_name)
-    filename = "Output/" + run_name + "/" + site + "_" + var_name + ".nc"
+    filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
     ds = xr.open_dataset(filename).transpose()
     ds = ds.resample(time='6H').nearest()
     
@@ -111,12 +111,12 @@ def plot_var_start_end(site, run_name, var_name, ylim=[]):
         if len(ylim)==2: ax.set_ylim(np.max(ylim), np.min(ylim))
     ax.set_ylabel("Depth (m)")
     
-    fig.savefig("output/" + run_name + "/" + site + "_" + var_name + "_start_end.png")
+    fig.savefig(output_path+"/" + run_name + "/" + site + "_" + var_name + "_start_end.png")
     return fig, ax
 
-def plot_movie(site, run_name, var_name, ylim=[]):
+def plot_movie(site, output_path,  run_name, var_name, ylim=[]):
     print('plotting',var_name, 'from',run_name)
-    filename = "Output/" + run_name + "/" + site + "_" + var_name + ".nc"
+    filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
     ds = xr.open_dataset(filename).transpose()
     ds = ds.resample(time='6H').nearest()
     
@@ -153,13 +153,13 @@ def plot_movie(site, run_name, var_name, ylim=[]):
                               interval=100, repeat=False)
     
     # Save the animation as an MP4 file
-    animation.save('output/'+run_name+'/'+var_name+'.gif', fps=30, writer='pillow')
+    animation.save(output_path + '/'+run_name+'/'+var_name+'.gif', fps=30, writer='pillow')
     plt.show()
 
 
 
-def evaluate_compaction(site, run_name):
-    filename = "Output/" + run_name + "/" + site + "_compaction.nc"
+def evaluate_compaction(site,output_path, run_name):
+    filename = output_path+"/" + run_name + "/" + site + "_compaction.nc"
     ds = nc.Dataset(filename)
     compaction = ds["compaction"][:]
     time_org = np.asarray(ds["time"][:])
@@ -264,8 +264,8 @@ def evaluate_compaction(site, run_name):
         rotation="vertical",
     )
 
-    fig1.savefig("Output/" + run_name + "/" + site + "_compaction_1.png")
-    fig2.savefig("Output/" + run_name + "/" + site + "_compaction_2.png")
+    fig1.savefig(output_path+"/" + run_name + "/" + site + "_compaction_1.png")
+    fig2.savefig(output_path+"/" + run_name + "/" + site + "_compaction_2.png")
 
 
 def plot_summary(df, c, filetag="summary", var_list=None):

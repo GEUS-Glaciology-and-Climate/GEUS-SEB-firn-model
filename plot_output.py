@@ -18,11 +18,9 @@ import lib.io as io
 def main(output_path= 'C:/Users/bav/data_save/output firn model/',
          run_name = 'UPE_U_100_layers_SU',
           station= 'UPE_U'):
-    # %%
-    run_name = 'UPE_U_100_layers_SU'
-    station= 'UPE_U'
 
-    c = Struct(**pd.read_csv(output_path+run_name+'/constants.csv',
+
+    c = Struct(**pd.read_csv(output_path+'/'+ run_name+'/constants.csv',
                              dtype={'key':str})
                .set_index('key').to_dict()['value'] )
     c.RunName=run_name
@@ -34,9 +32,9 @@ def main(output_path= 'C:/Users/bav/data_save/output firn model/',
     except Exception as e:
         print(e)
     for var in ['T_ice','density_bulk','slwc']:
-        lpl.plot_var(c.station, c.RunName, var, zero_surf=False)
+        lpl.plot_var(c.station, c.output_path, c.RunName, var, zero_surf=False)
     #%%
-    lpl.plot_var_start_end(c.station, c.RunName, 'T_ice')
+    lpl.plot_var_start_end(c.station, c.output_path, c.RunName, 'T_ice')
     # extracting surface height
     filename = c.output_path + run_name + "/" + station + "_T_ice.nc"
     ds = xr.open_dataset(filename).transpose()
@@ -77,8 +75,8 @@ def main(output_path= 'C:/Users/bav/data_save/output firn model/',
     fig.savefig(c.output_path+c.RunName+'/surface_height.png', dpi=120)
     
     # %% 
-    lpl.plot_movie(station, run_name, 'T_ice')
-    lpl.plot_movie(station, run_name, 'density_bulk')
+    lpl.plot_movie(c.station, c.output_path, c.RunName, 'T_ice')
+    lpl.plot_movie(c.station, c.output_path, c.RunName, 'density_bulk')
 
     
     # %% 
