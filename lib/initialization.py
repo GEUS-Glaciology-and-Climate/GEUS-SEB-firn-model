@@ -120,9 +120,8 @@ def ImportConst(ElevGrad:float=0.1):
     return c
 
 
-def InitializationSubsurface(
-    c, 
-):  # T_obs, depth_thermistor, T_ice, time, Tsurf_ini, j, c):
+def InitializationSubsurface(c):
+    # T_obs, depth_thermistor, T_ice, time, Tsurf_ini, j, c):
     # InitializationSubsurface: Sets the initial state of the sub surface parameters:
     # - snow depth
     # - temperature profile
@@ -133,8 +132,12 @@ def InitializationSubsurface(
     # Initial density profile
     filename = c.initial_state_folder_path + c.station + "_initial_density.csv"
     if not os.path.isfile(filename):
-        print('Did not find initial density profile. Using "ablation_initial_density.csv".')
-        filename = c.initial_state_folder_path + "ablation_initial_density.csv"
+        if  c.altitude < 1500:
+            print('Did not find initial density profile. Using "ablation_initial_density.csv".')
+            filename = c.initial_state_folder_path + "ablation_initial_density.csv"
+        else:
+            print('Did not find initial density profile. Using "Accumulation_initial_density.csv".')
+            filename = c.initial_state_folder_path + "Accumulation_initial_density.csv"
 
     df_ini_dens = pd.read_csv(filename, sep=";")
     df_ini_dens.loc[df_ini_dens.density_kgm3.isnull(), "density_kgm3"] = 350
@@ -153,8 +156,19 @@ def InitializationSubsurface(
     depth_mod_weq = np.insert(
         np.arange(1, NumLayer + 1) ** 4 / (NumLayer) ** 4 * c.z_max, 0, 0
     )
-    depth_mod_weq = np.array([0.0500,   0.1000,   0.1500,   0.2000,   0.2500,   0.3000,   0.3500,   0.4000,   0.4500,   0.5000,   0.5500,   0.6000,   0.6500,   0.7000,   0.7500,   0.8000,   0.8500,   0.9000,   0.9500,   1.0000,   1.0500,   1.1000,   1.1500,   1.2000,   1.2500,   1.3000,   1.3500,   1.4000,   1.4500,   1.5000,   1.5545,   1.6146,   1.6806,   1.7529,   1.8318,   1.9178,   2.0113,   2.1127,   2.2224,   2.3409,   2.4686,   2.6059,   2.7535,   2.9117,   3.0811,   3.2622,   3.4554,   3.6614,   3.8807,   4.1139,   4.3614,   4.6240,   4.9021,   5.1964,   5.5076,   5.8362,   6.1829,   6.5483,   6.9331,   7.3380,   7.7636,   8.2107,   8.6799,   9.1721,   9.6879,  10.2280,  10.7932,  11.3843,  12.0021,  12.6474,  13.3209,  14.0228,  14.7497,  15.5029,  16.2834,  17.0925,  17.9313,  18.8009,  19.7026,  20.6374,  21.6066,  22.6114,  23.6528,  24.7321,  25.8504,  27.0089,  28.2087,  29.4510,  30.7371,  32.0679,  33.4448,  34.8688,  36.3412,  37.8631,  39.4356,  41.0600,  42.7373,  44.4688,  46.2557,  48.0990,  50.0000])
-    
+    depth_mod_weq = np.array([0.0500, 0.1000, 0.1500, 0.2000, 0.2500, 0.3000, 
+      0.3500, 0.4000, 0.4500, 0.5000, 0.5500, 0.6000, 0.6500, 0.7000, 0.7500,
+      0.8000, 0.8500, 0.9000, 0.9500, 1.0000, 1.0500, 1.1000, 1.1500, 1.2000,
+      1.2500, 1.3000, 1.3500, 1.4000, 1.4500, 1.5000, 1.5545, 1.6146, 1.6806, 
+      1.7529, 1.8318, 1.9178, 2.0113, 2.1127, 2.2224, 2.3409, 2.4686, 2.6059, 
+      2.7535, 2.9117, 3.0811, 3.2622, 3.4554, 3.6614, 3.8807, 4.1139, 4.3614, 
+      4.6240, 4.9021, 5.1964, 5.5076, 5.8362, 6.1829, 6.5483, 6.9331, 7.3380, 
+      7.7636, 8.2107, 8.6799, 9.1721, 9.6879,  10.2280,  10.7932,  11.3843, 
+      12.0021,  12.6474,  13.3209,  14.0228,  14.7497,  15.5029,  16.2834,  
+      17.0925,  17.9313,  18.8009,  19.7026,  20.6374,  21.6066,  22.6114,  
+      23.6528,  24.7321,  25.8504,  27.0089,  28.2087,  29.4510,  30.7371,  
+      32.0679,  33.4448,  34.8688,  36.3412,  37.8631,  39.4356,  41.0600,  42.7373,  44.4688,  46.2557,  48.0990,  50.0000])
+  
     # here we make sure the top layers are thick enough
     # if they are too thin we augment them to c.lim_new_lay and remove the added mass from the bottom layer so that the total depth weq is still c.z_max
     thickness_mod_weq = np.diff(depth_mod_weq)
@@ -224,8 +238,13 @@ def InitializationSubsurface(
     # Initial temperature profile
     filename = c.initial_state_folder_path + c.station + "_initial_temperature.csv"
     if not os.path.isfile(filename):
-        print('Did not find initial temperature profile. Using "ablation_initial_temperature.csv".')
-        filename = c.initial_state_folder_path + "ablation_initial_temperature.csv"
+        if  c.altitude < 1500:
+            print('Did not find initial temperature profile. Using "ablation_initial_temperature.csv".')
+            filename = c.initial_state_folder_path + "ablation_initial_temperature.csv"
+        else:
+            print('Did not find initial temperature profile. Using "Accumulation_initial_temperature.csv".')
+            filename = c.initial_state_folder_path + "Accumulation_initial_temperature.csv"
+            
         
     df_ini_temp = pd.read_csv(filename, sep=";")
     df_ini_temp = df_ini_temp.loc[df_ini_temp.depth_m >= 0, :]

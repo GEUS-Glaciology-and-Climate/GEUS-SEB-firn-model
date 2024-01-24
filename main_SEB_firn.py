@@ -17,15 +17,17 @@ from lib.seb_smb_model import HHsubsurf
 from os import mkdir
 import time
 import plot_output as po
-
+import xarray as xr
 # def run_SEB_firn():
 
 start_time = time.time()
 print('start processing')
 
-SPIN_UP = True
-for station in ['THU_L',
-                'THU_U','UPE_L','UPE_U','SCO_L','SCO_U','QAS_L','QAS_M']:
+SPIN_UP = False
+ds_aws = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
+for station in ds_aws.stid.values[1:]:
+    print(station)
+# for station in ['DY2']:
     try:
         # importing standard values for constants
         c = ImportConst()
@@ -33,7 +35,9 @@ for station in ['THU_L',
         c.station = station        
         c.surface_input_path = "./input/weather data/CARRA_at_AWS.nc"
         c.surface_input_driver = "CARRA" 
-        
+        c.altitude= ds_aws.where(ds_aws.stid==c.station, drop=True).altitude.item()
+        if c.altitude<1500:
+            c.new_bottom_lay=30
         # assigning constants specific to this simulation
         c.snowthick_ini = 0.1
         c.z_max = 70
@@ -42,7 +46,7 @@ for station in ['THU_L',
         # c.lim_new_lay = c.accum_AWS/c.new_lay_frac;
         
         df_in = io.load_surface_input_data(c)
-        
+
         # Spin up option
         if SPIN_UP:
             df_in = pd.concat((df_in.loc['1991':'2001',:],
@@ -111,7 +115,7 @@ for station in ['THU_L',
         io.write_2d_netcdf(T_ice, 'T_ice', depth_act, df_in.index, c)
         # io.write_2d_netcdf(rhofirn, 'rho_firn_only', depth_act, df_in.index, RunName)
         # io.write_2d_netcdf(rfrz, 'rfrz', depth_act, df_in.index, RunName)
-        # io.write_2d_netcdf(dgrain, 'dgrain', depth_act, df_in.index, RunName)
+        io.write_2d_netcdf(dgrain, 'dgrain', depth_act, df_in.index, c)
         # io.write_2d_netcdf(compaction, 'compaction', depth_act, df_in.index, RunName)
         df_out['zrfrz_sum'] = zrfrz.sum(axis=0)
         
@@ -120,7 +124,7 @@ for station in ['THU_L',
         start_time = time.time()
         
         # Plot output
-        po.main(c.output_path, c.RunName, c.station)
+        po.main(c.output_path, c.RunName)
         print('plotting took %0.03f sec'%(time.time() -start_time))
         start_time = time.time()
     

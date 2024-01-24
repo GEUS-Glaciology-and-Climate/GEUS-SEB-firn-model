@@ -27,7 +27,14 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True):
     ds = ds.resample(time='6H').nearest()
     
     if not zero_surf:
-        ds['surface_height'] = -ds.depth.isel(level=-1) + ds.depth.isel(level=-1).isel(time=0)
+        ds['surface_height'] = -(ds.depth.isel(level=-1)
+                                -ds.depth.isel(level=-1).isel(time=0)
+                                -(ds.depth.isel(level=-1)
+                                  .diff(dim='time')
+                                  .where(ds.depth.isel(level=-1)
+                                         .diff(dim='time')>6,0)
+                                  .cumsum()))
+        ds['surface_height'].values[0] = 0
         ds['depth'] = ds.depth + ds.surface_height
     
     if var_name == "slwc":
@@ -75,7 +82,10 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True):
     fig.savefig(output_path+"/" + run_name + "/" + site + "_" + var_name + ".png")
     return fig, ax
 
-def plot_var_start_end(site, output_path, run_name, var_name, ylim=[]):
+def plot_var_start_end(c, var_name, ylim=[]):
+    site = c.station
+    output_path = c.output_path
+    run_name = c.RunName
     print('plotting',var_name, 'from',run_name)
     filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
     ds = xr.open_dataset(filename).transpose()
@@ -88,7 +98,9 @@ def plot_var_start_end(site, output_path, run_name, var_name, ylim=[]):
         # change unit to mm / m3
         ds[var_name] = ds[var_name] -273.15
         
-                
+    T10m = pd.read_csv('C:/Users/bav/OneDrive - GEUS/Data/Firn temperature/output/10m_temperature_dataset_monthly.csv')
+    ds_T10m = xr.open_dataset('C:/Users/bav/OneDrive - GEUS/Data/Firn temperature/output/T10m_prediction.nc')
+
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     # plt.subplots_adjust(left=0.07, right=0.99, top=0.95, bottom=0.1, hspace=0.2)
     plt.plot( ds[var_name].isel(time=0), 
@@ -97,12 +109,30 @@ def plot_var_start_end(site, output_path, run_name, var_name, ylim=[]):
              color='tab:blue',
              label=ds[var_name].time.isel(time=0),
              )
-    plt.plot( ds[var_name].isel(time=-1), 
+    plt.plot(ds[var_name].isel(time=-1), 
              ds.depth.isel(time=-1),
              marker='o',
              color='tab:red',
              label=ds[var_name].time.isel(time=-1),
              )
+    T10m.loc[T10m.site==c.station, :].plot(x='temperatureObserved',
+                                           y='depthOfTemperatureObservation',
+                                           ax=plt.gca(),
+                                           marker='o', ls='None')
+    if var_name == "T_ice":
+        plt.axvline(float(c.Tdeep)-273.15, ls='--')
+        plt.axvline(ds.isel(level=0).median().T_ice, ls='-.')
+        plt.axvline(ds.isel(level=1).median().T_ice, ls=':')
+        plt.axvline(ds.isel(level=10).median().T_ice, ls=':')
+        plt.axvline(ds.isel(level=20).median().T_ice, ls=':')
+        plt.axvline(    ds_T10m.sel(latitude = T10m.loc[T10m.site==c.station, 'latitude'].mean(),
+                        longitude = T10m.loc[T10m.site==c.station, 'longitude'].mean(),
+                        method='nearest').sel(time=slice('1980','1990')).T10m.mean().item(), c='tab:red')
+        plt.axvline(    ds_T10m.sel(latitude = T10m.loc[T10m.site==c.station, 'latitude'].mean(),
+                        longitude = T10m.loc[T10m.site==c.station, 'longitude'].mean(),
+                        method='nearest').sel(time=slice('2000','2020')).T10m.mean().item(), 
+                    ls='--', c='tab:red')
+
     plt.legend()
     plt.title(site)
     plt.gca().invert_yaxis()
