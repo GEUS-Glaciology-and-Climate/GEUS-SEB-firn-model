@@ -82,7 +82,7 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True):
     fig.savefig(output_path+"/" + run_name + "/" + site + "_" + var_name + ".png")
     return fig, ax
 
-def plot_var_start_end(c, var_name, ylim=[]):
+def plot_var_start_end(c, var_name='T_ice', ylim=[]):
     site = c.station
     output_path = c.output_path
     run_name = c.RunName
@@ -98,8 +98,8 @@ def plot_var_start_end(c, var_name, ylim=[]):
         # change unit to mm / m3
         ds[var_name] = ds[var_name] -273.15
         
-    T10m = pd.read_csv('C:/Users/bav/OneDrive - GEUS/Data/Firn temperature/output/10m_temperature_dataset_monthly.csv')
-    ds_T10m = xr.open_dataset('C:/Users/bav/OneDrive - GEUS/Data/Firn temperature/output/T10m_prediction.nc')
+        T10m = pd.read_csv('../../Data/Firn temperature/output/10m_temperature_dataset_monthly.csv')
+        ds_T10m = xr.open_dataset('../../Data/Firn temperature/output/T10m_prediction.nc')
 
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     # plt.subplots_adjust(left=0.07, right=0.99, top=0.95, bottom=0.1, hspace=0.2)
@@ -107,19 +107,19 @@ def plot_var_start_end(c, var_name, ylim=[]):
              ds.depth.isel(time=0),
              marker='o',
              color='tab:blue',
-             label=ds[var_name].time.isel(time=0),
+             label=ds[var_name].time.isel(time=0).dt.strftime("%Y-%m-%d").item(),
              )
     plt.plot(ds[var_name].isel(time=-1), 
              ds.depth.isel(time=-1),
              marker='o',
              color='tab:red',
-             label=ds[var_name].time.isel(time=-1),
+             label=ds[var_name].time.isel(time=-1).dt.strftime("%Y-%m-%d").item(),
              )
-    T10m.loc[T10m.site==c.station, :].plot(x='temperatureObserved',
-                                           y='depthOfTemperatureObservation',
-                                           ax=plt.gca(),
-                                           marker='o', ls='None')
     if var_name == "T_ice":
+        T10m.loc[T10m.site==c.station, :].plot(x='temperatureObserved',
+                                               y='depthOfTemperatureObservation',
+                                               ax=plt.gca(),
+                                               marker='o', ls='None')
         plt.axvline(float(c.Tdeep)-273.15, ls='--')
         plt.axvline(ds.isel(level=0).median().T_ice, ls='-.')
         plt.axvline(ds.isel(level=1).median().T_ice, ls=':')
@@ -300,7 +300,7 @@ def evaluate_compaction(site,output_path, run_name):
 
 def plot_summary(df, c, filetag="summary", var_list=None):
     def new_fig():
-        fig, ax = plt.subplots(7, 1, sharex=True, figsize=(15, 10))
+        fig, ax = plt.subplots(8, 1, sharex=True, figsize=(15, 10))
         plt.subplots_adjust(
             left=0.1, right=0.9, top=0.97, bottom=0.1, wspace=0.2, hspace=0.05
         )
@@ -347,7 +347,7 @@ def plot_summary(df, c, filetag="summary", var_list=None):
             count_fig = count_fig + 1
             fig, ax = new_fig()
             count = 0
-    if count < 6:
+    if count < len(ax)-2:
         count = count - 1
         ax[count].xaxis.set_tick_params(which="both", labelbottom=True)
 

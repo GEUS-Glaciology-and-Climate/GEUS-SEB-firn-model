@@ -18,16 +18,14 @@ from os import mkdir
 import time
 import plot_output as po
 import xarray as xr
-# def run_SEB_firn():
+import multiprocessing
 
-start_time = time.time()
-print('start processing')
-
-SPIN_UP = False
-ds_aws = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
-for station in ds_aws.stid.values[1:]:
+def run_SEB_firn(station):
+    
+    start_time = time.time()   
+    SPIN_UP = False
+    ds_aws = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
     print(station)
-# for station in ['DY2']:
     try:
         # importing standard values for constants
         c = ImportConst()
@@ -127,12 +125,11 @@ for station in ds_aws.stid.values[1:]:
         po.main(c.output_path, c.RunName)
         print('plotting took %0.03f sec'%(time.time() -start_time))
         start_time = time.time()
-    
-    
-    # if __name__ == "__main__":
-    #     run_SEB_firn()
-
-
     except:
         pass
-
+    
+    
+if __name__ == "__main__":
+    ds_aws = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
+    pool = multiprocessing.Pool(8)
+    out1, out2, out3 = zip(*pool.map(run_SEB_firn,ds_aws.stid.values[1:]))
