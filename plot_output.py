@@ -16,7 +16,7 @@ import pandas as pd
 import lib.io as io
 
 def main(output_path= 'C:/Users/bav/data_save/output firn model/',
-         run_name = 'KAN_U_100_layers'):
+         run_name = 'KAN_U_100_layers_0'):
     # %% Loading data
     print(run_name)
     tmp =pd.read_csv(output_path+'/'+ run_name+'/constants.csv', dtype={'key':str})
@@ -66,14 +66,15 @@ def main(output_path= 'C:/Users/bav/data_save/output firn model/',
     if 'surface_height' not in df_out.columns:
         filename = c.output_path + run_name + "/" + c.station + "_T_ice.nc"
         ds = xr.open_dataset(filename).transpose()
-        df_out['surface_height'] = 0
-        df_out['surface_height'].values[1:] = (ds.depth.isel(level=-1)
+        ds['surface_height'] = (ds.depth.isel(level=-1)
                                 -ds.depth.isel(level=-1).isel(time=0)
                                 -(ds.depth.isel(level=-1)
                                   .diff(dim='time')
                                   .where(ds.depth.isel(level=-1)
-                                         .diff(dim='time')>6,0)
-                                  .cumsum())).values
+                                          .diff(dim='time')>6,0)
+                                  .cumsum()))
+        ds['surface_height'].values[0] = 0
+        df_out['surface_height'] = ds['surface_height'].values
         del ds
     
     import os
@@ -92,13 +93,14 @@ def main(output_path= 'C:/Users/bav/data_save/output firn model/',
                                             'T10m': 't_i_10m'})
     df_obs.time= pd.to_datetime(df_obs.time).dt.tz_convert(None)
     df_obs = df_obs.set_index('time')
-    df_obs = df_obs.resample('D').mean()
+    # df_obs = df_obs.resample('D').mean()
     
     fig = plt.figure()
-    plt.plot(df_out.index, df_out.surface_height, label='model')
     tmp = (df_obs.z_surf_combined -df_out.surface_height).mean()
     plt.plot(df_obs.index, df_obs.z_surf_combined-tmp, 
-             marker='.',ls='None', alpha=0.5, label='AWS')
+              marker='.',ls='None', label='AWS')
+    plt.plot(df_out.index, df_out.surface_height,color='tab:red',
+             label='model')
     plt.legend()
     plt.ylabel('Surface height (m)')
     plt.title(c.station)
@@ -171,7 +173,7 @@ def main(output_path= 'C:/Users/bav/data_save/output firn model/',
     df_out['t_surf']  =  ((df_out.LRout_mdl - (1 -  c.em) * df_out.LRin) / c.em / 5.67e-8)**0.25 - 273.15
     df_out['LRout'] = df_out.LRout_mdl
     df_obs['LHF'] = df_obs.dlhf_u
-    df_obs['LHF'] = df_obs.dlhf_u
+    df_obs['SHF'] = df_obs.dshf_u
     df_obs['LRout'] = df_obs.ulr
     var_list = ['t_surf','LRout','LHF','SHF','t_i_10m']
     
@@ -222,8 +224,82 @@ def main(output_path= 'C:/Users/bav/data_save/output firn model/',
                                             edgecolor='black', facecolor='white'))
 
     fig.savefig(c.output_path+c.RunName+'/SEB_evaluation_vs_AWS.png', dpi=120)
-
     
+    # %% Loading SUMup
+    
+    df_sumup = xr.open_dataset(
+        'C:/Users/bav/GitHub/SUMup/SUMup-2023/SUMup 2023 beta/SUMup_2023_temperature_greenland.nc',
+        group='DATA').to_dataframe()
+    ds_meta = xr.open_dataset(
+        'C:/Users/bav/GitHub/SUMup/SUMup-2023/SUMup 2023 beta/SUMup_2023_temperature_greenland.nc',
+        group='METADATA')
+    
+    df_sumup.method_key = df_sumup.method_key.replace(np.nan,-9999)
+    # df_sumup['method'] = ds_meta.method.sel(method_key = df_sumup.method_key.values).astype(str)
+    df_sumup['name'] = ds_meta.name.sel(name_key = df_sumup.name_key.values).astype(str)
+    df_sumup['reference'] = (ds_meta.reference
+                             .drop_duplicates(dim='reference_key')
+                             .sel(reference_key=df_sumup.reference_key.values)
+                             .astype(str))
+    df_sumup['reference_short'] = (ds_meta.reference_short
+                             .drop_duplicates(dim='reference_key')
+                             .sel(reference_key=df_sumup.reference_key.values)
+                             .astype(str))
+    df_ref = ds_meta.reference.to_dataframe()
+    
+    # selecting Greenland metadata measurements
+    df_meta = df_sumup.loc[df_sumup.latitude>0, 
+                      ['latitude', 'longitude', 'name_key', 'name', 'method_key',
+                       'reference_short','reference', 'reference_key']
+                      ].drop_duplicates()
+    
+    from scipy.spatial import distance
+    from math import sin, cos, sqrt, atan2, radians
+    
+    def get_distance(point1, point2):
+        R = 6370
+        lat1 = radians(point1[0])  #insert value
+        lon1 = radians(point1[1])
+        lat2 = radians(point2[0])
+        lon2 = radians(point2[1])
+    
+        dlon = lon2 - lon1
+        dlat = lat2- lat1
+    
+        a = sin(dlat / 2)**2 + cos(lat1) * cos(lat2) * sin(dlon / 2)**2
+        c = 2 * atan2(sqrt(a), sqrt(1-a))
+        distance = R * c
+        return distance
+    
+    query_point = [[c.latitude, c.longitude]]
+    all_points = df_meta[['latitude', 'longitude']].values
+    df_meta['distance_from_query_point'] = distance.cdist(all_points, query_point, get_distance)
+    min_dist = 10 # in km
+    df_meta_selec = df_meta.loc[df_meta.distance_from_query_point<min_dist, :]   
+# %%
+    import matplotlib
+    cmap = matplotlib.cm.get_cmap('tab10')
+    
+    fig,ax = plt.subplots(1,1,figsize=(7,7))
+    plt.subplots_adjust(bottom=0.4)
+    
+    for count, ref in enumerate(df_meta_selec.reference_short.unique()):
+        label = ref
+        for n in df_meta_selec.loc[df_meta_selec.reference_short==ref, 'name_key'].drop_duplicates().values:
+            df_sumup.loc[
+                df_sumup.name_key == n, :
+                ].plot(ax=ax, x='timestamp', y='temperature',
+                          color = cmap(count),
+                          marker='o',ls='None',
+                          label=label, alpha=0.4, legend=False
+                          )
+
+    df_out.t_i_10m.plot(ax=ax,color='tab:red', label='GEUS model')
+    ax.set_ylabel('10 m temperature (°C)')
+    ax.set_xlabel('')
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1))
+    plt.title(c.station)
+    fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup2023.png', dpi=120)
     
     # %% Movies
     # lpl.plot_movie(c.station, c.output_path, c.RunName, 'T_ice')

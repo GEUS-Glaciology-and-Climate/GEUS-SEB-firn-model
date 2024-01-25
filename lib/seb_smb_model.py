@@ -149,10 +149,6 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
         else:
             # ice roughness length
             z_0 = c.z0_ice
-
-        # plt.figure()
-        # print(Tsurf[k])
-        # import pdb; pdb.set_trace()
         
         for findbalance in range(1, c.iter_max_EB):            
             # SENSIBLE AND LATENT HEAT FLUX
@@ -172,23 +168,17 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
                 SRnet, LRin[k], Tsurf[k], k_eff, thick_first_lay, T_ice[:, k],
                 T_rain[k], dTsurf, EB_prev, SHF[k], LHF[k], rainfall[k], c,
             )
-            # plt.plot([findbalance],[ Tsurf[k]], marker='o')
-            # print(k, Tsurf[k], meltflux[k])
-            if stop:
-                break
+            if stop: break
 
         if (findbalance == c.iter_max_EB) & (abs(meltflux[k]) >= 10 * c.EB_max):
             print("Problem closing energy budget")
-        # plt.show()
         
-        # Step 6/*:  Mass Budget
-        # in mweq
+        # Step 6/*:  Mass Budget in mweq
         melt_mweq[k] = meltflux[k] * c.zdtime / c.L_fus / c.rho_water
         sublimation_mweq[k] = LHF[k] * c.zdtime / c.L_sub / c.rho_water  # in mweq
         # positive LHF -> deposition -> dH_subl positive
 
         # ========== Step 7/*:  Sub-surface model ====================================
-
         c.rho_fresh_snow = rho_snow
         (
             snowc[:, k], snic[:, k], slwc[:, k],

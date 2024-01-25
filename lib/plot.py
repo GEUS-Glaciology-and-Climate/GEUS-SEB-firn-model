@@ -24,7 +24,6 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True):
     print('plotting',var_name, 'from',run_name)
     filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
     ds = xr.open_dataset(filename).transpose()
-    ds = ds.resample(time='6H').nearest()
     
     if not zero_surf:
         ds['surface_height'] = -(ds.depth.isel(level=-1)
@@ -36,7 +35,9 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True):
                                   .cumsum()))
         ds['surface_height'].values[0] = 0
         ds['depth'] = ds.depth + ds.surface_height
-    
+
+    ds = ds.resample(time='6H').nearest()
+
     if var_name == "slwc":
         # change unit to mm / m3
         ds[var_name] = ds[var_name] * 1000 / ds.depth
@@ -332,13 +333,13 @@ def plot_summary(df, c, filetag="summary", var_list=None):
         ax[count].grid()
         ax[count].set_xlim((df.index[0], df.index[-1]))
         
-        # if var == "L":    #Changing the y-axis for L
-        #     ax[count].set_ylim((-30000, 30000))
+        if var == "L":    #Changing the y-axis for L
+            ax[count].set_ylim((-30000, 30000))
 
 
         count = count + 1
 
-        if count == len(ax):
+        if (count == len(ax)) & (var != var_list[-1]):
             ax[0].set_title(c.station)
             plt.savefig(
                 c.output_path + "/" + c.RunName + "/" + "summary_" + str(count_fig),

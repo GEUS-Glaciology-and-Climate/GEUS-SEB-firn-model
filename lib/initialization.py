@@ -62,26 +62,9 @@ def IniVar(time, c):
     snowbkt[-1] = 0
     snowthick[-1] = c.snowthick_ini
 
-    return (
-        rhofirn, 
-        rho,
-        snowc,
-        snic,
-        slwc,
-        dgrain,
-        tsoil,
-        grndc,
-        grndd,
-        compaction,
-        zrfrz,
-        zsupimp,
-        zrogl,
-        pgrndcapc,
-        pgrndhflx,
-        dH_comp,
-        snowbkt,
-        snowthick
-    )
+    return (rhofirn,  rho, snowc, snic, slwc, dgrain, tsoil, grndc, grndd,
+            compaction, zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp, 
+            snowbkt, snowthick)
 
 
 def ImportConst(ElevGrad:float=0.1):
@@ -167,7 +150,8 @@ def InitializationSubsurface(c):
       12.0021,  12.6474,  13.3209,  14.0228,  14.7497,  15.5029,  16.2834,  
       17.0925,  17.9313,  18.8009,  19.7026,  20.6374,  21.6066,  22.6114,  
       23.6528,  24.7321,  25.8504,  27.0089,  28.2087,  29.4510,  30.7371,  
-      32.0679,  33.4448,  34.8688,  36.3412,  37.8631,  39.4356,  41.0600,  42.7373,  44.4688,  46.2557,  48.0990,  50.0000])
+      32.0679,  33.4448,  34.8688,  36.3412,  37.8631,  39.4356,  41.0600,  
+      42.7373,  44.4688,  46.2557,  48.0990,  50.0000])
   
     # here we make sure the top layers are thick enough
     # if they are too thin we augment them to c.lim_new_lay and remove the added mass from the bottom layer so that the total depth weq is still c.z_max

@@ -20,7 +20,7 @@ import plot_output as po
 import xarray as xr
 import multiprocessing
 
-def run_SEB_firn(station):
+def run_SEB_firn(station='KAN_U'):
     
     start_time = time.time()   
     SPIN_UP = False
@@ -34,6 +34,8 @@ def run_SEB_firn(station):
         c.surface_input_path = "./input/weather data/CARRA_at_AWS.nc"
         c.surface_input_driver = "CARRA" 
         c.altitude= ds_aws.where(ds_aws.stid==c.station, drop=True).altitude.item()
+        c.latitude= ds_aws.where(ds_aws.stid==c.station, drop=True).latitude.item()
+        c.longitude= ds_aws.where(ds_aws.stid==c.station, drop=True).longitude.item()
         if c.altitude<1500:
             c.new_bottom_lay=30
         # assigning constants specific to this simulation
@@ -76,7 +78,7 @@ def run_SEB_firn(station):
             zrfrz, rhofirn, zsupimp, dgrain, 
             df_out['zrogl'], Tsurf, 
             grndc, grndd, pgrndcapc, pgrndhflx, 
-            dH_comp, snowbkt, compaction, df_out['snowthick']
+            dH_comp, df_out["snowbkt"], compaction, df_out['snowthick']
         ) = HHsubsurf(df_in, c)
         
         print('\nHHsubsurf took %0.03f sec'%(time.time() -start_time))
@@ -130,6 +132,7 @@ def run_SEB_firn(station):
     
     
 if __name__ == "__main__":
-    ds_aws = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
-    pool = multiprocessing.Pool(8)
-    out1, out2, out3 = zip(*pool.map(run_SEB_firn,ds_aws.stid.values[1:]))
+    run_SEB_firn()
+    # ds_aws = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
+    # pool = multiprocessing.Pool(8)
+    # out1, out2, out3 = zip(*pool.map(run_SEB_firn,ds_aws.stid.values[1:]))
