@@ -24,7 +24,7 @@ def run_SEB_firn(station='KAN_U'):
     
     start_time = time.time()   
     SPIN_UP = False
-    ds_aws = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
+    ds_carra = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
     print(station)
     try:
         # importing standard values for constants
@@ -33,9 +33,9 @@ def run_SEB_firn(station='KAN_U'):
         c.station = station        
         c.surface_input_path = "./input/weather data/CARRA_at_AWS.nc"
         c.surface_input_driver = "CARRA" 
-        c.altitude= ds_aws.where(ds_aws.stid==c.station, drop=True).altitude.item()
-        c.latitude= ds_aws.where(ds_aws.stid==c.station, drop=True).latitude.item()
-        c.longitude= ds_aws.where(ds_aws.stid==c.station, drop=True).longitude.item()
+        c.altitude= ds_carra.where(ds_carra.stid==c.station, drop=True).altitude.item()
+        c.latitude= ds_carra.where(ds_carra.stid==c.station, drop=True).latitude.item()
+        c.longitude= ds_carra.where(ds_carra.stid==c.station, drop=True).longitude.item()
         if c.altitude<1500:
             c.new_bottom_lay=30
         # assigning constants specific to this simulation
@@ -43,6 +43,13 @@ def run_SEB_firn(station='KAN_U'):
         c.z_max = 70
         c.num_lay = 100
         c.lim_new_lay = 0.05
+        c.initial_state_folder_path = './input/initial state/spin up/'
+        # assgning deep temperature
+        ds_T10m = xr.open_dataset('../../Data/Firn temperature/output/T10m_prediction.nc')
+        c.Tdeep = ds_T10m.sel(latitude = c.latitude,
+                        longitude = c.longitude,
+                        method='nearest').sel(time=slice('1980','1990')
+                      ).T10m.mean().item() + 273.15
         # c.lim_new_lay = c.accum_AWS/c.new_lay_frac;
         
         df_in = io.load_surface_input_data(c)
@@ -59,7 +66,7 @@ def run_SEB_firn(station='KAN_U'):
                'ShortwaveRadiationUpWm2', 'Snowfallmweq', 'Rainfallmweq', 'HeightTemperature2m', 
                'HeightHumidity2m', 'HeightWindSpeed2m']:
             assert ~df_in[var].isnull().any(), var+' has NaNs'
-        print('start/end of input file', df_in.index[0], df_in.index[-1])
+        print(station, c.Tdeep, 'start/end', df_in.index[0], df_in.index[-1])
         # DataFrame for the surface is created, indexed with time from df_aws
         df_out = pd.DataFrame()
         df_out["time"] = df_in.index
@@ -106,14 +113,13 @@ def run_SEB_firn(station='KAN_U'):
                     c.RunName = c.RunName[: -len(str(i - 1))] + str(i)
                 i = i + 1
         
-        if not SPIN_UP:
-            # io.write_2d_netcdf(snic, 'snic', depth_act, df_in.index, c)
-            io.write_2d_netcdf(slwc, 'slwc', depth_act, df_in.index, c)
-            #io.write_2d_netcdf(rhofirn, 'rhofirn', depth_act, df_in.index, c)
-            io.write_1d_netcdf(df_out, c)
+        io.write_2d_netcdf(snic, 'snic', depth_act, df_in.index, c)
+        io.write_2d_netcdf(snowc, 'snowc', depth_act, df_in.index, c)
+        io.write_2d_netcdf(slwc, 'slwc', depth_act, df_in.index, c)
+        io.write_2d_netcdf(rhofirn, 'rhofirn', depth_act, df_in.index, c)
+        io.write_1d_netcdf(df_out, c)
         io.write_2d_netcdf(density_bulk, 'density_bulk', depth_act, df_in.index, c)
         io.write_2d_netcdf(T_ice, 'T_ice', depth_act, df_in.index, c)
-        # io.write_2d_netcdf(rhofirn, 'rho_firn_only', depth_act, df_in.index, RunName)
         # io.write_2d_netcdf(rfrz, 'rfrz', depth_act, df_in.index, RunName)
         io.write_2d_netcdf(dgrain, 'dgrain', depth_act, df_in.index, c)
         # io.write_2d_netcdf(compaction, 'compaction', depth_act, df_in.index, RunName)
@@ -124,15 +130,19 @@ def run_SEB_firn(station='KAN_U'):
         start_time = time.time()
         
         # Plot output
-        po.main(c.output_path, c.RunName)
-        print('plotting took %0.03f sec'%(time.time() -start_time))
+        if not SPIN_UP:
+            po.main(c.output_path, c.RunName)
+            print('plotting took %0.03f sec'%(time.time() -start_time))
         start_time = time.time()
-    except:
-        pass
+        return c
+    except Exception as e:
+        print(e)
+        return None
     
     
 if __name__ == "__main__":
-    run_SEB_firn()
-    # ds_aws = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
+    # c = run_SEB_firn()
+    ds_carra = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
+    run_SEB_firn(ds_carra.stid.values[1])
     # pool = multiprocessing.Pool(8)
-    # out1, out2, out3 = zip(*pool.map(run_SEB_firn,ds_aws.stid.values[1:]))
+    # out1, out2, out3 = zip(*pool.map(run_SEB_firn,ds_carra.stid.values[1:]))

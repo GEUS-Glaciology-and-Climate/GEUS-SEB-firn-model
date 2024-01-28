@@ -14,9 +14,10 @@ import lib.plot as lpl
 from lib.initialization import Struct
 import pandas as pd
 import lib.io as io
-
-def main(output_path= 'C:/Users/bav/data_save/output firn model/',
-         run_name = 'KAN_U_100_layers_0'):
+output_path= 'C:/Users/bav/data_save/output firn model/'
+run_name = 'KAN_U_100_layers'
+#%%
+def main(output_path, run_name):
     # %% Loading data
     print(run_name)
     tmp =pd.read_csv(output_path+'/'+ run_name+'/constants.csv', dtype={'key':str})
@@ -27,7 +28,7 @@ def main(output_path= 'C:/Users/bav/data_save/output firn model/',
     c.RunName=run_name
     df_in = io.load_surface_input_data(c)
     
-    # %% loading and plotting surface variables
+    #  loading and plotting surface variables
     try:
         df_out = xr.open_dataset(c.output_path+run_name+'/'+c.station+'_surface.nc').to_dataframe()
         df_in = df_in.loc[df_out.index[0]:df_out.index[-1],:]
@@ -39,12 +40,13 @@ def main(output_path= 'C:/Users/bav/data_save/output firn model/',
         try:
             lpl.plot_var(c.station, c.output_path, c.RunName, var, zero_surf=False)
         except Exception as e:
+            print('lpl.plot_var(c.station, c.output_path, c.RunName, var, zero_surf=False)')
+            print(var)
             print(e)
             pass
     # %% Start/end plots
     lpl.plot_var_start_end(c, 'T_ice')
     lpl.plot_var_start_end(c, 'density_bulk')
-   
 
     # %% Mass balance components
     fig = plt.figure()
@@ -78,6 +80,15 @@ def main(output_path= 'C:/Users/bav/data_save/output firn model/',
         del ds
     
     import os
+    
+    # try:
+    #     path_aws_l3 = 'C:/Users/bav/GitHub/PROMICE data/aws-l3-dev/level_3/'
+    #     df_obs = pd.read_csv(path_aws_l3+c.station+'/'+c.station+'_hour.csv')
+    # except:
+    #     print('cannot find L3 AWS file')
+    #     df_obs = pd.DataFrame()
+    #     pass
+    
     path_aws_l4 = '../PROMICE/PROMICE-AWS-toolbox/out/L4/'
     if os.path.isfile(path_aws_l4+c.station+'_L4_ext.csv'):
         df_obs = pd.read_csv(path_aws_l4+c.station+'_L4_ext.csv')
@@ -90,7 +101,18 @@ def main(output_path= 'C:/Users/bav/data_save/output firn model/',
             df_obs = nead.read(path_aws_l4+c.station.replace(' ','')+'_daily.csv').to_dataframe()
             df_obs = df_obs.rename(columns={'timestamp':'time',
                                             'HS_combined':'z_surf_combined',
-                                            'T10m': 't_i_10m'})
+                                            'T10m': 't_i_10m',
+                                            'LHF':'dlhf_u',
+                                            'SHF': 'dshf_u',
+                                            'OLWR':'LRout',
+                                            'Tsurf':'t_surf',
+                                            })
+        # else:
+        #     tmp = pd.DataFrame()
+    # if len(df_obs)>0:
+    #     df_obs.time= pd.to_datetime(df_obs.time).dt.tz_convert(None)
+    #     if len(tmp)>0:
+            
     df_obs.time= pd.to_datetime(df_obs.time).dt.tz_convert(None)
     df_obs = df_obs.set_index('time')
     # df_obs = df_obs.resample('D').mean()
@@ -107,66 +129,69 @@ def main(output_path= 'C:/Users/bav/data_save/output firn model/',
     fig.savefig(c.output_path+c.RunName+'/surface_height.png', dpi=120)
     
     # %% calculating modelled t_i_10m
-    from scipy.interpolate import interp1d
-    
-    def interpolate_temperature(dates, depth_cor, temp,  depth=10,
-        min_diff_to_depth=2,  kind="linear" ):
-        depth_cor = depth_cor.astype(float)
-        df_interp = pd.DataFrame()
-        df_interp["date"] = dates
-        df_interp["temperatureObserved"] = np.nan
-    
-        # preprocessing temperatures for small gaps
-        tmp = pd.DataFrame(temp)
-        tmp["time"] = dates
-        tmp = tmp.set_index("time")
-        tmp = tmp.resample("H").mean()
-
-        temp = tmp.loc[dates].values
-        for i in (range(len(dates))):
-            x = depth_cor[i, :].astype(float)
-            y = temp[i, :].astype(float)
-            ind_no_nan = ~np.isnan(x + y)
-            x = x[ind_no_nan]
-            y = y[ind_no_nan]
-            x, indices = np.unique(x, return_index=True)
-            y = y[indices]
-            if len(x) < 2 or np.min(np.abs(x - depth)) > min_diff_to_depth:
-                continue
-            f = interp1d(x, y, kind, fill_value="extrapolate")
-            df_interp.iloc[i, 1] = np.min(f(depth), 0)
-    
-        if df_interp.iloc[:5, 1].std() > 0.1:
-            df_interp.iloc[:5, 1] = np.nan
-        return df_interp
-    # def interpolate_temperature(dates, depth_matrix, temp_matrix,  depth=10,
+    # from scipy.interpolate import interp1d
+    # from tqdm import tqdm  # Import tqdm for the progress bar  
+    # def interpolate_temperature(dates, depth_cor, temp,  depth=10,
     #     min_diff_to_depth=2,  kind="linear" ):
-    #     # Choose the depth you want to interpolate to (e.g., 10 meters)
-    #     target_depth = 10
-    #     N = depth_matrix.shape[0]
-    #     M = depth_matrix.shape[1]
-    #     closest_depth_indices = np.abs(depth_matrix - target_depth).argmin(axis=1)
-    #     closest_depths_idx_1 = np.maximum(0, closest_depth_indices - 1)
-    #     closest_depths_idx_2 = np.minimum(M - 1, closest_depth_indices + 1)
-    #     closest_depths = depth_matrix[np.arange(N), closest_depths_idx_1]
-    #     next_closest_depths = depth_matrix[np.arange(N), closest_depths_idx_2]
+    #     depth_cor = depth_cor.astype(float)
+    #     df_interp = pd.DataFrame()
+    #     df_interp["date"] = dates
+    #     df_interp["temperatureObserved"] = np.nan
+    
+    #     # preprocessing temperatures for small gaps
+    #     tmp = pd.DataFrame(temp)
+    #     tmp["time"] = dates
+    #     tmp = tmp.set_index("time")
+    #     tmp = tmp.resample("H").mean()
+
+    #     temp = tmp.loc[dates].values
+    #     for i in tqdm(range(len(dates)), desc="Interpolating temperatures", unit="date"):
+    #         x = depth_cor[i, :].astype(float)
+    #         y = temp[i, :].astype(float)
+    #         ind_no_nan = ~np.isnan(x + y)
+    #         x = x[ind_no_nan]
+    #         y = y[ind_no_nan]
+    #         x, indices = np.unique(x, return_index=True)
+    #         y = y[indices]
+    #         if len(x) < 2 or np.min(np.abs(x - depth)) > min_diff_to_depth:
+    #             continue
+    #         f = interp1d(x, y, kind, fill_value="extrapolate")
+    #         df_interp.iloc[i, 1] = np.min(f(depth), 0)
+    
+    #     if df_interp.iloc[:5, 1].std() > 0.1:
+    #         df_interp.iloc[:5, 1] = np.nan
+    #     return df_interp
+    def interpolate_temperature_fast(dates, depth_matrix, temp_matrix,  depth=10,
+        min_diff_to_depth=2,  kind="linear" ):
+        # Choose the depth you want to interpolate to (e.g., 10 meters)
+        target_depth = 10
+        N = depth_matrix.shape[0]
+        M = depth_matrix.shape[1]
+        closest_depth_indices = np.abs(depth_matrix - target_depth).argmin(axis=1)
+        closest_depths_idx_1 = np.maximum(0, closest_depth_indices - 1)
+        closest_depths_idx_2 = np.minimum(M - 1, closest_depth_indices + 1)
+        closest_depths = depth_matrix[np.arange(N), closest_depths_idx_1]
+        next_closest_depths = depth_matrix[np.arange(N), closest_depths_idx_2]
         
-    #     temp_at_closest_depths = temp_matrix[np.arange(N), closest_depths_idx_1]
-    #     temp_at_next_closest_depths = temp_matrix[np.arange(N), closest_depths_idx_2]
+        temp_at_closest_depths = temp_matrix[np.arange(N), closest_depths_idx_1]
+        temp_at_next_closest_depths = temp_matrix[np.arange(N), closest_depths_idx_2]
         
-    #     weights = (next_closest_depths - target_depth) / (next_closest_depths - closest_depths)
-    #     temp_at_10m = temp_at_closest_depths + weights * (temp_at_next_closest_depths - temp_at_closest_depths)
-    #     return temp_at_10m
+        weights = (next_closest_depths - target_depth) / (next_closest_depths - closest_depths)
+        temp_at_10m = temp_at_closest_depths + weights * (temp_at_next_closest_depths - temp_at_closest_depths)
+        return temp_at_10m
+    
     filename = c.output_path + run_name + "/" + c.station + "_T_ice.nc"
     df = (xr.open_dataset(filename).to_dataframe().unstack('level'))
     df.columns = df.columns.map('{0[0]}_{0[1]}'.format)
-    too_deep = [(v.split('_')[1]) for v in df.columns if 'depth' in v and ((df[v]>12).all()|(df[v]<8).all())]
-    df = df[[v for v in df.columns if v.split('_')[-1] not in too_deep]]
-    df_10m = interpolate_temperature(
+    # df_10m = interpolate_temperature(
+    #     df.index, df[[v for v in df.columns if 'depth' in v]].values, 
+    #     df[[v for v in df.columns if 'T_ice' in v]].values-273.15, 
+    # )
+    # df_out['t_i_10m'] = df_10m.temperatureObserved.values
+    df_out['t_i_10m'] = interpolate_temperature_fast(
         df.index, df[[v for v in df.columns if 'depth' in v]].values, 
         df[[v for v in df.columns if 'T_ice' in v]].values-273.15, 
     )
-    df_out['t_i_10m'] = df_10m.temperatureObserved.values
     
 
     # %% plotting ['t_surf','LRout','LHF','SHF','t_i_10m']
@@ -174,7 +199,8 @@ def main(output_path= 'C:/Users/bav/data_save/output firn model/',
     df_out['LRout'] = df_out.LRout_mdl
     df_obs['LHF'] = df_obs.dlhf_u
     df_obs['SHF'] = df_obs.dshf_u
-    df_obs['LRout'] = df_obs.ulr
+    if 'ulr' not in df_obs.columns:
+        df_obs['LRout'] = df_obs.ulr
     var_list = ['t_surf','LRout','LHF','SHF','t_i_10m']
     
 
@@ -182,15 +208,18 @@ def main(output_path= 'C:/Users/bav/data_save/output firn model/',
     from scipy.stats import linregress
     fig = plt.figure(figsize=(12, 17))
     gs = gridspec.GridSpec(len(var_list), 2, width_ratios=[3, 1]) 
+    
+    df_obs = df_obs[~df_obs.index.duplicated(keep='first')]
+    df_out = df_out[~df_out.index.duplicated(keep='first')]
     common_idx = df_obs.index.intersection(df_out.index)
     for i, var in enumerate(var_list): 
-        ME = np.mean(df_out.loc[common_idx, var] - df_obs.loc[common_idx, var])
-        RMSE = np.sqrt(np.mean((df_out.loc[common_idx, var] - df_obs.loc[common_idx, var])**2))
-            
-            
+        if var not in df_obs.columns:
+            df_obs[var] = np.nan
         ax1 = plt.subplot(gs[i, 0])
         ax2 = plt.subplot(gs[i, 1])
         # first plot
+        ME = np.mean(df_out.loc[common_idx, var] - df_obs.loc[common_idx, var])
+        RMSE = np.sqrt(np.mean((df_out.loc[common_idx, var] - df_obs.loc[common_idx, var])**2))                           
         df_obs[var].plot(ax=ax1, label='AWS',marker='.',markersize=2)
         df_out[var].plot(ax=ax1, alpha=0.7, label='SEB model')
         ax1.set_ylabel(var)
@@ -225,7 +254,7 @@ def main(output_path= 'C:/Users/bav/data_save/output firn model/',
 
     fig.savefig(c.output_path+c.RunName+'/SEB_evaluation_vs_AWS.png', dpi=120)
     
-    # %% Loading SUMup
+    # %% Loading SUMup 2023
     
     df_sumup = xr.open_dataset(
         'C:/Users/bav/GitHub/SUMup/SUMup-2023/SUMup 2023 beta/SUMup_2023_temperature_greenland.nc',
@@ -245,9 +274,9 @@ def main(output_path= 'C:/Users/bav/data_save/output firn model/',
                              .drop_duplicates(dim='reference_key')
                              .sel(reference_key=df_sumup.reference_key.values)
                              .astype(str))
-    df_ref = ds_meta.reference.to_dataframe()
     
     # selecting Greenland metadata measurements
+    df_sumup = df_sumup.loc[df_sumup.timestamp>pd.to_datetime('1989')]
     df_meta = df_sumup.loc[df_sumup.latitude>0, 
                       ['latitude', 'longitude', 'name_key', 'name', 'method_key',
                        'reference_short','reference', 'reference_key']
@@ -276,7 +305,7 @@ def main(output_path= 'C:/Users/bav/data_save/output firn model/',
     df_meta['distance_from_query_point'] = distance.cdist(all_points, query_point, get_distance)
     min_dist = 10 # in km
     df_meta_selec = df_meta.loc[df_meta.distance_from_query_point<min_dist, :]   
-# %%
+
     import matplotlib
     cmap = matplotlib.cm.get_cmap('tab10')
     
@@ -300,6 +329,67 @@ def main(output_path= 'C:/Users/bav/data_save/output firn model/',
     plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1))
     plt.title(c.station)
     fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup2023.png', dpi=120)
+
+   
+    # %% Loading SUMup 2024
+    
+    df_sumup = xr.open_dataset(
+        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_temperature_greenland.nc',
+        group='DATA').to_dataframe()
+    ds_meta = xr.open_dataset(
+        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_temperature_greenland.nc',
+        group='METADATA')
+    
+    df_sumup.method_key = df_sumup.method_key.replace(np.nan,-9999)
+    # df_sumup['method'] = ds_meta.method.sel(method_key = df_sumup.method_key.values).astype(str)
+    df_sumup['name'] = ds_meta.name.sel(name_key = df_sumup.name_key.values).astype(str)
+    df_sumup['reference'] = (ds_meta.reference
+                             .drop_duplicates(dim='reference_key')
+                             .sel(reference_key=df_sumup.reference_key.values)
+                             .astype(str))
+    df_sumup['reference_short'] = (ds_meta.reference_short
+                             .drop_duplicates(dim='reference_key')
+                             .sel(reference_key=df_sumup.reference_key.values)
+                             .astype(str))
+    # df_ref = ds_meta.reference.to_dataframe()
+    df_sumup = df_sumup.loc[df_sumup.timestamp>pd.to_datetime('1989')]
+    # selecting Greenland metadata measurements
+    df_meta = df_sumup.loc[df_sumup.latitude>0, 
+                      ['latitude', 'longitude', 'name_key', 'name', 'method_key',
+                       'reference_short','reference', 'reference_key']
+                      ].drop_duplicates()
+    
+    query_point = [[c.latitude, c.longitude]]
+    all_points = df_meta[['latitude', 'longitude']].values
+    df_meta['distance_from_query_point'] = distance.cdist(all_points, query_point, get_distance)
+    min_dist = 10 # in km
+    df_meta_selec = df_meta.loc[df_meta.distance_from_query_point<min_dist, :]   
+
+    df_sumup = df_sumup.loc[
+        df_sumup.latitude.isin(df_meta_selec.latitude)&df_sumup.longitude.isin(df_meta_selec.longitude),:]
+    lpl.plot_var(c.station, c.output_path, c.RunName, 'T_ice', zero_surf=True, 
+                 df_sumup=df_sumup, tag='_SUMup2024')
+    
+    fig,ax = plt.subplots(1,1,figsize=(7,7))
+    plt.subplots_adjust(bottom=0.4)
+    
+    for count, ref in enumerate(df_meta_selec.reference_short.unique()):
+        label = ref
+        for n in df_meta_selec.loc[df_meta_selec.reference_short==ref, 'name_key'].drop_duplicates().values:
+            df_subset=df_sumup.loc[(df_sumup.name_key == n)&(df_sumup.depth == 10), :]
+            if len(df_subset)>0:
+                df_subset.plot(ax=ax, x='timestamp', y='temperature',
+                              color = cmap(count),
+                              marker='o',ls='None',
+                              label=label, alpha=0.4, legend=False
+                              )
+
+    df_out.t_i_10m.plot(ax=ax,color='tab:red', label='GEUS model')
+    ax.set_ylabel('10 m temperature (°C)')
+    ax.set_xlabel('')
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1))
+    plt.title(c.station)
+    fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup2024.png', dpi=120)
     
     # %% Movies
     # lpl.plot_movie(c.station, c.output_path, c.RunName, 'T_ice')
@@ -328,5 +418,5 @@ def main(output_path= 'C:/Users/bav/data_save/output firn model/',
 # %%
 import os    
 if __name__ == "__main__":
-    for run_name in os.listdir('C:/Users/bav/data_save/output firn model/'):
-        main(run_name=run_name)
+    # for run_name in os.listdir('C:/Users/bav/data_save/output firn model/'):
+    main(output_path=output_path, run_name=run_name)

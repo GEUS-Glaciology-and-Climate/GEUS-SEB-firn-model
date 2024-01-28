@@ -20,12 +20,20 @@ import warnings
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True):
+def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
+             df_sumup=[], tag=''):
     print('plotting',var_name, 'from',run_name)
     filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
     ds = xr.open_dataset(filename).transpose()
     
-    if not zero_surf:
+    if len(df_sumup)>0:
+        ds = ds.sel(time=slice(df_sumup.timestamp.min(),
+                          df_sumup.timestamp.max())
+                    ).where((ds.depth<df_sumup.depth.max()+15).all(dim='time'), drop=True)
+    
+    if zero_surf:
+        ds['surface_height'] = 0 * ds.depth.isel(level=-1)
+    else:
         ds['surface_height'] = -(ds.depth.isel(level=-1)
                                 -ds.depth.isel(level=-1).isel(time=0)
                                 -(ds.depth.isel(level=-1)
@@ -41,6 +49,9 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True):
     if var_name == "slwc":
         # change unit to mm / m3
         ds[var_name] = ds[var_name] * 1000 / ds.depth
+    if var_name == "T_ice":
+        # change unit to mm / m3
+        ds[var_name] = ds[var_name] -273.15
     
     # default plot infos
     label = var_name
@@ -54,9 +65,9 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True):
         plot_info = plot_info.set_index('variable_name')
         label = plot_info.loc[var_name, 'label']
         cmap = plot_info.loc[var_name, 'cmap']
-        if ~np.isnan(plot_info.loc[var_name].vmin):
-            vmin = plot_info.loc[var_name, 'vmin']
-            vmax = plot_info.loc[var_name, 'vmax']
+        # if ~np.isnan(plot_info.loc[var_name].vmin):
+        #     vmin = plot_info.loc[var_name, 'vmin']
+        #     vmax = plot_info.loc[var_name, 'vmax']
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     plt.subplots_adjust(left=0.07, right=0.99, top=0.95, bottom=0.1, hspace=0.2)
     fig.suptitle(site)
@@ -67,7 +78,8 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True):
                                   ds.depth.values]),
                    ds[var_name].isel(time=slice(1,None)),
                    shading='flat',
-                   cmap = cmap, vmin=vmin, vmax=vmax
+                   cmap = cmap, vmin=vmin, vmax=vmax,
+                   zorder=0
                    )
     
     if not zero_surf:
@@ -79,11 +91,23 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True):
         if len(ylim)==1: ax.set_ylim(ylim, ax.get_ylim()[1])
         if len(ylim)==2: ax.set_ylim(np.max(ylim), np.min(ylim))
     ax.set_ylabel("Depth (m)")
+    if len(df_sumup)>0:
+        sc=plt.plot(df_sumup.timestamp,
+            df_sumup.depth,
+            marker='o',ls='None', markersize=6, color='lightgray',zorder=1)
+        sc2=plt.scatter(df_sumup.timestamp,
+                    df_sumup.depth,
+                    12, df_sumup.temperature,
+                    vmin=vmin, vmax=vmax,
+                    cmap=cmap, zorder=2)
+        ax.set_ylim(df_sumup.depth.max(), 0)
+        ax.set_xlim(df_sumup.timestamp.min(), df_sumup.timestamp.max())
     
-    fig.savefig(output_path+"/" + run_name + "/" + site + "_" + var_name + ".png")
+    fig.savefig(output_path+"/" + run_name + "/" + site + "_" + var_name +tag+ ".png")
     return fig, ax
 
-def plot_var_start_end(c, var_name='T_ice', ylim=[]):
+
+def plot_var_start_end(c, var_name='T_ice', ylim=[], to_file=False):
     site = c.station
     output_path = c.output_path
     run_name = c.RunName
@@ -110,11 +134,12 @@ def plot_var_start_end(c, var_name='T_ice', ylim=[]):
              color='tab:blue',
              label=ds[var_name].time.isel(time=0).dt.strftime("%Y-%m-%d").item(),
              )
-    plt.plot(ds[var_name].isel(time=-1), 
-             ds.depth.isel(time=-1),
+
+    plt.plot(ds[var_name].sel(time='2023-09-01 00:00:00'), 
+             ds.depth.sel(time='2023-09-01 00:00:00'),
              marker='o',
              color='tab:red',
-             label=ds[var_name].time.isel(time=-1).dt.strftime("%Y-%m-%d").item(),
+             label='2023-09-01 00:00:00',
              )
     if var_name == "T_ice":
         T10m.loc[T10m.site==c.station, :].plot(x='temperatureObserved',
@@ -141,7 +166,13 @@ def plot_var_start_end(c, var_name='T_ice', ylim=[]):
         if len(ylim)==1: ax.set_ylim(ylim, ax.get_ylim()[1])
         if len(ylim)==2: ax.set_ylim(np.max(ylim), np.min(ylim))
     ax.set_ylabel("Depth (m)")
-    
+    if to_file:
+        (ds[[var_name]+['depth']]
+         .sel(time='2023-09-01 00:00:00')
+         .to_dataframe()[[var_name]+['depth']]
+         .set_index('depth')
+         .to_csv('input/initial state/spin up/'+c.station+'_initial_'+var_name+'.csv'))
+        
     fig.savefig(output_path+"/" + run_name + "/" + site + "_" + var_name + "_start_end.png")
     return fig, ax
 

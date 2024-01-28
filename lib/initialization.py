@@ -1,17 +1,15 @@
-# class Dog:
+# -*- coding: utf-8 -*-
+"""
+@author: bav@geus.dk
 
-#     # A simple class
-#     # attribute
-#     attr1 = "mammal"
-#     attr2 = "dog"
-
-#     # A sample method
+tip list:
+    %matplotlib inline
+    %matplotlib qt
+    import pdb; pdb.set_trace()
+"""
 import matplotlib.pyplot as plt
-
 import pandas as pd
 import numpy as np
-#import matplotlib.pyplot as plt
-from json import load
 import os
 
 class Struct:
@@ -111,9 +109,9 @@ def InitializationSubsurface(c):
     # - density profile
     # Author: Baptiste Vandecrux (bav@geus.dk)
     # ==========================================================================
-
     # Initial density profile
-    filename = c.initial_state_folder_path + c.station + "_initial_density.csv"
+    import pdb; pdb.set_trace()
+    filename = c.initial_state_folder_path + c.station + "_initial_density_bulk.csv"
     if not os.path.isfile(filename):
         if  c.altitude < 1500:
             print('Did not find initial density profile. Using "ablation_initial_density.csv".')
@@ -121,15 +119,16 @@ def InitializationSubsurface(c):
         else:
             print('Did not find initial density profile. Using "Accumulation_initial_density.csv".')
             filename = c.initial_state_folder_path + "Accumulation_initial_density.csv"
+    print(filename)
 
-    df_ini_dens = pd.read_csv(filename, sep=";")
-    df_ini_dens.loc[df_ini_dens.density_kgm3.isnull(), "density_kgm3"] = 350
+    df_ini_dens = pd.read_csv(filename)
+    df_ini_dens.loc[df_ini_dens.density_bulk.isnull(), "density_bulk"] = 350
 
     df_ini_dens["thickness_m"] = np.insert(
-        np.diff(df_ini_dens.depth_m), 0, df_ini_dens.depth_m[0]
+        np.diff(df_ini_dens.depth), 0, df_ini_dens.depth[0]
     )
     df_ini_dens["thickness_mweq"] = (
-        df_ini_dens["thickness_m"] / c.rho_water * df_ini_dens.density_kgm3
+        df_ini_dens["thickness_m"] / c.rho_water * df_ini_dens.density_bulk
     )
     df_ini_dens["depth_weq"] = np.cumsum(df_ini_dens["thickness_mweq"])
     df_ini_dens = df_ini_dens.set_index("depth_weq")
@@ -139,22 +138,10 @@ def InitializationSubsurface(c):
     depth_mod_weq = np.insert(
         np.arange(1, NumLayer + 1) ** 4 / (NumLayer) ** 4 * c.z_max, 0, 0
     )
-    depth_mod_weq = np.array([0.0500, 0.1000, 0.1500, 0.2000, 0.2500, 0.3000, 
-      0.3500, 0.4000, 0.4500, 0.5000, 0.5500, 0.6000, 0.6500, 0.7000, 0.7500,
-      0.8000, 0.8500, 0.9000, 0.9500, 1.0000, 1.0500, 1.1000, 1.1500, 1.2000,
-      1.2500, 1.3000, 1.3500, 1.4000, 1.4500, 1.5000, 1.5545, 1.6146, 1.6806, 
-      1.7529, 1.8318, 1.9178, 2.0113, 2.1127, 2.2224, 2.3409, 2.4686, 2.6059, 
-      2.7535, 2.9117, 3.0811, 3.2622, 3.4554, 3.6614, 3.8807, 4.1139, 4.3614, 
-      4.6240, 4.9021, 5.1964, 5.5076, 5.8362, 6.1829, 6.5483, 6.9331, 7.3380, 
-      7.7636, 8.2107, 8.6799, 9.1721, 9.6879,  10.2280,  10.7932,  11.3843, 
-      12.0021,  12.6474,  13.3209,  14.0228,  14.7497,  15.5029,  16.2834,  
-      17.0925,  17.9313,  18.8009,  19.7026,  20.6374,  21.6066,  22.6114,  
-      23.6528,  24.7321,  25.8504,  27.0089,  28.2087,  29.4510,  30.7371,  
-      32.0679,  33.4448,  34.8688,  36.3412,  37.8631,  39.4356,  41.0600,  
-      42.7373,  44.4688,  46.2557,  48.0990,  50.0000])
   
     # here we make sure the top layers are thick enough
-    # if they are too thin we augment them to c.lim_new_lay and remove the added mass from the bottom layer so that the total depth weq is still c.z_max
+    # if they are too thin we augment them to c.lim_new_lay and remove the 
+    # added mass from the bottom layer so that the total depth weq is still c.z_max
     thickness_mod_weq = np.diff(depth_mod_weq)
     tmp = np.maximum(0, c.lim_new_lay - thickness_mod_weq)
     thickness_mod_weq = thickness_mod_weq + tmp - np.flip(tmp)
@@ -165,15 +152,15 @@ def InitializationSubsurface(c):
     df_mod = df_mod.set_index("depth_weq")
 
     df_ini_dens = pd.concat([df_ini_dens, df_mod]).sort_index()
-    df_ini_dens["density_kgm3"] = (
-        df_ini_dens["density_kgm3"].fillna(method="bfill").fillna(method="ffill").values
+    df_ini_dens["density_bulk"] = (
+        df_ini_dens["density_bulk"].fillna(method="bfill").fillna(method="ffill").values
     )
 
     df_ini_dens["thickness_mweq"] = np.insert(
         np.diff(df_ini_dens.index), 0, df_ini_dens.index[0]
     )
     df_ini_dens["thickness_m"] = (
-        df_ini_dens.thickness_mweq * c.rho_water / df_ini_dens.density_kgm3
+        df_ini_dens.thickness_mweq * c.rho_water / df_ini_dens.density_bulk
     )
     # df_ini_dens["depth_m_2"] = np.cumsum(df_ini_dens["thickness_m"])
 
@@ -183,44 +170,44 @@ def InitializationSubsurface(c):
 
     # within each final depth bin, making the average of densities weighted by the thikcness of the layers that compose each final bin
     # wm = lambda x: np.average(x, weights=df_ini_dens.loc[x.index, "thickness_m"])
-    # df_mod["density_kgm3"] = (
+    # df_mod["density_bulk"] = (
     #     df_ini_dens.groupby("placings")
-    #     .agg(weighted_density=("density_kgm3", wm))
+    #     .agg(weighted_density=("density_bulk", wm))
     #     .values
     # )
 
     # if (
-    #     df_mod["density_kgm3"].last_valid_index()
-    #     < df_mod["density_kgm3"].index.values[-1]
+    #     df_mod["density_bulk"].last_valid_index()
+    #     < df_mod["density_bulk"].index.values[-1]
     # ):
-    #     tmp = df_mod.loc[df_mod.density_kgm3.notnull(), "density_kgm3"]
+    #     tmp = df_mod.loc[df_mod.density_bulk.notnull(), "density_bulk"]
     #     x = np.around(np.append(tmp.index.values, [30, 70]), 4)
     #     y = np.around(np.append(tmp.values, [830, 830]), 4)
     #     fo = np.poly1d(np.polyfit(x, y, 2))
-    #     df_mod.loc[df_mod.density_kgm3.isnull(), "density_kgm3"] = fo(
-    #         df_mod.loc[df_mod.density_kgm3.isnull(), "density_kgm3"].index.values
+    #     df_mod.loc[df_mod.density_bulk.isnull(), "density_bulk"] = fo(
+    #         df_mod.loc[df_mod.density_bulk.isnull(), "density_bulk"].index.values
     #     )
 
-    #     df_mod["density_kgm3"] = np.minimum(
-    #         np.maximum(300, df_mod["density_kgm3"].values), 900
+    #     df_mod["density_bulk"] = np.minimum(
+    #         np.maximum(300, df_mod["density_bulk"].values), 900
     #     )
 
-    # ind_last = df_mod.density_kgm3.last_valid_index()
-    # df_mod.loc[ind_last:, 'density_kgm3'] = 917
-    df_mod["density_kgm3"] =  df_ini_dens["density_kgm3"]
+    # ind_last = df_mod.density_bulk.last_valid_index()
+    # df_mod.loc[ind_last:, 'density_bulk'] = 917
+    df_mod["density_bulk"] =  df_ini_dens["density_bulk"]
     df_mod["thickness_mweq"] = np.diff(depth_mod_weq)
     df_mod["thickness_m"] = (
-        df_mod["thickness_mweq"] * c.rho_water / df_mod["density_kgm3"]
+        df_mod["thickness_mweq"] * c.rho_water / df_mod["density_bulk"]
     )
 
     df_mod["depth_m"] = np.cumsum(df_mod.thickness_m)
 
-    df_mod["rhofirn"] = df_mod.density_kgm3
+    df_mod["rhofirn"] = df_mod.density_bulk
     df_mod["snowc"] = df_mod["thickness_mweq"]
     df_mod["snic"] = 0
 
     # Initial temperature profile
-    filename = c.initial_state_folder_path + c.station + "_initial_temperature.csv"
+    filename = c.initial_state_folder_path + c.station + "_initial_T_ice.csv"
     if not os.path.isfile(filename):
         if  c.altitude < 1500:
             print('Did not find initial temperature profile. Using "ablation_initial_temperature.csv".')
@@ -229,25 +216,27 @@ def InitializationSubsurface(c):
             print('Did not find initial temperature profile. Using "Accumulation_initial_temperature.csv".')
             filename = c.initial_state_folder_path + "Accumulation_initial_temperature.csv"
             
-        
-    df_ini_temp = pd.read_csv(filename, sep=";")
-    df_ini_temp = df_ini_temp.loc[df_ini_temp.depth_m >= 0, :]
+    print(filename)
+    df_ini_temp = pd.read_csv(filename)
+    df_ini_temp = df_ini_temp.loc[df_ini_temp.depth >= 0, :]
 
-    if df_ini_temp.depth_m.max() < df_mod.depth_m.max():
+    if df_ini_temp.depth.max() < df_mod.depth_m.max():
         tmp = df_ini_temp.iloc[-1, :].copy()
-        tmp.depth_m = df_mod.depth_m.max()
+        tmp.depth = df_mod.depth_m.max()
         df_ini_temp = pd.concat([df_ini_temp, tmp.to_frame().T], ignore_index=True)
 
     df_mod["temp_degC"] = np.interp(
-        df_mod.depth_m, df_ini_temp.depth_m, df_ini_temp.temperature_degC
+        df_mod.depth_m, df_ini_temp.depth, df_ini_temp.T_ice
     )
     df_mod["temp_degC"] = df_mod["temp_degC"].fillna(method="bfill").values + c.T_0
 
     # Initial grain size
-    filename = c.initial_state_folder_path + 'all_sites_initial_grain_size.csv'
-
-    df_ini_gs = pd.read_csv(filename, sep=";")
-    df_ini_gs = df_ini_gs.set_index("depth_m")
+    filename = c.initial_state_folder_path + c.station + "_initial_dgrain.csv"
+    if not os.path.isfile(filename):
+        filename = c.initial_state_folder_path + 'all_sites_initial_grain_size.csv'
+       
+    df_ini_gs = pd.read_csv(filename)
+    df_ini_gs = df_ini_gs.set_index("depth")
 
     df_mod["grain_size_mm"] = (
         df_ini_gs.groupby(
@@ -266,25 +255,25 @@ def InitializationSubsurface(c):
         fig, ax = plt.subplots(1, 4, sharey=True)
         ax = ax.flatten()
         ax[0].step(
-            df_mod.density_kgm3, -df_mod.depth_m, where="pre", label="interpolated"
+            df_mod.density_bulk, -df_mod.depth_m, where="pre", label="interpolated"
         )
         ax[0].step(
-            df_ini_dens.density_kgm3,
-            -df_ini_dens.depth_m,
+            df_ini_dens.density_bulk,
+            -df_ini_dens.depth,
             where="pre",
             label="original",
         )
-        ax[0].set_xlabel("density_kgm3")
+        ax[0].set_xlabel("density_bulk")
         ax[1].step(
             df_mod.temp_degC - c.T_0, -df_mod.depth_m, where="pre", label="interpolated"
         )
-        ax[1].step(df_ini_temp.temperature_degC, -df_ini_temp.depth_m, label="original")
+        ax[1].step(df_ini_temp.T_ice, -df_ini_temp.depth, label="original")
         ax[1].set_xlabel("temp_degC")
         ax[2].step(
             df_mod.grain_size_mm, -df_mod.depth_m, where="pre", label="interpolated"
         )
         ax[2].step(
-            df_ini_gs.grain_size_mm, -df_ini_gs.index, where="pre", label="original"
+            df_ini_gs.dgrain, -df_ini_gs.index, where="pre", label="original"
         )
         ax[2].set_xlabel("grain_size_mm")
         ax[2].legend()
