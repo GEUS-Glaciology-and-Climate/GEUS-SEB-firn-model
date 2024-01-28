@@ -28,7 +28,7 @@ deep_firn_lim;20;
 thick_crit;5;
 new_bottom_lay;10;
 max_lay_thick;10;
-min_tot_thick;20;
+min_tot_thick;40;
 merge_crit_temp;1;
 merge_crit_dens;10;
 merge_crit_gsize;1;

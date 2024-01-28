@@ -110,7 +110,6 @@ def InitializationSubsurface(c):
     # Author: Baptiste Vandecrux (bav@geus.dk)
     # ==========================================================================
     # Initial density profile
-    import pdb; pdb.set_trace()
     filename = c.initial_state_folder_path + c.station + "_initial_density_bulk.csv"
     if not os.path.isfile(filename):
         if  c.altitude < 1500:
