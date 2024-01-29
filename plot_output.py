@@ -378,25 +378,35 @@ def main(output_path, run_name):
     # %% 
     profile_list = df_sumup.profile_key.drop_duplicates()
     def new_figure(): 
-        fig,ax = plt.subplots(1,6,sharey=True,sharex=True, figsize=(16,7))
-        # plt.subplots_adjust(bottom=0.4)
+        fig,ax = plt.subplots(1,6, figsize=(16,7))
+        plt.subplots_adjust(left=0.1, right=0.9, top=0.8, wspace=0.2)
         return fig, ax
     fig,ax = new_figure()
     count = 0
     for i, p in enumerate(profile_list):
         df_profile = df_sumup.loc[df_sumup.profile_key == p, :]
-        df_profile.plot(ax=ax[i-count*6], y='start_depth',x='density',
-                        drawstyle="steps-post",
-                        label='observation')
         
+        if df_meta.loc[df_meta.profile_key == p, 'reference_short'].item() == 'Clerx et al. (2022)':
+            df_profile[['start_depth','stop_depth','midpoint']]
+        if df_profile[['start_depth','stop_depth','midpoint']].isnull().all().all():
+            print('no data in profile', p, 
+                  df_meta.loc[df_meta.profile_key == p, 'profile'].item(),
+                  df_meta.loc[df_meta.profile_key == p, 'reference_short'].item())
+            continue
+
+            
+        df_profile.plot(ax=ax[i-count*6], y='start_depth',x='density',
+                        drawstyle="steps-pre",
+                        label='observation')
+
         (ds_mod_dens
          .sel(time=df_profile.timestamp.values[0])
          .to_dataframe()
          .plot(ax=ax[i-count*6],y='depth',x='density_bulk',
-               drawstyle="steps-post",
+               drawstyle="steps-pre",
                label='model',
                color='tab:red'))
-        if i == 0:
+        if i-count*6 == 0:
             ax[i-count*6].legend(loc='upper left', ncol=2, bbox_to_anchor=(2.5,1.2))
             ax[i-count*6].set_ylabel('Depth (m)')
         else:
@@ -404,9 +414,11 @@ def main(output_path, run_name):
         title =  (pd.to_datetime(df_profile.timestamp.values[0]).strftime('%Y-%m-%d')
                   + '\n' + df_meta.loc[df_meta.profile_key == p, 'profile'].item()
                   + '\n' + df_meta.loc[df_meta.profile_key == p, 'reference_short'].item())
-        ax[i-count*6].set_title(title)
-        ax[i-count*6].set_xlabel('Density (kg m$^{-3}$')
-        ax[i-count*6].set_ylim(df_profile.stop_depth.max(), 0)
+        ax[i-count*6].set_title(title, fontsize=8, fontweight='bold')
+        ax[i-count*6].set_xlabel('Density (kg m$^{-3}$)')
+        ax[i-count*6].set_ylim(df_profile.start_depth.max()+1, 0)
+        ax[i-count*6].set_xlim(100,1000)
+        ax[i-count*6].grid()
 
         if (i-count*6) == 5: 
             fig.savefig(
@@ -414,6 +426,10 @@ def main(output_path, run_name):
                 dpi=120)
             count = count +1
             fig,ax = new_figure()
+    if (i-count*6) != 5:
+        fig.savefig(
+            c.output_path+c.RunName+'/'+'density_evaluation_SUMup_'+str(count)+'.png', 
+            dpi=120)
 
 
     
