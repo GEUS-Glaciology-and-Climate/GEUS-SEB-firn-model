@@ -26,10 +26,10 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
     filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
     ds = xr.open_dataset(filename).transpose()
     
-    if len(df_sumup)>0:
-        ds = ds.sel(time=slice(df_sumup.timestamp.min(),
-                          df_sumup.timestamp.max())
-                    ).where((ds.depth<df_sumup.depth.max()+15).all(dim='time'), drop=True)
+    # if len(df_sumup)>0:
+    #     ds = ds.sel(time=slice(df_sumup.timestamp.min(),
+    #                       df_sumup.timestamp.max())
+    #                 ).where((ds.depth<df_sumup.depth.max()+15).all(dim='time'), drop=True)
     
     if zero_surf:
         ds['surface_height'] = 0 * ds.depth.isel(level=-1)
@@ -91,17 +91,27 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
         if len(ylim)==1: ax.set_ylim(ylim, ax.get_ylim()[1])
         if len(ylim)==2: ax.set_ylim(np.max(ylim), np.min(ylim))
     ax.set_ylabel("Depth (m)")
+    
+    # adding SUMup observations as colored scatter
     if len(df_sumup)>0:
-        sc=plt.plot(df_sumup.timestamp,
-            df_sumup.depth,
+        if var_name == 'T_ice':
+            depth_var = 'depth'
+            sumup_var = 'temperature'
+        if var_name == 'density_bulk':
+            depth_var = 'midpoint'
+            sumup_var = 'density'
+            
+        plt.plot(df_sumup.timestamp,
+            df_sumup[depth_var],
             marker='o',ls='None', markersize=6, color='lightgray',zorder=1)
-        sc2=plt.scatter(df_sumup.timestamp,
-                    df_sumup.depth,
-                    12, df_sumup.temperature,
+        plt.scatter(df_sumup.timestamp,
+                    df_sumup[depth_var],
+                    12, df_sumup[sumup_var],
                     vmin=vmin, vmax=vmax,
                     cmap=cmap, zorder=2)
-        ax.set_ylim(df_sumup.depth.max(), 0)
-        ax.set_xlim(df_sumup.timestamp.min(), df_sumup.timestamp.max())
+        ax.set_ylim(df_sumup[depth_var].max()+2, 0)
+        ax.set_xlim(df_sumup.timestamp.min()-pd.Timedelta('100D'),
+                    df_sumup.timestamp.max()+pd.Timedelta('100D'))
     
     fig.savefig(output_path+"/" + run_name + "/" + site + "_" + var_name +tag+ ".png")
     return fig, ax

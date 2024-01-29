@@ -114,10 +114,10 @@ def InitializationSubsurface(c):
     if not os.path.isfile(filename):
         if  c.altitude < 1500:
             print('Did not find initial density profile. Using "ablation_initial_density.csv".')
-            filename = c.initial_state_folder_path + "ablation_initial_density.csv"
+            filename = "./input/initial state/ablation_initial_density.csv"
         else:
             print('Did not find initial density profile. Using "Accumulation_initial_density.csv".')
-            filename = c.initial_state_folder_path + "Accumulation_initial_density.csv"
+            filename = "./input/initial state/Accumulation_initial_density.csv"
     print(filename)
 
     df_ini_dens = pd.read_csv(filename)
@@ -210,10 +210,10 @@ def InitializationSubsurface(c):
     if not os.path.isfile(filename):
         if  c.altitude < 1500:
             print('Did not find initial temperature profile. Using "ablation_initial_temperature.csv".')
-            filename = c.initial_state_folder_path + "ablation_initial_temperature.csv"
+            filename = "./input/initial state/ablation_initial_temperature.csv"
         else:
             print('Did not find initial temperature profile. Using "Accumulation_initial_temperature.csv".')
-            filename = c.initial_state_folder_path + "Accumulation_initial_temperature.csv"
+            filename = "./input/initial state/Accumulation_initial_temperature.csv"
             
     print(filename)
     df_ini_temp = pd.read_csv(filename)
@@ -232,7 +232,7 @@ def InitializationSubsurface(c):
     # Initial grain size
     filename = c.initial_state_folder_path + c.station + "_initial_dgrain.csv"
     if not os.path.isfile(filename):
-        filename = c.initial_state_folder_path + 'all_sites_initial_grain_size.csv'
+        filename = './input/initial state/all_sites_initial_grain_size.csv'
        
     df_ini_gs = pd.read_csv(filename)
     df_ini_gs = df_ini_gs.set_index("depth")

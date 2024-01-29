@@ -8,14 +8,34 @@ tip list:
     import pdb; pdb.set_trace()
 """
 import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
 import xarray as xr
 import lib.plot as lpl
 from lib.initialization import Struct
 import pandas as pd
+import os
 import lib.io as io
+from scipy.spatial import distance
+from math import sin, cos, sqrt, atan2, radians
+
+def get_distance(point1, point2):
+    R = 6370
+    lat1 = radians(point1[0])  #insert value
+    lon1 = radians(point1[1])
+    lat2 = radians(point2[0])
+    lon2 = radians(point2[1])
+
+    dlon = lon2 - lon1
+    dlat = lat2- lat1
+
+    a = sin(dlat / 2)**2 + cos(lat1) * cos(lat2) * sin(dlon / 2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1-a))
+    distance = R * c
+    return distance
+    
 output_path= 'C:/Users/bav/data_save/output firn model/'
-run_name = 'KAN_U_100_layers'
+run_name = 'KAN_U_100_layers_0'
 #%%
 def main(output_path, run_name):
     # %% Loading data
@@ -78,9 +98,6 @@ def main(output_path, run_name):
         ds['surface_height'].values[0] = 0
         df_out['surface_height'] = ds['surface_height'].values
         del ds
-    
-    import os
-    
     # try:
     #     path_aws_l3 = 'C:/Users/bav/GitHub/PROMICE data/aws-l3-dev/level_3/'
     #     df_obs = pd.read_csv(path_aws_l3+c.station+'/'+c.station+'_hour.csv')
@@ -199,8 +216,10 @@ def main(output_path, run_name):
     df_out['LRout'] = df_out.LRout_mdl
     df_obs['LHF'] = df_obs.dlhf_u
     df_obs['SHF'] = df_obs.dshf_u
-    if 'ulr' not in df_obs.columns:
+    if 'ulr' in df_obs.columns:
         df_obs['LRout'] = df_obs.ulr
+    else:
+        df_obs['LRout'] = np.nan
     var_list = ['t_surf','LRout','LHF','SHF','t_i_10m']
     
 
@@ -254,85 +273,8 @@ def main(output_path, run_name):
 
     fig.savefig(c.output_path+c.RunName+'/SEB_evaluation_vs_AWS.png', dpi=120)
     
-    # %% Loading SUMup 2023
-    
-    df_sumup = xr.open_dataset(
-        'C:/Users/bav/GitHub/SUMup/SUMup-2023/SUMup 2023 beta/SUMup_2023_temperature_greenland.nc',
-        group='DATA').to_dataframe()
-    ds_meta = xr.open_dataset(
-        'C:/Users/bav/GitHub/SUMup/SUMup-2023/SUMup 2023 beta/SUMup_2023_temperature_greenland.nc',
-        group='METADATA')
-    
-    df_sumup.method_key = df_sumup.method_key.replace(np.nan,-9999)
-    # df_sumup['method'] = ds_meta.method.sel(method_key = df_sumup.method_key.values).astype(str)
-    df_sumup['name'] = ds_meta.name.sel(name_key = df_sumup.name_key.values).astype(str)
-    df_sumup['reference'] = (ds_meta.reference
-                             .drop_duplicates(dim='reference_key')
-                             .sel(reference_key=df_sumup.reference_key.values)
-                             .astype(str))
-    df_sumup['reference_short'] = (ds_meta.reference_short
-                             .drop_duplicates(dim='reference_key')
-                             .sel(reference_key=df_sumup.reference_key.values)
-                             .astype(str))
-    
-    # selecting Greenland metadata measurements
-    df_sumup = df_sumup.loc[df_sumup.timestamp>pd.to_datetime('1989')]
-    df_meta = df_sumup.loc[df_sumup.latitude>0, 
-                      ['latitude', 'longitude', 'name_key', 'name', 'method_key',
-                       'reference_short','reference', 'reference_key']
-                      ].drop_duplicates()
-    
-    from scipy.spatial import distance
-    from math import sin, cos, sqrt, atan2, radians
-    
-    def get_distance(point1, point2):
-        R = 6370
-        lat1 = radians(point1[0])  #insert value
-        lon1 = radians(point1[1])
-        lat2 = radians(point2[0])
-        lon2 = radians(point2[1])
-    
-        dlon = lon2 - lon1
-        dlat = lat2- lat1
-    
-        a = sin(dlat / 2)**2 + cos(lat1) * cos(lat2) * sin(dlon / 2)**2
-        c = 2 * atan2(sqrt(a), sqrt(1-a))
-        distance = R * c
-        return distance
-    
-    query_point = [[c.latitude, c.longitude]]
-    all_points = df_meta[['latitude', 'longitude']].values
-    df_meta['distance_from_query_point'] = distance.cdist(all_points, query_point, get_distance)
-    min_dist = 10 # in km
-    df_meta_selec = df_meta.loc[df_meta.distance_from_query_point<min_dist, :]   
-
-    import matplotlib
-    cmap = matplotlib.cm.get_cmap('tab10')
-    
-    fig,ax = plt.subplots(1,1,figsize=(7,7))
-    plt.subplots_adjust(bottom=0.4)
-    
-    for count, ref in enumerate(df_meta_selec.reference_short.unique()):
-        label = ref
-        for n in df_meta_selec.loc[df_meta_selec.reference_short==ref, 'name_key'].drop_duplicates().values:
-            df_sumup.loc[
-                df_sumup.name_key == n, :
-                ].plot(ax=ax, x='timestamp', y='temperature',
-                          color = cmap(count),
-                          marker='o',ls='None',
-                          label=label, alpha=0.4, legend=False
-                          )
-
-    df_out.t_i_10m.plot(ax=ax,color='tab:red', label='GEUS model')
-    ax.set_ylabel('10 m temperature (°C)')
-    ax.set_xlabel('')
-    plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1))
-    plt.title(c.station)
-    fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup2023.png', dpi=120)
-
    
-    # %% Loading SUMup 2024
-    
+    # %% Evaluating temperature with SUMup 2024
     df_sumup = xr.open_dataset(
         'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_temperature_greenland.nc',
         group='DATA').to_dataframe()
@@ -369,10 +311,11 @@ def main(output_path, run_name):
         df_sumup.latitude.isin(df_meta_selec.latitude)&df_sumup.longitude.isin(df_meta_selec.longitude),:]
     lpl.plot_var(c.station, c.output_path, c.RunName, 'T_ice', zero_surf=True, 
                  df_sumup=df_sumup, tag='_SUMup2024')
-    
+
     fig,ax = plt.subplots(1,1,figsize=(7,7))
     plt.subplots_adjust(bottom=0.4)
-    
+    cmap = matplotlib.cm.get_cmap('tab10')
+
     for count, ref in enumerate(df_meta_selec.reference_short.unique()):
         label = ref
         for n in df_meta_selec.loc[df_meta_selec.reference_short==ref, 'name_key'].drop_duplicates().values:
@@ -390,6 +333,89 @@ def main(output_path, run_name):
     plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1))
     plt.title(c.station)
     fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup2024.png', dpi=120)
+    
+    # %% Evaluating density with SUMup 2024
+    df_sumup = xr.open_dataset(
+        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_density_greenland.nc',
+        group='DATA').to_dataframe()
+    ds_meta = xr.open_dataset(
+        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_density_greenland.nc',
+        group='METADATA')
+    
+    df_sumup.method_key = df_sumup.method_key.replace(np.nan,-9999)
+    # df_sumup['method'] = ds_meta.method.sel(method_key = df_sumup.method_key.values).astype(str)
+    df_sumup['profile'] = ds_meta.profile.sel(profile_key = df_sumup.profile_key.values).astype(str)
+    df_sumup['reference'] = (ds_meta.reference
+                             .drop_duplicates(dim='reference_key')
+                             .sel(reference_key=df_sumup.reference_key.values)
+                             .astype(str))
+    df_sumup['reference_short'] = (ds_meta.reference_short
+                             .drop_duplicates(dim='reference_key')
+                             .sel(reference_key=df_sumup.reference_key.values)
+                             .astype(str))
+    # df_ref = ds_meta.reference.to_dataframe()
+    df_sumup = df_sumup.loc[df_sumup.timestamp>pd.to_datetime('1989')]
+    # selecting Greenland metadata measurements
+    df_meta = df_sumup.loc[df_sumup.latitude>0, 
+                      ['latitude', 'longitude', 'profile_key', 'profile', 'method_key',
+                       'reference_short','reference', 'reference_key']
+                      ].drop_duplicates()
+    
+    query_point = [[c.latitude, c.longitude]]
+    all_points = df_meta[['latitude', 'longitude']].values
+    df_meta['distance_from_query_point'] = distance.cdist(all_points, query_point, get_distance)
+    min_dist = 10 # in km
+    df_meta_selec = df_meta.loc[df_meta.distance_from_query_point<min_dist, :]   
+
+    df_sumup = df_sumup.loc[
+        df_sumup.latitude.isin(df_meta_selec.latitude)&df_sumup.longitude.isin(df_meta_selec.longitude),:]
+    lpl.plot_var(c.station, c.output_path, c.RunName, 'density_bulk', zero_surf=True, 
+                 df_sumup=df_sumup, tag='_SUMup2024')
+    
+    # %% plot each profile
+    filename = c.output_path+"/" + c.RunName + "/" + c.station + "_density_bulk.nc"
+    ds_mod_dens = xr.open_dataset(filename).transpose()
+    # %% 
+    profile_list = df_sumup.profile_key.drop_duplicates()
+    def new_figure(): 
+        fig,ax = plt.subplots(1,6,sharey=True,sharex=True, figsize=(16,7))
+        # plt.subplots_adjust(bottom=0.4)
+        return fig, ax
+    fig,ax = new_figure()
+    count = 0
+    for i, p in enumerate(profile_list):
+        df_profile = df_sumup.loc[df_sumup.profile_key == p, :]
+        df_profile.plot(ax=ax[i-count*6], y='start_depth',x='density',
+                        drawstyle="steps-post",
+                        label='observation')
+        
+        (ds_mod_dens
+         .sel(time=df_profile.timestamp.values[0])
+         .to_dataframe()
+         .plot(ax=ax[i-count*6],y='depth',x='density_bulk',
+               drawstyle="steps-post",
+               label='model',
+               color='tab:red'))
+        if i == 0:
+            ax[i-count*6].legend(loc='upper left', ncol=2, bbox_to_anchor=(2.5,1.2))
+            ax[i-count*6].set_ylabel('Depth (m)')
+        else:
+            ax[i-count*6].get_legend().remove()
+        title =  (pd.to_datetime(df_profile.timestamp.values[0]).strftime('%Y-%m-%d')
+                  + '\n' + df_meta.loc[df_meta.profile_key == p, 'profile'].item()
+                  + '\n' + df_meta.loc[df_meta.profile_key == p, 'reference_short'].item())
+        ax[i-count*6].set_title(title)
+        ax[i-count*6].set_xlabel('Density (kg m$^{-3}$')
+        ax[i-count*6].set_ylim(df_profile.stop_depth.max(), 0)
+
+        if (i-count*6) == 5: 
+            fig.savefig(
+                c.output_path+c.RunName+'/'+'density_evaluation_SUMup_'+str(count)+'.png', 
+                dpi=120)
+            count = count +1
+            fig,ax = new_figure()
+
+
     
     # %% Movies
     # lpl.plot_movie(c.station, c.output_path, c.RunName, 'T_ice')
