@@ -23,7 +23,7 @@ import multiprocessing
 def run_SEB_firn(station='KAN_U'):
     
     start_time = time.time()   
-    SPIN_UP = False
+    SPIN_UP = True
     ds_carra = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
     print(station)
     try:
@@ -136,13 +136,13 @@ def run_SEB_firn(station='KAN_U'):
         start_time = time.time()
         return c
     except Exception as e:
-        print(e)
+        print(station,'\n',e,'\n')
         return None
     
     
 if __name__ == "__main__":
     # c = run_SEB_firn()
     ds_carra = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
-    run_SEB_firn(ds_carra.stid.values[1])
-    # pool = multiprocessing.Pool(8)
-    # out1, out2, out3 = zip(*pool.map(run_SEB_firn,ds_carra.stid.values[1:]))
+    # run_SEB_firn(ds_carra.stid.values[1])
+    pool = multiprocessing.Pool(8)
+    out1, out2, out3 = zip(*pool.map(run_SEB_firn,ds_carra.stid.values[1:]))

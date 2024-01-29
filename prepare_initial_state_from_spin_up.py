@@ -57,5 +57,5 @@ def main(output_path, run_name):
 # %%
 import os    
 if __name__ == "__main__":
-    # for run_name in os.listdir('C:/Users/bav/data_save/output firn model/spin up/'):
-    main(output_path=output_path, run_name=run_name)
+    for run_name in os.listdir('C:/Users/bav/data_save/output firn model/spin up/'):
+        main(output_path=output_path, run_name=run_name)
