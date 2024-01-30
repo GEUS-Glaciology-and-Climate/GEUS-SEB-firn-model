@@ -77,6 +77,9 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
      zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp, snowbkt, snowthick
     ) = IniVar(time, c)
 
+    if np.isnan(c.Tdeep):
+        print('Warning: assigning Tdeep')
+        c.Tdeep = T_ice[-1,-1]
     # c = CalculateMeanAccumulation(time,snowfall, c)
 
     # potential temperature
@@ -89,7 +92,6 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
         if k in np.round(np.linspace(0,len(time),51)):
             sys.stdout.write("%.0f %% "%(100*k/len(time)))
             sys.stdout.flush()
-
         # Step 1/*: Initiate surface variables from previous time step. 
         # The value for k=0 was placed at the end of the array in IniVar.
         snowthick[k] = snowthick[k - 1]
@@ -180,6 +182,7 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
 
         # ========== Step 7/*:  Sub-surface model ====================================
         c.rho_fresh_snow = rho_snow
+
         (
             snowc[:, k], snic[:, k], slwc[:, k],
             T_ice[:, k],  zrfrz[:, k], rhofirn[:, k],
@@ -208,8 +211,9 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
             - dH_comp[k] 
             - melt_mweq[k] / rho[0, k] * 1000
             )
+        
         if snowthick[k] < 0: snowthick[k] = 0
-                    
+
     return (L, LHF, SHF, theta_2m, q_2m, ws_10m, Re, melt_mweq,
             sublimation_mweq, SRin, SRout, LRin, LRout, 
             snowc, snic, slwc, T_ice, zrfrz, rhofirn, zsupimp, dgrain, 
@@ -759,7 +763,7 @@ def SensLatFluxes_bulk_opt(
         theta_2m = theta
         q_2m = q
         ws_10m = WS
-     
+
     return L, LHF, SHF, theta_2m, q_2m, ws_10m, Re
 
 def SpecHumSat(RH, T, pres, c: Struct):

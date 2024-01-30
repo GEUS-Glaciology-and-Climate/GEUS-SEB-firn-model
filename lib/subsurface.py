@@ -135,11 +135,7 @@ def densification(pslwc, psnowc, psnic, prhofirn, ptsoil, c):
     # ! f2 = 4
 
     eta_firn = (
-        f1f2
-        * 7.62237e6
-        * c.a_dens
-        * prhofirn
-        / 250
+        f1f2 * 7.62237e6 * c.a_dens * prhofirn / 250
         * np.exp(0.1 * (c.T_0 - ptsoil) + c.b_dens * 0.023 * prhofirn)
     )
 
