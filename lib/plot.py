@@ -21,11 +21,18 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
-             df_sumup=[], tag=''):
+             df_sumup=[], tag='', year=None):
     print('plotting',var_name, 'from',run_name)
     filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
     ds = xr.open_dataset(filename).transpose()
     
+    if year:
+        if len(year) == 2:
+            ds = ds.sel(time=slice(str(year[0]), str(year[1])))
+            tag='_'+str(year[0])+'_'+str(year[1])
+        else:
+            ds = ds.sel(time=str(year))
+            tag='_'+str(year)
     # if len(df_sumup)>0:
     #     ds = ds.sel(time=slice(df_sumup.timestamp.min(),
     #                       df_sumup.timestamp.max())
@@ -65,9 +72,9 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
         plot_info = plot_info.set_index('variable_name')
         label = plot_info.loc[var_name, 'label']
         cmap = plot_info.loc[var_name, 'cmap']
-        # if ~np.isnan(plot_info.loc[var_name].vmin):
-        #     vmin = plot_info.loc[var_name, 'vmin']
-        #     vmax = plot_info.loc[var_name, 'vmax']
+        if ~np.isnan(plot_info.loc[var_name].vmin):
+            vmin = plot_info.loc[var_name, 'vmin']
+            vmax = plot_info.loc[var_name, 'vmax']
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     plt.subplots_adjust(left=0.07, right=0.99, top=0.95, bottom=0.1, hspace=0.2)
     fig.suptitle(site)
@@ -115,7 +122,6 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
     
     fig.savefig(output_path+"/" + run_name + "/" + site + "_" + var_name +tag+ ".png")
     return fig, ax
-
 
 def plot_var_start_end(c, var_name='T_ice', ylim=[], to_file=False):
     site = c.station
@@ -228,44 +234,91 @@ def plot_movie(site, output_path,  run_name, var_name, ylim=[]):
     animation.save(output_path + '/'+run_name+'/'+var_name+'.gif', fps=30, writer='pillow')
     plt.show()
 
+def track_horizon(time, H_surf, depth_act, compaction, date_start, depth_start, step=1):
+    ind_start = (np.abs(time - date_start)).argmin()
 
+    length_out = len(time)
+    depth_hor = np.empty(length_out) * np.nan
+    depth_hor[ind_start] = depth_start
 
-def evaluate_compaction(site,output_path, run_name):
+    for i in range(ind_start + step, len(time), step):
+        depth_hor[i] = max(0, depth_hor[i - step] + (H_surf[i] - H_surf[i - step]))
+        depth_mod = depth_act[:, i]
+        comp_mod = compaction[:, i] * step
+
+        # compaction in all layers below the horizon
+        ind_next = int(
+            interp1d(
+                np.insert(depth_mod, 0, 0), np.arange(len(depth_mod) + 1), kind="next"
+            )(depth_hor[i])
+        )
+        ind_prev = int(
+            interp1d(
+                np.insert(depth_mod, 0, 0), np.arange(len(depth_mod) + 1), 
+                kind="previous", fill_value=0
+            )(depth_hor[i])
+        )
+        comp_tot = np.sum(comp_mod[ind_next:]) 
+
+        # plus compaction within the layer where the horizon is
+        comp = (
+            (depth_mod[ind_next] - depth_hor[i])
+            / (depth_mod[ind_next] - depth_mod[ind_next - 1])
+            * comp_mod[ind_next - 1]
+        )
+
+        # comp_tot = comp_tot + comp
+
+        depth_hor[i] = depth_hor[i] + comp_tot
+        
+    # interpolating between the steps
+    if np.sum(np.isnan(depth_hor)) > 0:
+        depth_hor[np.isnan(depth_hor)] = interp1d(
+            np.argwhere(~np.isnan(depth_hor)).transpose()[0],
+            depth_hor[~np.isnan(depth_hor)],
+            kind="linear",
+            fill_value="extrapolate",
+        )(np.argwhere(np.isnan(depth_hor)).transpose()[0])
+        depth_hor[:ind_start] = np.nan
+    return depth_hor
+
+def evaluate_compaction(c):
+    site = c.station
+    output_path = c.output_path
+    run_name = c.RunName
     filename = output_path+"/" + run_name + "/" + site + "_compaction.nc"
     ds = nc.Dataset(filename)
     compaction = ds["compaction"][:]
     time_org = np.asarray(ds["time"][:])
-    time = np.datetime64("1900-01-01T00") + np.round(
-        (time_org - 1) * 24 * 3600
-    ) * np.timedelta64(1, "s")
-
+    time = np.datetime64("1900-01-01T00") + np.round((time_org) * 24 * 3600) * np.timedelta64(1, "s")
     depth_act = np.asarray(ds["depth"][:])
-
     H_surf = depth_act[-1, :] - depth_act[-1, 0]
-
     df_comp_info = pd.read_csv(
-        "Firn viscosity/Compaction_Instrument_Metadata.csv"
+        "side analysis/Firn viscosity/Compaction_Instrument_Metadata.csv"
     ).set_index("sitename")
+    
+    if site == 'DY2': site='DYE-2'
+    if site == 'NSE': site='NASA-SE'
+    if site == 'SDL': site='Saddle'
+    if site == 'SUM': site='Summit'
+    if site == 'EastGRIP': site='EGP'
+    
+    if site not in df_comp_info.index.unique():
+        return None
+    
+    df_comp_info = (df_comp_info.loc[site, ["instrument_ID",
+                                        "installation_daynumber_YYYYMMDD",
+                                        "borehole_top_from_surface_m",
+                                        "borehole_bottom_from_surface_m"] ]
+                                .reset_index(drop=True)
+                                .set_index("instrument_ID") )
 
-    df_comp_info = (
-        df_comp_info.loc[
-            site,
-            [
-                "instrument_ID",
-                "installation_daynumber_YYYYMMDD",
-                "borehole_top_from_surface_m",
-                "borehole_bottom_from_surface_m",
-            ],
-        ]
-        .reset_index(drop=True)
-        .set_index("instrument_ID")
-    )
-
-    df_comp = pd.read_csv("Firn viscosity/borehole_shortening_m.csv")
+    df_comp = pd.read_csv("side analysis/Firn viscosity/borehole_shortening_m.csv")
     df_comp.date = pd.to_datetime(df_comp.date)
     df_comp = df_comp.set_index(["instrument_id", "date"])
 
-    fig1, ax = plt.subplots(1, 1)  # plot_var(site, run_name, 'density_bulk')
+    fig1, ax = plt.subplots(1, 1)  
+    plot_var(c.station, output_path, run_name, 'density_bulk')
     ax.plot(time, -H_surf, label="Surface")
 
     fig2, ax2 = plt.subplots(len(df_comp_info.index), figsize=(10, 25), sharex=True)
@@ -286,25 +339,11 @@ def evaluate_compaction(site,output_path, run_name):
         depth_top = df_comp_info.loc[ID, "borehole_top_from_surface_m"]
         depth_bot = -df_comp_info.loc[ID, "borehole_bottom_from_surface_m"]
 
-        depth_1 = track_horizon(
-            time, H_surf, depth_act, compaction, date_start, depth_top, step=12
-        )
-        depth_2 = track_horizon(
-            time, H_surf, depth_act, compaction, date_start, depth_bot, step=12
-        )
+        depth_1 = track_horizon(time, H_surf, depth_act, compaction,  date_start, depth_top, step=12)
+        depth_2 = track_horizon(time, H_surf, depth_act, compaction,  date_start, depth_bot, step=12)
 
-        ax.plot(
-            time,
-            depth_1 - H_surf,
-            color=cmap(i / len(df_comp_info.index)),
-            label="_no_legend_",
-        )
-        ax.plot(
-            time,
-            depth_2 - H_surf,
-            color=cmap(i / len(df_comp_info.index)),
-            label="Instrument " + str(ID),
-        )
+        ax.plot(time, depth_1 - H_surf, color=cmap(i / len(df_comp_info.index)), label="_no_legend_")
+        ax.plot(time, depth_2 - H_surf, color=cmap(i / len(df_comp_info.index)), label="Instrument " + str(ID))
 
         # ax2[i] = plt.subplot(2,1,1)
         # ax2[i].plot(time, (depth_2-depth_1) - (depth_2[0]-depth_1[0]))
@@ -327,17 +366,55 @@ def evaluate_compaction(site,output_path, run_name):
     ax.set_ylabel("Depth (m)")
     ax.set_ylim(np.nanmin(depth_2 - H_surf), -np.nanmax(H_surf))
     ax2[i].legend()
-    fig2.text(
-        0.03,
-        0.5,
-        "Compaction rate (m d$^{-1}$)",
-        ha="center",
-        va="center",
-        rotation="vertical",
-    )
-
+    fig2.text(0.03, 0.5, "Compaction rate (m d$^{-1}$)",
+        ha="center", va="center", rotation="vertical")
     fig1.savefig(output_path+"/" + run_name + "/" + site + "_compaction_1.png")
     fig2.savefig(output_path+"/" + run_name + "/" + site + "_compaction_2.png")
+
+
+def find_summer_surface_depths(c):
+    site = c.station
+    output_path = c.output_path
+    run_name = c.RunName
+    filename = output_path+"/" + run_name + "/" + site + "_compaction.nc"
+    ds = nc.Dataset(filename)
+    compaction = ds["compaction"][:]
+    time_org = np.asarray(ds["time"][:])
+    time = np.datetime64("1900-01-01T00") + np.round((time_org) * 24 * 3600) * np.timedelta64(1, "s")
+    depth_act = np.asarray(ds["depth"][:])
+    H_surf = depth_act[-1, :] - depth_act[-1, 0]
+    df_ssd = pd.DataFrame(index=pd.to_datetime(time))
+    df_ssd['H_surf'] = H_surf
+    # list_years = [2015, 2016, 2017, 2018, 2019, 2020, 2021] 
+    list_years = df_ssd.index.year.unique()
+    for i, yr in enumerate(list_years):
+        print(yr)
+        date_start = np.datetime64(str(yr)+'-09-01')
+        df_ssd[str(yr)] = track_horizon(time, H_surf, depth_act, compaction,  date_start, 0, step=48)
+        
+    cmap = matplotlib.cm.get_cmap("Spectral")
+    fig1, ax = plt.subplots(2, 1,figsize=(8,8))  
+    
+    ax[0].plot(time, -H_surf, label="Surface")
+    for i, yr in  enumerate(list_years):
+        ax[0].plot(time, df_ssd[str(yr)].values - df_ssd.H_surf, 
+                color=cmap(i / len(df_ssd.index.year.unique()[:-1])), 
+                label="_no_legend_")
+
+    ax[0].set_title(site)
+    ax[0].grid()
+    ax[0].set_ylabel("Height (m)")
+    ax[0].set_ylim(-np.nanmin(H_surf), -np.nanmax(H_surf))
+    
+    for i, yr in  enumerate(list_years):
+        ax[1].plot(time, -df_ssd[str(yr)].values, 
+                color=cmap(i / len(df_ssd.index.year.unique()[:-1])), 
+                label="_no_legend_")
+    ax[1].grid()
+    ax[1].set_ylabel("Depth (m)")
+
+    fig1.savefig(output_path+"/" + run_name + "/" + site + "_summer_surface_depth_step_48.png",dpi=240)
+    df_ssd.resample('D').mean().to_csv(output_path+"/" + run_name + "/" + site + "_summer_surface_depth.csv")
 
 
 def plot_summary(df, c, filetag="summary", var_list=None):
@@ -374,16 +451,14 @@ def plot_summary(df, c, filetag="summary", var_list=None):
         ax[count].grid()
         ax[count].set_xlim((df.index[0], df.index[-1]))
         
-        if var == "L":    #Changing the y-axis for L
-            ax[count].set_ylim((-30000, 30000))
-
+        if var == "L": ax[count].set_ylim((-30000, 30000))
 
         count = count + 1
 
         if (count == len(ax)) & (var != var_list[-1]):
             ax[0].set_title(c.station)
             plt.savefig(
-                c.output_path + "/" + c.RunName + "/" + "summary_" + str(count_fig),
+                c.output_path + "/" + c.RunName + "/" + c.station + "_summary_" + str(count_fig),
                 bbox_inches="tight",
             )
             count_fig = count_fig + 1
@@ -395,9 +470,207 @@ def plot_summary(df, c, filetag="summary", var_list=None):
 
         for k in range(count + 1, len(ax)):
             ax[k].set_axis_off()
-        ax[0].set_title(c.station)
+    ax[0].set_title(c.station)
+    
+    plt.savefig(
+        c.output_path + "/" + c.RunName + "/" + c.station + "_summary_" + str(count_fig),
+        bbox_inches="tight",
+    )
+    
+
+from scipy.spatial import distance
+from math import sin, cos, sqrt, atan2, radians
+
+def get_distance(point1, point2):
+    R = 6370
+    lat1 = radians(point1[0])  #insert value
+    lon1 = radians(point1[1])
+    lat2 = radians(point2[0])
+    lon2 = radians(point2[1])
+
+    dlon = lon2 - lon1
+    dlat = lat2- lat1
+
+    a = sin(dlat / 2)**2 + cos(lat1) * cos(lat2) * sin(dlon / 2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1-a))
+    distance = R * c
+    return distance
+
+def evaluate_temperature_sumup(df_out, c):
+    # Evaluating temperature with SUMup 2024
+    df_sumup = xr.open_dataset(
+        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_temperature_greenland.nc',
+        group='DATA').to_dataframe()
+    ds_meta = xr.open_dataset(
+        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_temperature_greenland.nc',
+        group='METADATA')
+    
+    df_sumup.method_key = df_sumup.method_key.replace(np.nan,-9999)
+    # df_sumup['method'] = ds_meta.method.sel(method_key = df_sumup.method_key.values).astype(str)
+    df_sumup['name'] = ds_meta.name.sel(name_key = df_sumup.name_key.values).astype(str)
+    df_sumup['reference'] = (ds_meta.reference
+                             .drop_duplicates(dim='reference_key')
+                             .sel(reference_key=df_sumup.reference_key.values)
+                             .astype(str))
+    df_sumup['reference_short'] = (ds_meta.reference_short
+                             .drop_duplicates(dim='reference_key')
+                             .sel(reference_key=df_sumup.reference_key.values)
+                             .astype(str))
+    # df_ref = ds_meta.reference.to_dataframe()
+    df_sumup = df_sumup.loc[df_sumup.timestamp>pd.to_datetime('1989')]
+    # selecting Greenland metadata measurements
+    df_meta = df_sumup.loc[df_sumup.latitude>0, 
+                      ['latitude', 'longitude', 'name_key', 'name', 'method_key',
+                       'reference_short','reference', 'reference_key']
+                      ].drop_duplicates()
+    
+    query_point = [[c.latitude, c.longitude]]
+    all_points = df_meta[['latitude', 'longitude']].values
+    df_meta['distance_from_query_point'] = distance.cdist(all_points, query_point, get_distance)
+    min_dist = 10 # in km
+    df_meta_selec = df_meta.loc[df_meta.distance_from_query_point<min_dist, :]   
+
+    df_sumup = df_sumup.loc[
+        df_sumup.latitude.isin(df_meta_selec.latitude)&df_sumup.longitude.isin(df_meta_selec.longitude),:]
+    plot_var(c.station, c.output_path, c.RunName, 'T_ice', zero_surf=True, 
+                 df_sumup=df_sumup, tag='_SUMup2024')
+
+    fig,ax = plt.subplots(1,1,figsize=(7,7))
+    plt.subplots_adjust(bottom=0.4)
+    cmap = matplotlib.cm.get_cmap('tab10')
+
+    for count, ref in enumerate(df_meta_selec.reference_short.unique()):
+        label = ref
+        for n in df_meta_selec.loc[df_meta_selec.reference_short==ref, 'name_key'].drop_duplicates().values:
+            df_subset=df_sumup.loc[(df_sumup.name_key == n)&(df_sumup.depth == 10), :]
+            if len(df_subset)>0:
+                df_subset.plot(ax=ax, x='timestamp', y='temperature',
+                              color = cmap(count),
+                              marker='o',ls='None',
+                              label=label, alpha=0.4, legend=False
+                              )
+
+    df_out.t_i_10m.plot(ax=ax,color='tab:red', label='GEUS model')
+    ax.set_ylabel('10 m temperature (°C)')
+    ax.set_xlabel('')
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1))
+    plt.title(c.station)
+    fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup2024.png', dpi=120)
+
+def evaluate_density_sumup(c):
+    # Evaluating density with SUMup 2024
+    df_sumup = xr.open_dataset(
+        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_density_greenland.nc',
+        group='DATA').to_dataframe()
+    ds_meta = xr.open_dataset(
+        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_density_greenland.nc',
+        group='METADATA')
+    
+    df_sumup.method_key = df_sumup.method_key.replace(np.nan,-9999)
+    # df_sumup['method'] = ds_meta.method.sel(method_key = df_sumup.method_key.values).astype(str)
+    df_sumup['profile'] = ds_meta.profile.sel(profile_key = df_sumup.profile_key.values).astype(str)
+    df_sumup['reference'] = (ds_meta.reference
+                             .drop_duplicates(dim='reference_key')
+                             .sel(reference_key=df_sumup.reference_key.values)
+                             .astype(str))
+    df_sumup['reference_short'] = (ds_meta.reference_short
+                             .drop_duplicates(dim='reference_key')
+                             .sel(reference_key=df_sumup.reference_key.values)
+                             .astype(str))
+    # df_ref = ds_meta.reference.to_dataframe()
+    df_sumup = df_sumup.loc[df_sumup.timestamp>pd.to_datetime('1989')]
+    # selecting Greenland metadata measurements
+    df_meta = df_sumup.loc[df_sumup.latitude>0, 
+                      ['latitude', 'longitude', 'profile_key', 'profile', 'method_key',
+                       'reference_short','reference', 'reference_key']
+                      ].drop_duplicates()
+    
+    query_point = [[c.latitude, c.longitude]]
+    all_points = df_meta[['latitude', 'longitude']].values
+    df_meta['distance_from_query_point'] = distance.cdist(all_points, query_point, get_distance)
+    min_dist = 10 # in km
+    df_meta_selec = df_meta.loc[df_meta.distance_from_query_point<min_dist, :]   
+
+    df_sumup = df_sumup.loc[
+        df_sumup.latitude.isin(df_meta_selec.latitude)&df_sumup.longitude.isin(df_meta_selec.longitude),:]
+    plot_var(c.station, c.output_path, c.RunName, 'density_bulk', zero_surf=True, 
+                 df_sumup=df_sumup, tag='_SUMup2024')
+    
+    # plot each profile
+    filename = c.output_path+"/" + c.RunName + "/" + c.station + "_density_bulk.nc"
+    ds_mod_dens = xr.open_dataset(filename).transpose()
+
+    profile_list = df_sumup.profile_key.drop_duplicates()
+    def new_figure(): 
+        fig,ax = plt.subplots(1,6, figsize=(16,7))
+        plt.subplots_adjust(left=0.1, right=0.9, top=0.8, wspace=0.2)
+        return fig, ax
+    fig,ax = new_figure()
+    count = 0
+    for i, p in enumerate(profile_list):
+        df_profile = df_sumup.loc[df_sumup.profile_key == p, :]
         
-        plt.savefig(
-            c.output_path + "/" + c.RunName + "/" + filetag + "_" + str(count_fig),
-            bbox_inches="tight",
-        )
+        if df_meta.loc[df_meta.profile_key == p, 'reference_short'].item() == 'Clerx et al. (2022)':
+            df_profile[['start_depth','stop_depth','midpoint']]
+        if df_profile[['start_depth','stop_depth','midpoint']].isnull().all().all():
+            print('no data in profile', p, 
+                  df_meta.loc[df_meta.profile_key == p, 'profile'].item(),
+                  df_meta.loc[df_meta.profile_key == p, 'reference_short'].item())
+            continue
+
+            
+        df_profile.plot(ax=ax[i-count*6], y='start_depth',x='density',
+                        drawstyle="steps-pre",
+                        label='observation')
+
+        (ds_mod_dens
+         .sel(time=df_profile.timestamp.values[0])
+         .to_dataframe()
+         .plot(ax=ax[i-count*6],y='depth',x='density_bulk',
+               drawstyle="steps-pre",
+               label='model',
+               color='tab:red'))
+        if i-count*6 == 0:
+            ax[i-count*6].legend(loc='upper left', ncol=2, bbox_to_anchor=(2.5,1.2))
+            ax[i-count*6].set_ylabel('Depth (m)')
+        else:
+            ax[i-count*6].get_legend().remove()
+        title =  (pd.to_datetime(df_profile.timestamp.values[0]).strftime('%Y-%m-%d')
+                  + '\n' + df_meta.loc[df_meta.profile_key == p, 'profile'].item()
+                  + '\n' + df_meta.loc[df_meta.profile_key == p, 'reference_short'].item())
+        ax[i-count*6].set_title(title, fontsize=8, fontweight='bold')
+        ax[i-count*6].set_xlabel('Density (kg m$^{-3}$)')
+        ax[i-count*6].set_ylim(df_profile.start_depth.max()+1, 0)
+        ax[i-count*6].set_xlim(100,1000)
+        ax[i-count*6].grid()
+
+        if (i-count*6) == 5: 
+            fig.savefig(
+                c.output_path+c.RunName+'/'+'density_evaluation_SUMup_'+str(count)+'.png', 
+                dpi=120)
+            count = count +1
+            fig,ax = new_figure()
+    if (i-count*6) != 5:
+        fig.savefig(
+            c.output_path+c.RunName+'/'+'density_evaluation_SUMup_'+str(count)+'.png', 
+            dpi=120)
+        
+def evaluate_accumulation_snowfox(df_in, c):
+    # SnowFox
+    if c.station in ['KAN_M', 'QAS_M', 'QAS_U','TAS_A','THU_U2']:
+        file = '../../Data/SUMup/data/SMB data/to add/SnowFox_GEUS/SF_'+c.station+'.txt'
+    
+        df_sf = pd.read_csv(file,delim_whitespace=True)
+        df_sf[df_sf==-999] = np.nan
+        df_sf['time'] = pd.to_datetime(df_sf[['Year','Month','Day']])
+        df_sf = df_sf.set_index('time')
+        df_sf['SWE_mweq'] =df_sf['SWE(cmWeq)']/100
+    
+        fig = plt.figure()
+        ax=plt.gca()
+        df_sf.SWE_mweq.plot(ax=ax, marker='o')
+        (df_in.loc['2018-08-12':'2019-05-01'].Snowfallmweq).cumsum().plot(ax=ax, label='Snowfall')
+        (df_in.loc['2019-09-01':'2020-05-01'].Snowfallmweq).cumsum().plot(ax=ax, label='Snowfall')
+        plt.title(c.station)
+        plt.ylabel('Snow accumulation (m w.e.)')
+        fig.savefig(c.output_path+c.RunName+'/snowfox_eval.png', dpi=120)

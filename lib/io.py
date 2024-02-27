@@ -91,7 +91,7 @@ def load_promice_old(path_promice):
     return df
 
 
-def load_CARRA_data(*args):
+def load_CARRA_data(*args, resample=True):
     if len(args) == 1:
         c = args[0]
         surface_input_path = c.surface_input_path
@@ -125,7 +125,10 @@ def load_CARRA_data(*args):
     # Fill null values with 0
     df_carra['ShortwaveRadiationDownWm2'] = df_carra['ShortwaveRadiationDownWm2'].fillna(0)
     df_carra['ShortwaveRadiationUpWm2'] = df_carra['ShortwaveRadiationUpWm2'].fillna(0)
-    df_carra = df_carra.resample('H').interpolate()
+    if resample:
+        df_carra = df_carra.resample('H').interpolate()
+    else:
+        df_carra = df_carra.resample(pd.infer_freq(df_carra.index)).interpolate()
     df_carra['LongwaveRadiationDownWm2'] = df_carra['LongwaveRadiationDownWm2']+18  # bias adjustment
     # df_carra['AirTemperature2C'] = df_carra['AirTemperature2C']+1.69  # bias adjustment
     # df_carra['ShortwaveRadiationDownWm2'] = df_carra['ShortwaveRadiationDownWm2']*1.3  # bias adjustment
@@ -137,20 +140,24 @@ def load_CARRA_data(*args):
     cut_off_temp = 0
     df_carra.loc[df_carra.AirTemperature2C < cut_off_temp,
                  'Snowfallmweq'] = df_carra.loc[
-                     df_carra.AirTemperature2C < cut_off_temp,'tp'] /3/ 1000
+                     df_carra.AirTemperature2C < cut_off_temp,'tp'] / 1000
     df_carra.loc[df_carra.AirTemperature2C >= cut_off_temp,
                  'Rainfallmweq'] = df_carra.loc[
-                     df_carra.AirTemperature2C >= cut_off_temp,'tp'] /3/ 1000
+                     df_carra.AirTemperature2C >= cut_off_temp,'tp'] / 1000
+                     
+    if (df_carra.index[1] - df_carra.index[0]) == pd.Timedelta('1 hours'):
+        df_carra['Snowfallmweq'] = df_carra['Snowfallmweq'] / 3
+        df_carra['Rainfallmweq'] = df_carra['Rainfallmweq'] / 3
     return df_carra
 
 
-def load_surface_input_data(c):
+def load_surface_input_data(c, resample=True):
     if c.surface_input_driver  == 'AWS_old':
         return load_promice_old(c.surface_input_path)
     # if c.surface_input_driver  == 'AWS':
     #     return load_promice(c.surface_input_path)
     if c.surface_input_driver  == 'CARRA':
-        return load_CARRA_data(c)
+        return load_CARRA_data(c, resample=resample)
     
     print('Driver', c.surface_input_driver , 'not recognized')
     return None

@@ -18,14 +18,14 @@ import plot_output as po
 import xarray as xr
 import multiprocessing
 
-def run_SEB_firn(station='KAN_U'):
+def run_SEB_firn(station='DY2'):
     start_time = time.time()   
-    SPIN_UP = True
+    SPIN_UP = False
     ds_carra = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
    
-    if  os.path.isfile('./input/initial state/spin up/'+station+'_initial_T_ice.csv'):
-        print('spin up already done for',station)
-        return None
+    # if  os.path.isfile('./input/initial state/spin up/'+station+'_initial_T_ice.csv'):
+    #     print('spin up already done for',station)
+    #     return None
 
     print(station)
     # try:
@@ -57,7 +57,12 @@ def run_SEB_firn(station='KAN_U'):
                   ).T10m.mean().item() + 273.15
     # c.lim_new_lay = c.accum_AWS/c.new_lay_frac;
     
-    df_in = io.load_surface_input_data(c)
+    # loading input data
+    df_in = io.load_surface_input_data(c, resample=False)
+    freq = pd.infer_freq(df_in.index)
+    if freq=='H': freq = '1H'
+    c.delta_time = pd.to_timedelta(freq).total_seconds()
+    c.zdtime = c.delta_time 
 
     # Spin up option
     if SPIN_UP:
@@ -102,9 +107,9 @@ def run_SEB_firn(station='KAN_U'):
     
     # %% Writing output
     if SPIN_UP:
-        c.RunName = c.station + "_" + str(c.num_lay) + "_layers_SU"
+        c.RunName = c.station + "_" + str(c.num_lay) + "_layers_SU_"+freq
     else:
-        c.RunName = c.station + "_" + str(c.num_lay) + "_layers"
+        c.RunName = c.station + "_" + str(c.num_lay) + "_layers_"+freq
     i = 0
     succeeded = 0
     while succeeded == 0:
@@ -127,7 +132,7 @@ def run_SEB_firn(station='KAN_U'):
     io.write_2d_netcdf(T_ice, 'T_ice', depth_act, df_in.index, c)
     # io.write_2d_netcdf(rfrz, 'rfrz', depth_act, df_in.index, RunName)
     io.write_2d_netcdf(dgrain, 'dgrain', depth_act, df_in.index, c)
-    # io.write_2d_netcdf(compaction, 'compaction', depth_act, df_in.index, RunName)
+    io.write_2d_netcdf(compaction, 'compaction', depth_act, df_in.index, c)
     df_out['zrfrz_sum'] = zrfrz.sum(axis=0)
     
     c.write(c.output_path + "/" + c.RunName + "/constants.csv")
@@ -147,7 +152,9 @@ def run_SEB_firn(station='KAN_U'):
     
 if __name__ == "__main__":
     # c = run_SEB_firn()
-    ds_carra = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
-    # run_SEB_firn('QAS_L')
-    pool = multiprocessing.Pool(5)
-    out1, out2, out3 = zip(*pool.map(run_SEB_firn,ds_carra.stid.values[1:]))
+    run_SEB_firn('KAN_U')
+    # ds_carra = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
+    # pool = multiprocessing.Pool(5)
+    # station_list = ds_carra.stid.values[1:]
+    # station_list = 'DYE2,NAE,NSE,NEM,HUM,TUN,CP1,SDM,SDL,KAN_U,NAU,Summit'.split(',')
+    # out1, out2, out3 = zip(*pool.map(run_SEB_firn,station_list))
