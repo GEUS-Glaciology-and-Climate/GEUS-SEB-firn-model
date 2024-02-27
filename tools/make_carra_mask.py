@@ -43,4 +43,4 @@ proc_mask.plot()
 print(proc_mask.sum().item())
 print(proc_mask.sum().item() * 200 /60 /60 /24/30)
 
-proc_mask.rename('mask').rio.to_raster('model_mask.tif')
+proc_mask.rename('model_mask').rio.to_raster('model_mask.tif')
