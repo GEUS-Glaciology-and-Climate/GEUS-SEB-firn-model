@@ -34,10 +34,10 @@ def run_SEB_firn(station='KAN_U'):
     # importing standard values for constants
     c = ImportConst()
     if 'pixel' in station:
-        c.output_path = 'C:/Users/bav/data_save/output firn model/'
-    else:
         c.output_path = 'C:/Users/bav/data_save/output firn model/grid_'  \
             +station.split('_')[-2]+'_'+station.split('_')[-1]
+    else:
+        c.output_path = 'C:/Users/bav/data_save/output firn model/'
         
     c.station = station
     if 'pixel' in station:       
