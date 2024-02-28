@@ -164,7 +164,7 @@ if __name__ == "__main__":
     year = '1990'
     month = '09'
     ds_carra = xr.open_dataset("./input/weather data/CARRA_model_input_grid_"+year+'_'+month+".nc")
-    for p in ds_carra.pixel[10:20]:
+    for p in ds_carra.pixel:
         run_SEB_firn('pixel_'+str(p.item())+'_'+year+'_'+month)
     # run_SEB_firn('pixel_'+str(122234))
    
