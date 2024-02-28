@@ -18,11 +18,12 @@ import plot_output as po
 import xarray as xr
 import multiprocessing
 
-def run_SEB_firn(station='DY2'):
+def run_SEB_firn(station='grid', i=None, j=None):
+# %% 
+    
     start_time = time.time()   
     SPIN_UP = False
-    ds_carra = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
-   
+    
     # if  os.path.isfile('./input/initial state/spin up/'+station+'_initial_T_ice.csv'):
     #     print('spin up already done for',station)
     #     return None
@@ -35,9 +36,6 @@ def run_SEB_firn(station='DY2'):
     c.station = station        
     c.surface_input_path = "./input/weather data/CARRA_at_AWS.nc"
     c.surface_input_driver = "CARRA" 
-    c.altitude= ds_carra.where(ds_carra.stid==c.station, drop=True).altitude.item()
-    c.latitude= ds_carra.where(ds_carra.stid==c.station, drop=True).latitude.item()
-    c.longitude= ds_carra.where(ds_carra.stid==c.station, drop=True).longitude.item()
     if c.altitude<1500:
         c.new_bottom_lay=30
     # assigning constants specific to this simulation
@@ -47,8 +45,14 @@ def run_SEB_firn(station='DY2'):
     c.lim_new_lay = 0.05
     c.initial_state_folder_path = './input/initial state/spin up/'
     
-
-        
+    
+    # loading input data
+    df_in, c = io.load_surface_input_data(c, resample=False)
+    freq = pd.infer_freq(df_in.index)
+    if freq=='H': freq = '1H'
+    c.delta_time = pd.to_timedelta(freq).total_seconds()
+    c.zdtime = c.delta_time 
+    
     # assgning deep temperature
     ds_T10m = xr.open_dataset('../../Data/Firn temperature/output/T10m_prediction.nc')
     c.Tdeep = ds_T10m.sel(latitude = c.latitude,
@@ -56,13 +60,6 @@ def run_SEB_firn(station='DY2'):
                     method='nearest').sel(time=slice('1980','1990')
                   ).T10m.mean().item() + 273.15
     # c.lim_new_lay = c.accum_AWS/c.new_lay_frac;
-    
-    # loading input data
-    df_in = io.load_surface_input_data(c, resample=False)
-    freq = pd.infer_freq(df_in.index)
-    if freq=='H': freq = '1H'
-    c.delta_time = pd.to_timedelta(freq).total_seconds()
-    c.zdtime = c.delta_time 
 
     # Spin up option
     if SPIN_UP:
@@ -151,8 +148,11 @@ def run_SEB_firn(station='DY2'):
     
     
 if __name__ == "__main__":
-    # c = run_SEB_firn()
-    run_SEB_firn('KAN_U')
+    # run_SEB_firn('KAN_U')
+    ds_carra = xr.open_dataset("./input/weather data/CARRA_model_input_grid_1990_09.nc")
+    for p in ds_carra.pixel:
+        run_SEB_firn('pixel_'+str(p))
+    
     # ds_carra = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
     # pool = multiprocessing.Pool(5)
     # station_list = ds_carra.stid.values[1:]

@@ -101,7 +101,11 @@ def load_CARRA_data(*args, resample=True):
         
     print("- Reading data from CARRA reanalysis set -")
     aws_ds = xr.open_dataset(surface_input_path)
-    
+
+    c.altitude= aws_ds.where(aws_ds.stid==c.station, drop=True).altitude.item()
+    c.latitude= aws_ds.where(aws_ds.stid==c.station, drop=True).latitude.item()
+    c.longitude= aws_ds.where(aws_ds.stid==c.station, drop=True).longitude.item()
+
     df_carra = aws_ds.where(aws_ds.stid==station, drop=True).squeeze().to_dataframe()
     df_carra['HeightTemperature2m'] = 2
     df_carra['HeightHumidity2m'] = 2
@@ -151,13 +155,65 @@ def load_CARRA_data(*args, resample=True):
     return df_carra
 
 
+def load_CARRA_grid(c):
+    surface_input_path = c.surface_input_path
+    pixel = int(c.station.split('_')[1])
+            
+    print("- Reading data from CARRA reanalysis set -")
+    aws_ds = xr.open_dataset(surface_input_path).sel(pixel=pixel)
+
+    # c.altitude= aws_ds.altitude.item()
+    c.altitude = 900
+    c.latitude= aws_ds.latitude.item()
+    c.longitude= aws_ds.longitude.item() -360
+
+    c.x= aws_ds.x.item()
+    c.y= aws_ds.y.item()
+
+    df_carra = aws_ds.squeeze().to_dataframe()
+    df_carra['HeightTemperature2m'] = 2
+    df_carra['HeightHumidity2m'] = 2
+    df_carra['HeightWindSpeed2m'] = 10
+
+    # converting to a pandas dataframe and renaming some of the columns
+    df_carra = df_carra.rename(columns={
+                            't2m': 'AirTemperature2C', 
+                            'r2': 'RelativeHumidity2', 
+                            'si10': 'WindSpeed2ms', 
+                            'sp': 'AirPressurehPa', 
+                            'ssrd': 'ShortwaveRadiationDownWm2',
+                            'ssru': 'ShortwaveRadiationUpWm2',
+                            'strd': 'LongwaveRadiationDownWm2',
+                            'stru': 'LongwaveRadiationUpWm2',
+                            'sf': 'Snowfallmweq',
+                            'rf': 'Rainfallmweq',
+                            'al': 'Albedo',
+                        })
+
+    # Fill null values with 0
+    df_carra['ShortwaveRadiationDownWm2'] = df_carra['ShortwaveRadiationDownWm2'].fillna(0)
+    df_carra['ShortwaveRadiationUpWm2'] = (df_carra.ShortwaveRadiationDownWm2 * df_carra.Albedo).fillna(0)
+
+    # df_carra['LongwaveRadiationDownWm2'] = df_carra['LongwaveRadiationDownWm2']+18  # bias adjustment
+    # df_carra['AirTemperature2C'] = df_carra['AirTemperature2C']+1.69  # bias adjustment
+    # df_carra['ShortwaveRadiationDownWm2'] = df_carra['ShortwaveRadiationDownWm2']*1.3  # bias adjustment
+    
+    # calcualting snowfall and rainfall
+    df_carra['Snowfallmweq'] = np.maximum(0, df_carra['tp'] - df_carra['tirf'])
+    df_carra['Rainfallmweq'] = df_carra['tirf']
+    
+    return df_carra.drop(columns=['pixel','latitude','longitude','x','y','Albedo','tp','tirf']), c
+
+
 def load_surface_input_data(c, resample=True):
     if c.surface_input_driver  == 'AWS_old':
-        return load_promice_old(c.surface_input_path)
+        return load_promice_old(c.surface_input_path), c
     # if c.surface_input_driver  == 'AWS':
     #     return load_promice(c.surface_input_path)
     if c.surface_input_driver  == 'CARRA':
-        return load_CARRA_data(c, resample=resample)
+        return load_CARRA_data(c, resample=resample), c
+    if c.surface_input_driver  == 'CARRA_grid':
+        return load_CARRA_grid(c)
     
     print('Driver', c.surface_input_driver , 'not recognized')
     return None
