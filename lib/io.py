@@ -161,9 +161,12 @@ def load_CARRA_grid(c):
             
     print("- Reading data from CARRA reanalysis set -")
     aws_ds = xr.open_dataset(surface_input_path).sel(pixel=pixel)
-
+    
+    meta_ds = ( xr.open_dataset('input/weather data/fractions.west.nc')[['orography', 'latitude','longitude']]
+               .isel(x=aws_ds.x.item(), y=aws_ds.y.item()))
+    
     # c.altitude= aws_ds.altitude.item()
-    c.altitude = 900
+    c.altitude = meta_ds.orography.item()
     c.latitude= aws_ds.latitude.item()
     c.longitude= aws_ds.longitude.item() -360
 
@@ -174,6 +177,17 @@ def load_CARRA_grid(c):
     df_carra['HeightTemperature2m'] = 2
     df_carra['HeightHumidity2m'] = 2
     df_carra['HeightWindSpeed2m'] = 10
+    
+    df_carra['t2m'] = df_carra['t2m']-273.15
+    df_carra['al'] = df_carra['al']/100
+    df_carra['sp'] = df_carra['sp']/100
+    df_carra['ssrd'] = df_carra['ssrd'] / (3 * 3600)  # from J /3h to W/m-2
+    df_carra['strd'] = df_carra['strd'] / (3 * 3600) # from J /3h to W/m-2
+    
+    df_carra['ssru'] = df_carra['ssrd'] * df_carra['al'] 
+    
+    df_carra['sf'] = np.maximum(0, df_carra['tp'] - df_carra['tirf']) / 1000 # conversion to m w.eq. 
+    df_carra['rf'] = df_carra.tirf / 1000 # conversion to m w.eq. 
 
     # converting to a pandas dataframe and renaming some of the columns
     df_carra = df_carra.rename(columns={
@@ -191,16 +205,8 @@ def load_CARRA_grid(c):
                         })
 
     # Fill null values with 0
-    df_carra['ShortwaveRadiationDownWm2'] = df_carra['ShortwaveRadiationDownWm2'].fillna(0)
-    df_carra['ShortwaveRadiationUpWm2'] = (df_carra.ShortwaveRadiationDownWm2 * df_carra.Albedo).fillna(0)
-
-    # df_carra['LongwaveRadiationDownWm2'] = df_carra['LongwaveRadiationDownWm2']+18  # bias adjustment
-    # df_carra['AirTemperature2C'] = df_carra['AirTemperature2C']+1.69  # bias adjustment
-    # df_carra['ShortwaveRadiationDownWm2'] = df_carra['ShortwaveRadiationDownWm2']*1.3  # bias adjustment
-    
-    # calcualting snowfall and rainfall
-    df_carra['Snowfallmweq'] = np.maximum(0, df_carra['tp'] - df_carra['tirf'])
-    df_carra['Rainfallmweq'] = df_carra['tirf']
+    df_carra['ShortwaveRadiationDownWm2'] = df_carra.ShortwaveRadiationDownWm2.fillna(0)
+    df_carra['ShortwaveRadiationUpWm2'] = df_carra.ShortwaveRadiationUpWm2.fillna(0)
     
     return df_carra.drop(columns=['pixel','latitude','longitude','x','y','Albedo','tp','tirf']), c
 

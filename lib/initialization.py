@@ -33,11 +33,11 @@ def IniVar(time, c):
     rho = np.empty((c.num_lay, len(time)), dtype="float64")
     snowc = np.empty((c.num_lay, len(time)), dtype="float64")
     snic = np.empty((c.num_lay, len(time)), dtype="float64")
-    slwc = np.empty((c.num_lay, len(time)), dtype="float64")
+    slwc = np.zeros((c.num_lay, len(time)))
     dgrain = np.empty((c.num_lay, len(time)), dtype="float64")
     tsoil = np.empty((c.num_lay, len(time)), dtype="float64")
     grndc = np.empty((c.num_lay, len(time)), dtype="float64")
-    grndd = np.empty((c.num_lay, len(time)), dtype="float64")
+    grndd = np.zeros((c.num_lay, len(time)))
     compaction = np.empty((c.num_lay, len(time)), dtype="float64")
     zrfrz = np.empty((c.num_lay, len(time)), dtype="float64")
     zsupimp = np.empty((c.num_lay, len(time)), dtype="float64")
@@ -52,8 +52,12 @@ def IniVar(time, c):
 
     # first time step
     rhofirn[:, -1] = df_ini.rhofirn
+    rho[:, -1] = df_ini.rhofirn
     snic[:, -1] = df_ini.snic
     snowc[:, -1] = df_ini.snowc
+    if (df_ini.rhofirn == 900 ).all():
+        snic[:, -1] = df_ini.snowc
+        snowc[:, -1] = df_ini.snic        
     dgrain[:, -1] = df_ini.grain_size_mm
     tsoil[:, -1] = df_ini.temp_degC
     grndc[:, -1] = tsoil[:, -1]
@@ -110,6 +114,7 @@ def InitializationSubsurface(c):
     # Author: Baptiste Vandecrux (bav@geus.dk)
     # ==========================================================================
     # Initial density profile
+
     filename = c.initial_state_folder_path + c.station + "_initial_density_bulk.csv"
     if not os.path.isfile(filename):
         if  c.altitude < 1500:

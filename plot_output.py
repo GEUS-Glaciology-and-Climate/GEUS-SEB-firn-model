@@ -18,7 +18,7 @@ import os
 import lib.io as io
 
 output_path= 'C:/Users/bav/data_save/output firn model/'
-run_name = 'KAN_U_100_layers_3H_0'
+run_name = 'pixel_121162_100_layers_3H'
 #%%
 def main(output_path, run_name):
     # %% Loading data
@@ -29,7 +29,7 @@ def main(output_path, run_name):
     tmp = tmp.set_index('key')[['value']]
     c = Struct(**tmp.to_dict()['value'] )
     c.RunName=run_name
-    df_in = io.load_surface_input_data(c)
+    df_in, c = io.load_surface_input_data(c)
     if output_path != c.output_path:
         print('Warning: Output has been moved from',c.output_path,'to',output_path)
         c.output_path = output_path
@@ -49,7 +49,11 @@ def main(output_path, run_name):
     # %% plotting subsurface variables
     for var in ['compaction','T_ice','density_bulk','slwc','dgrain']:
         try:
-            lpl.plot_var(c.station, c.output_path, c.RunName, var, zero_surf=False)
+            if len(df_in) <300: 
+                ylim = [10]
+            else:
+                ylime = []
+            lpl.plot_var(c.station, c.output_path, c.RunName, var, ylim=ylim, zero_surf=False)
         except Exception as e:
             print('lpl.plot_var(c.station, c.output_path, c.RunName, var, zero_surf=False)')
             print(var)
@@ -76,7 +80,7 @@ def main(output_path, run_name):
         pass
     df_out.snowthick.plot(ax=ax, label='snowthickness')
     plt.legend()
-    fig.savefig(c.output_path+c.RunName+'/SMB.png', dpi=120)
+    fig.savefig(c.output_path+c.RunName+'/'+c.station+'_SMB.png', dpi=120)
     
     
     # %% Surface height evaluation
@@ -118,6 +122,9 @@ def main(output_path, run_name):
                                             'OLWR':'LRout',
                                             'Tsurf':'t_surf',
                                             })
+        else:
+            print('No observation for', c.station)
+            return []
         # else:
         #     tmp = pd.DataFrame()
     # if len(df_obs)>0:

@@ -7,6 +7,8 @@ tip list:
     %matplotlib qt
     import pdb; pdb.set_trace()
 """
+import matplotlib
+matplotlib.use('Agg')
 import numpy as np
 import pandas as pd
 import lib.io as io
@@ -18,9 +20,8 @@ import plot_output as po
 import xarray as xr
 import multiprocessing
 
-def run_SEB_firn(station='grid', i=None, j=None):
+def run_SEB_firn(station='KAN_U'):
 # %% 
-    
     start_time = time.time()   
     SPIN_UP = False
     
@@ -32,10 +33,28 @@ def run_SEB_firn(station='grid', i=None, j=None):
     # try:
     # importing standard values for constants
     c = ImportConst()
-    c.output_path = 'C:/Users/bav/data_save/output firn model/'
-    c.station = station        
-    c.surface_input_path = "./input/weather data/CARRA_at_AWS.nc"
-    c.surface_input_driver = "CARRA" 
+    if 'pixel' in station:
+        c.output_path = 'C:/Users/bav/data_save/output firn model/'
+    else:
+        c.output_path = 'C:/Users/bav/data_save/output firn model/grid_'  \
+            +station.split('_')[-2]+'_'+station.split('_')[-1]
+        
+    c.station = station
+    if 'pixel' in station:       
+        c.surface_input_path = "./input/weather data/CARRA_model_input_grid_"+station.split('_')[-2]+'_'+station.split('_')[-1]+".nc"
+        c.surface_input_driver = "CARRA_grid"    
+    else:
+        c.surface_input_path = "./input/weather data/CARRA_at_AWS.nc"
+        c.surface_input_driver = "CARRA"    
+    
+    # loading input data
+    df_in, c = io.load_surface_input_data(c, resample=False)
+    
+    freq = pd.infer_freq(df_in.index)
+    if freq=='H': freq = '1H'
+    c.delta_time = pd.to_timedelta(freq).total_seconds()
+    c.zdtime = c.delta_time 
+    
     if c.altitude<1500:
         c.new_bottom_lay=30
     # assigning constants specific to this simulation
@@ -44,21 +63,14 @@ def run_SEB_firn(station='grid', i=None, j=None):
     c.num_lay = 100
     c.lim_new_lay = 0.05
     c.initial_state_folder_path = './input/initial state/spin up/'
-    
-    
-    # loading input data
-    df_in, c = io.load_surface_input_data(c, resample=False)
-    freq = pd.infer_freq(df_in.index)
-    if freq=='H': freq = '1H'
-    c.delta_time = pd.to_timedelta(freq).total_seconds()
-    c.zdtime = c.delta_time 
-    
     # assgning deep temperature
     ds_T10m = xr.open_dataset('../../Data/Firn temperature/output/T10m_prediction.nc')
     c.Tdeep = ds_T10m.sel(latitude = c.latitude,
                     longitude = c.longitude,
                     method='nearest').sel(time=slice('1980','1990')
                   ).T10m.mean().item() + 273.15
+    if np.isnan(c.Tdeep): c.Tdeep = 273.15
+    
     # c.lim_new_lay = c.accum_AWS/c.new_lay_frac;
 
     # Spin up option
@@ -68,8 +80,8 @@ def run_SEB_firn(station='grid', i=None, j=None):
                            df_in.loc['1991':'2001',:]), ignore_index=True)
         df_in.index=pd.to_datetime('1991-01-01T00:00:00') + pd.to_timedelta(df_in.index.astype(str).to_series() + 'H')
     
-    for var in ['AirTemperature2C', 'Albedo', 'ShortwaveRadiationDownWm2', 'LongwaveRadiationDownWm2',
-           'AirPressurehPa', 'WindSpeed2ms', 'RelativeHumidity2', 'LongwaveRadiationUpWm2', 
+    for var in ['AirTemperature2C', 'ShortwaveRadiationDownWm2', 'LongwaveRadiationDownWm2',
+           'AirPressurehPa', 'WindSpeed2ms', 'RelativeHumidity2',  
            'ShortwaveRadiationUpWm2', 'Snowfallmweq', 'Rainfallmweq', 'HeightTemperature2m', 
            'HeightHumidity2m', 'HeightWindSpeed2m']:
         assert ~df_in[var].isnull().any(), var+' has NaNs'
@@ -137,7 +149,7 @@ def run_SEB_firn(station='grid', i=None, j=None):
     start_time = time.time()
     
     # Plot output
-    if not SPIN_UP:
+    if not SPIN_UP and 'pixel' not in station:
         po.main(c.output_path, c.RunName)
         print('plotting took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
@@ -149,10 +161,13 @@ def run_SEB_firn(station='grid', i=None, j=None):
     
 if __name__ == "__main__":
     # run_SEB_firn('KAN_U')
-    ds_carra = xr.open_dataset("./input/weather data/CARRA_model_input_grid_1990_09.nc")
-    for p in ds_carra.pixel:
-        run_SEB_firn('pixel_'+str(p))
-    
+    year = '1990'
+    month = '09'
+    ds_carra = xr.open_dataset("./input/weather data/CARRA_model_input_grid_"+year+'_'+month+".nc")
+    for p in ds_carra.pixel[10:20]:
+        run_SEB_firn('pixel_'+str(p.item())+'_'+year+'_'+month)
+    # run_SEB_firn('pixel_'+str(122234))
+   
     # ds_carra = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
     # pool = multiprocessing.Pool(5)
     # station_list = ds_carra.stid.values[1:]

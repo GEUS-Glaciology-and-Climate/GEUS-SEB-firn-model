@@ -1,3 +1,14 @@
+# -*- coding: utf-8 -*-
+"""
+Created on %(date)s
+@author: bav@geus.dk
+
+tip list:
+    %matplotlib inline
+    %matplotlib qt
+    import pdb; pdb.set_trace()
+"""
+
 import numpy as np
 import pandas as pd
 import sys
@@ -182,7 +193,6 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
 
         # ========== Step 7/*:  Sub-surface model ====================================
         c.rho_fresh_snow = rho_snow
-
         (
             snowc[:, k], snic[:, k], slwc[:, k],
             T_ice[:, k],  zrfrz[:, k], rhofirn[:, k],

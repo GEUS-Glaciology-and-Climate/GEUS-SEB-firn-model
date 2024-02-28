@@ -95,7 +95,7 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
     plt.colorbar(im, label=label, ax=ax)
     ax.invert_yaxis()
     if ylim:
-        if len(ylim)==1: ax.set_ylim(ylim, ax.get_ylim()[1])
+        if len(ylim)==1: ax.set_ylim(ylim[0], ax.get_ylim()[1])
         if len(ylim)==2: ax.set_ylim(np.max(ylim), np.min(ylim))
     ax.set_ylabel("Depth (m)")
     
@@ -148,14 +148,14 @@ def plot_var_start_end(c, var_name='T_ice', ylim=[], to_file=False):
              ds.depth.isel(time=0),
              marker='o',
              color='tab:blue',
-             label=ds[var_name].time.isel(time=0).dt.strftime("%Y-%m-%d").item(),
+             label=ds.time.isel(time=0).dt.strftime("%Y-%m-%d").item(),
              )
 
-    plt.plot(ds[var_name].sel(time='2023-09-01 00:00:00'), 
-             ds.depth.sel(time='2023-09-01 00:00:00'),
+    plt.plot(ds[var_name].isel(time=-1), 
+             ds.depth.isel(time=-1),
              marker='o',
              color='tab:red',
-             label='2023-09-01 00:00:00',
+             label=ds.time.isel(time=-1).dt.strftime("%Y-%m-%d").item(),
              )
     if var_name == "T_ice":
         T10m.loc[T10m.site==c.station, :].plot(x='temperatureObserved',
