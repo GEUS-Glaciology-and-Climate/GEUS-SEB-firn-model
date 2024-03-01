@@ -36,21 +36,27 @@ def run_SEB_firn(station='KAN_U'):
     c.station = station
     
     if 'pixel' in station:
-        c.output_path = '../output firn model/grid_'  \
-            +station.split('_')[-2]+'_'+station.split('_')[-1]+'/'
+        # c.output_path = '../output firn model/grid_'  \
+        #     +station.split('_')[-2]+'_'+station.split('_')[-1]+'/'
+        c.pixel = station.split('_')[1] 
+        c.year = station.split('_')[2] 
+        c.month = station.split('_')[3] 
+        c.output_path = 'C:/Users/bav/data_save/output firn model/grid_'  \
+            +c.year+'_'+c.month+'/'
+        
         try:
             os.mkdir(c.output_path)
         except Exception as e:
             print(e)
             
-        c.surface_input_path = "./input/weather data/CARRA_model_input_"+station.split('_')[-2]+'_'+station.split('_')[-1]+".nc"
+        c.surface_input_path = "./input/weather data/CARRA_model_input_"+c.year+'_'+c.month+".nc"
         c.surface_input_driver = "CARRA_grid"
-        c.save_final_state = True
+        c.multi_file_run = True
     else:
         c.surface_input_path = "./input/weather data/CARRA_at_AWS.nc"
         c.surface_input_driver = "CARRA"    
         c.output_path = 'C:/Users/bav/data_save/output firn model/'
-        c.save_final_state = False
+        c.multi_file_run = False
 
     # loading input data
     df_in, c = io.load_surface_input_data(c, resample=False)
@@ -97,6 +103,23 @@ def run_SEB_firn(station='KAN_U'):
     df_out["time"] = df_in.index
     df_out = df_out.set_index("time")
     
+    # defining run name
+    if SPIN_UP:
+        c.RunName = c.station + "_" + str(c.num_lay) + "_layers_SU_"+freq
+    else:
+        c.RunName = c.station + "_" + str(c.num_lay) + "_layers_"+freq
+    i = 0
+    succeeded = 0
+    while succeeded == 0:
+        try:
+            os.mkdir(c.output_path + c.RunName)
+            succeeded = 1
+        except:
+            if i == 0:
+                c.RunName = c.RunName + "_" + str(i)
+            else:
+                c.RunName = c.RunName[: -len(str(i - 1))] + str(i)
+            i = i + 1
     # %% Running model
     print('reading inputs took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
@@ -120,24 +143,7 @@ def run_SEB_firn(station='KAN_U'):
     depth_act = np.cumsum(thickness_act, 0)
     density_bulk = (snowc + snic) / (snowc / rhofirn + snic / c.rho_ice)
     
-    # %% Writing output
-    if SPIN_UP:
-        c.RunName = c.station + "_" + str(c.num_lay) + "_layers_SU_"+freq
-    else:
-        c.RunName = c.station + "_" + str(c.num_lay) + "_layers_"+freq
-    i = 0
-    succeeded = 0
-    while succeeded == 0:
-        try:
-            os.mkdir(c.output_path + c.RunName)
-            succeeded = 1
-        except:
-            if i == 0:
-                c.RunName = c.RunName + "_" + str(i)
-            else:
-                c.RunName = c.RunName[: -len(str(i - 1))] + str(i)
-            i = i + 1
-    
+    # %% Writing output   
     io.write_2d_netcdf(snic, 'snic', depth_act, df_in.index, c)
     io.write_2d_netcdf(snowc, 'snowc', depth_act, df_in.index, c)
     io.write_2d_netcdf(slwc, 'slwc', depth_act, df_in.index, c)
@@ -164,35 +170,19 @@ def run_SEB_firn(station='KAN_U'):
     #     print(station,'\n',e,'\n')
     #     return None
     
-def run_SEB_firn_and_prepare_initial_state(station):
-    # running the model
-    run_SEB_firn(station)
-    
-    
-    year = station.split('_')[2]
-    month = station.split('_')[3]
-    pixel = station.split('_')[1]
-    next_month = month +1
-    if next_month == 13:
-        next_month = 1
-        next_year = year+1
-        
-    
-    
-
 if __name__ == "__main__":
     # run_SEB_firn('KAN_U')
 
     pool = multiprocessing.Pool(6)
     year = '1990'
-    month = '09'
-    ds_carra = xr.open_dataset("./input/weather data/CARRA_model_input_"+year+'_'+month+".nc")
-    # for p in ds_carra.pixel:
-    #     print('pixel_'+str(p.item())+'_'+year+'_'+month)
-    #     run_SEB_firn('pixel_'+str(p.item())+'_'+year+'_'+month)
-    zip(*pool.map(run_SEB_firn,
-        ['pixel_'+str(p.item())+'_'+year+'_'+month for p in ds_carra.pixel]
-        ))
+    for month in [9, 10]:
+        ds_carra = xr.open_dataset(
+            "./input/weather data/CARRA_model_input_"+year+'_'+str(month).zfill(2)+".nc")
+        for p in ds_carra.pixel[:1]:
+            run_SEB_firn('pixel_'+str(p.item())+'_'+year+'_'+str(month).zfill(2))
+    # zip(*pool.map(run_SEB_firn,
+    #     ['pixel_'+str(p.item())+'_'+year+'_'+month for p in ds_carra.pixel]
+    #     ))
     # run_SEB_firn('pixel_'+str(122234))
    
     # ds_carra = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")

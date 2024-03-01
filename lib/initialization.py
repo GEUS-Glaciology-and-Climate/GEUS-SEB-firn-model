@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import os
+import pickle
 
 class Struct:
     def __init__(self, **entries):
@@ -27,7 +28,6 @@ class Struct:
 
 
 def IniVar(time, c):
-    df_ini = InitializationSubsurface(c)
 
     rhofirn = np.empty((c.num_lay, len(time)), dtype="float64")
     rho = np.empty((c.num_lay, len(time)), dtype="float64")
@@ -51,18 +51,42 @@ def IniVar(time, c):
     snowthick = np.empty((len(time)), dtype="float64")
 
     # first time step
-    rhofirn[:, -1] = df_ini.rhofirn
-    rho[:, -1] = df_ini.rhofirn
-    snic[:, -1] = df_ini.snic
-    snowc[:, -1] = df_ini.snowc
-    if (df_ini.rhofirn == 900 ).all():
-        snic[:, -1] = df_ini.snowc
-        snowc[:, -1] = df_ini.snic        
-    dgrain[:, -1] = df_ini.grain_size_mm
-    tsoil[:, -1] = df_ini.temp_degC
-    grndc[:, -1] = tsoil[:, -1]
-    snowbkt[-1] = 0
-    snowthick[-1] = c.snowthick_ini
+    if c.multi_file_run and not c.station.endswith('1990_09'):
+        previous_year = int(c.year)
+        previous_month = int(c.month)-1
+        if previous_month == 0:
+            previous_month = 12
+            previous_year = int(c.year)-1
+        previous_run_name = 'pixel_'+c.pixel+'_'+str(previous_year)+'_'+ str(previous_month).zfill(2) + '_100_layers_3H'
+        previous_output_folder = c.output_path.replace(c.output_path.split('/')[-2]+'/','') \
+            + 'grid_'+str(previous_year)+'_'+ str(previous_month).zfill(2)
+        'pixel_'+c.pixel+'_'+str(previous_year)+'_'+ str(previous_month).zfill(2)
+        
+        file_path = previous_output_folder + "/" + previous_run_name + "/"  \
+            + 'pixel_' + c.pixel + '_' + str(previous_year) \
+                +'_' + str(previous_month).zfill(2) + '_final.pkl'
+        with open(file_path, 'rb') as f:
+            [snowc[:, -1], snic[:, -1], slwc[:, -1], tsoil[:, -1],  rhofirn[:, -1],
+                dgrain[:, -1], Tsurf[-1], grndc[:, -1], grndd[:, -1], snowbkt[-1], 
+            ] =  pickle.load(f)
+            
+            rho[:, -1] = (snowc[:, -1] + snic[:, -1]) / (
+                snowc[:, -1] / rhofirn[:, -1] + snic[:, -1] / c.rho_ice
+            )
+    else:
+        df_ini = InitializationSubsurface(c)
+        rhofirn[:, -1] = df_ini.rhofirn
+        rho[:, -1] = df_ini.rhofirn
+        snic[:, -1] = df_ini.snic
+        snowc[:, -1] = df_ini.snowc
+        if (df_ini.rhofirn == 900 ).all():
+            snic[:, -1] = df_ini.snowc
+            snowc[:, -1] = df_ini.snic        
+        dgrain[:, -1] = df_ini.grain_size_mm
+        tsoil[:, -1] = df_ini.temp_degC
+        grndc[:, -1] = tsoil[:, -1]
+        snowbkt[-1] = 0
+        snowthick[-1] = c.snowthick_ini
 
     return (rhofirn,  rho, snowc, snic, slwc, dgrain, tsoil, grndc, grndd,
             compaction, zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp, 

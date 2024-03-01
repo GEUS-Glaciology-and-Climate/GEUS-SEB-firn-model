@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import sys
 from numba import njit
-
+import pickle
 from lib.initialization import Struct, IniVar
 from lib.subsurface import subsurface_opt
 
@@ -223,6 +223,18 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
             )
         
         if snowthick[k] < 0: snowthick[k] = 0
+    
+    if c.multi_file_run:
+        # saving final state for next run
+        file_path = c.output_path + "/" + c.RunName + "/"+ c.station+'_final.pkl'
+        
+        with open(file_path, 'wb') as file:
+            # Serialize and write the variable to the file
+            
+            pickle.dump([
+                snowc[:, k], snic[:, k], slwc[:, k], T_ice[:, k],  rhofirn[:, k],
+                dgrain[:, k], Tsurf[k], grndc[:, k], grndd[:, k], snowbkt[k], 
+            ] , file)
 
     return (L, LHF, SHF, theta_2m, q_2m, ws_10m, Re, melt_mweq,
             sublimation_mweq, SRin, SRout, LRin, LRout, 
