@@ -169,12 +169,11 @@ def run_SEB_firn(station='KAN_U'):
     # except Exception as e:
     #     print(station,'\n',e,'\n')
     #     return None
-    
-if __name__ == "__main__":
-    # run_SEB_firn('KAN_U')
 
-    pool = multiprocessing.Pool(6)
+def multi_file_grid_run():
     year = '1990'
+    pool = multiprocessing.Pool(6)
+
     for month in [9, 10]:
         ds_carra = xr.open_dataset(
             "./input/weather data/CARRA_model_input_"+year+'_'+str(month).zfill(2)+".nc")
@@ -183,8 +182,11 @@ if __name__ == "__main__":
     # zip(*pool.map(run_SEB_firn,
     #     ['pixel_'+str(p.item())+'_'+year+'_'+month for p in ds_carra.pixel]
     #     ))
-    # run_SEB_firn('pixel_'+str(122234))
-   
+
+    
+if __name__ == "__main__":
+    # run_SEB_firn('KAN_U')
+    multi_file_grid_run()
     # ds_carra = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
     # pool = multiprocessing.Pool(5)
     # station_list = ds_carra.stid.values[1:]
