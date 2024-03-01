@@ -265,7 +265,7 @@ def write_2d_netcdf(data, name_var, depth_act, time, c):
 
 
 def write_1d_netcdf(data, c, var_list=None, time=None, name_file="surface"):
-    var_info = pd.read_csv("Input/Constants/output_variables_info.csv").set_index(
+    var_info = pd.read_csv("input/constants/output_variables_info.csv").set_index(
         "short_name"
     )
     if not time:

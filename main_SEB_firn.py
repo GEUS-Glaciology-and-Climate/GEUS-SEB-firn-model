@@ -19,7 +19,7 @@ import time
 import plot_output as po
 import xarray as xr
 import multiprocessing
-
+# %% 
 def run_SEB_firn(station='KAN_U'):
 # %% 
     start_time = time.time()   
@@ -32,21 +32,26 @@ def run_SEB_firn(station='KAN_U'):
     print(station)
     # try:
     # importing standard values for constants
-    c = ImportConst()
-    if 'pixel' in station:
-        c.output_path = 'C:/Users/bav/data_save/output firn model/grid_'  \
-            +station.split('_')[-2]+'_'+station.split('_')[-1]
-    else:
-        c.output_path = 'C:/Users/bav/data_save/output firn model/'
-        
+    c = ImportConst()        
     c.station = station
-    if 'pixel' in station:       
-        c.surface_input_path = "./input/weather data/CARRA_model_input_grid_"+station.split('_')[-2]+'_'+station.split('_')[-1]+".nc"
-        c.surface_input_driver = "CARRA_grid"    
+    
+    if 'pixel' in station:
+        c.output_path = '../output firn model/grid_'  \
+            +station.split('_')[-2]+'_'+station.split('_')[-1]+'/'
+        try:
+            os.mkdir(c.output_path)
+        except Exception as e:
+            print(e)
+            
+        c.surface_input_path = "./input/weather data/CARRA_model_input_"+station.split('_')[-2]+'_'+station.split('_')[-1]+".nc"
+        c.surface_input_driver = "CARRA_grid"
+        c.save_final_state = True
     else:
         c.surface_input_path = "./input/weather data/CARRA_at_AWS.nc"
         c.surface_input_driver = "CARRA"    
-    
+        c.output_path = 'C:/Users/bav/data_save/output firn model/'
+        c.save_final_state = False
+
     # loading input data
     df_in, c = io.load_surface_input_data(c, resample=False)
     
@@ -64,7 +69,8 @@ def run_SEB_firn(station='KAN_U'):
     c.lim_new_lay = 0.05
     c.initial_state_folder_path = './input/initial state/spin up/'
     # assgning deep temperature
-    ds_T10m = xr.open_dataset('../../Data/Firn temperature/output/T10m_prediction.nc')
+    # ds_T10m = xr.open_dataset('../../Data/Firn temperature/output/T10m_prediction.nc')
+    ds_T10m = xr.open_dataset('input/T10m_prediction.nc')
     c.Tdeep = ds_T10m.sel(latitude = c.latitude,
                     longitude = c.longitude,
                     method='nearest').sel(time=slice('1980','1990')
@@ -158,14 +164,35 @@ def run_SEB_firn(station='KAN_U'):
     #     print(station,'\n',e,'\n')
     #     return None
     
+def run_SEB_firn_and_prepare_initial_state(station):
+    # running the model
+    run_SEB_firn(station)
     
+    
+    year = station.split('_')[2]
+    month = station.split('_')[3]
+    pixel = station.split('_')[1]
+    next_month = month +1
+    if next_month == 13:
+        next_month = 1
+        next_year = year+1
+        
+    
+    
+
 if __name__ == "__main__":
     # run_SEB_firn('KAN_U')
+
+    pool = multiprocessing.Pool(6)
     year = '1990'
     month = '09'
-    ds_carra = xr.open_dataset("./input/weather data/CARRA_model_input_grid_"+year+'_'+month+".nc")
-    for p in ds_carra.pixel:
-        run_SEB_firn('pixel_'+str(p.item())+'_'+year+'_'+month)
+    ds_carra = xr.open_dataset("./input/weather data/CARRA_model_input_"+year+'_'+month+".nc")
+    # for p in ds_carra.pixel:
+    #     print('pixel_'+str(p.item())+'_'+year+'_'+month)
+    #     run_SEB_firn('pixel_'+str(p.item())+'_'+year+'_'+month)
+    zip(*pool.map(run_SEB_firn,
+        ['pixel_'+str(p.item())+'_'+year+'_'+month for p in ds_carra.pixel]
+        ))
     # run_SEB_firn('pixel_'+str(122234))
    
     # ds_carra = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")

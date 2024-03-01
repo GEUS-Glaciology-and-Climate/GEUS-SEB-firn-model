@@ -157,7 +157,7 @@ def InitializationSubsurface(c):
 
     df_ini_dens = pd.concat([df_ini_dens, df_mod]).sort_index()
     df_ini_dens["density_bulk"] = (
-        df_ini_dens["density_bulk"].fillna(method="bfill").fillna(method="ffill").values
+        df_ini_dens["density_bulk"].bfill().ffill().values
     )
 
     df_ini_dens["thickness_mweq"] = np.insert(
@@ -232,7 +232,7 @@ def InitializationSubsurface(c):
     df_mod["temp_degC"] = np.interp(
         df_mod.depth_m, df_ini_temp.depth, df_ini_temp.T_ice
     )
-    df_mod["temp_degC"] = df_mod["temp_degC"].fillna(method="bfill").values + c.T_0
+    df_mod["temp_degC"] = df_mod["temp_degC"].bfill().values + c.T_0
 
     # Initial grain size
     filename = c.initial_state_folder_path + c.station + "_initial_dgrain.csv"
@@ -244,13 +244,15 @@ def InitializationSubsurface(c):
 
     df_mod["grain_size_mm"] = (
         df_ini_gs.groupby(
-            pd.cut(df_ini_gs.index, np.insert(df_mod.depth_m.values, 0, 0))
+            pd.cut(df_ini_gs.index, 
+            np.insert(df_mod.depth_m.values, 0, 0)),
+            observed=False,
         )
         .mean()
         .values
     )
     df_mod["grain_size_mm"] = df_mod["grain_size_mm"].interpolate().values
-    df_mod["grain_size_mm"] = df_mod["grain_size_mm"].fillna(method="bfill").values
+    df_mod["grain_size_mm"] = df_mod["grain_size_mm"].bfill().values
 
     # Initial water content
     df_mod["slwc"] = 0
