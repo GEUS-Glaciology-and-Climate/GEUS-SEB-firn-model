@@ -52,7 +52,7 @@ def main(output_path, run_name):
             if len(df_in) <300: 
                 ylim = [10]
             else:
-                ylime = []
+                ylim = []
             lpl.plot_var(c.station, c.output_path, c.RunName, var, ylim=ylim, zero_surf=False)
         except Exception as e:
             print('lpl.plot_var(c.station, c.output_path, c.RunName, var, zero_surf=False)')
@@ -72,12 +72,9 @@ def main(output_path, run_name):
     fig = plt.figure()
     ax=plt.gca()
     df_out.melt_mweq.cumsum().plot(ax=ax, label='melt')
-    df_in.Snowfallmweq.cumsum().plot(ax=ax, label='Snowfall')
+    df_out.Snowfallmweq.cumsum().plot(ax=ax, label='Snowfall')
     df_out.zrogl.cumsum().plot(ax=ax, label='runoff')
-    try:
-        df_out.zrfrz_sum.cumsum().plot(ax=ax, label='refreezing')
-    except:
-        pass
+    df_out.zrfrz_sum.cumsum().plot(ax=ax, label='refreezing')
     df_out.snowthick.plot(ax=ax, label='snowthickness')
     plt.legend()
     fig.savefig(c.output_path+c.RunName+'/'+c.station+'_SMB.png', dpi=120)

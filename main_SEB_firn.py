@@ -19,6 +19,7 @@ import time
 import plot_output as po
 import xarray as xr
 import multiprocessing
+
 # %% 
 def run_SEB_firn(station='KAN_U'):
 # %% 
@@ -55,9 +56,40 @@ def run_SEB_firn(station='KAN_U'):
     else:
         c.surface_input_path = "./input/weather data/CARRA_at_AWS.nc"
         c.surface_input_driver = "CARRA"    
-        c.output_path = 'C:/Users/bav/data_save/output firn model/'
+        c.output_path = './output/'  #'C:/Users/bav/data_save/output firn model/'
         c.multi_file_run = False
+    
+    freq = '3H'
+    c.num_lay = 100
+    # defining run name
+    if SPIN_UP:
+        c.RunName = c.station + "_" + str(c.num_lay) + "_layers_SU_"+freq
+    else:
+        c.RunName = c.station + "_" + str(c.num_lay) + "_layers_"+freq
+    # i = 0
+    # succeeded = 0
+    # while succeeded == 0:
+    # try:
+    #     os.mkdir(c.output_path + c.RunName)
+    # #         succeeded = 1
+    # except:
+    #     print('already done. skipping')
+    #     # po.main(c.output_path, c.RunName)
+    #     return None
 
+    #         if i == 0:
+    #             c.RunName = c.RunName + "_" + str(i)
+    #         else:
+    #             c.RunName = c.RunName[: -len(str(i - 1))] + str(i)
+    #         i = i + 1
+    try:
+        os.mkdir(c.output_path + c.RunName)
+    #         succeeded = 1
+    except:
+        print('already done. skipping')
+        # po.main(c.output_path, c.RunName)
+        return None
+    
     # loading input data
     df_in, c = io.load_surface_input_data(c, resample=False)
     
@@ -102,24 +134,6 @@ def run_SEB_firn(station='KAN_U'):
     df_out = pd.DataFrame()
     df_out["time"] = df_in.index
     df_out = df_out.set_index("time")
-    
-    # defining run name
-    if SPIN_UP:
-        c.RunName = c.station + "_" + str(c.num_lay) + "_layers_SU_"+freq
-    else:
-        c.RunName = c.station + "_" + str(c.num_lay) + "_layers_"+freq
-    i = 0
-    succeeded = 0
-    while succeeded == 0:
-        try:
-            os.mkdir(c.output_path + c.RunName)
-            succeeded = 1
-        except:
-            if i == 0:
-                c.RunName = c.RunName + "_" + str(i)
-            else:
-                c.RunName = c.RunName[: -len(str(i - 1))] + str(i)
-            i = i + 1
     # %% Running model
     print('reading inputs took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
@@ -143,18 +157,23 @@ def run_SEB_firn(station='KAN_U'):
     depth_act = np.cumsum(thickness_act, 0)
     density_bulk = (snowc + snic) / (snowc / rhofirn + snic / c.rho_ice)
     
-    # %% Writing output   
+    # %% Writing output
+    df_out['snowfall_mweq'] = df_in.Snowfallmweq
+    df_out['rainfall_mweq'] = df_in.Rainfallmweq
+    df_out['smb_mweq'] = df_out.Snowfallmweq + df_out.Snowfallmweq - df_out.zrogl - df_out.sublimation_mweq
+    df_out['refreezing_mweq'] = zrfrz.sum(axis=0)
+    df_out = df_out.rename(columns={'zrogl': 'runoff_mweq'})
+
+    io.write_1d_netcdf(df_out, c)
     io.write_2d_netcdf(snic, 'snic', depth_act, df_in.index, c)
     io.write_2d_netcdf(snowc, 'snowc', depth_act, df_in.index, c)
     io.write_2d_netcdf(slwc, 'slwc', depth_act, df_in.index, c)
     io.write_2d_netcdf(rhofirn, 'rhofirn', depth_act, df_in.index, c)
-    io.write_1d_netcdf(df_out, c)
     io.write_2d_netcdf(density_bulk, 'density_bulk', depth_act, df_in.index, c)
     io.write_2d_netcdf(T_ice, 'T_ice', depth_act, df_in.index, c)
     # io.write_2d_netcdf(rfrz, 'rfrz', depth_act, df_in.index, RunName)
     io.write_2d_netcdf(dgrain, 'dgrain', depth_act, df_in.index, c)
     io.write_2d_netcdf(compaction, 'compaction', depth_act, df_in.index, c)
-    df_out['zrfrz_sum'] = zrfrz.sum(axis=0)
     
     c.write(c.output_path + "/" + c.RunName + "/constants.csv")
     print('writing output files took %0.03f sec'%(time.time() -start_time))
@@ -185,10 +204,13 @@ def multi_file_grid_run():
 
     
 if __name__ == "__main__":
+    multiprocessing.set_start_method('spawn')
+
     # run_SEB_firn('KAN_U')
-    multi_file_grid_run()
-    # ds_carra = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
-    # pool = multiprocessing.Pool(5)
-    # station_list = ds_carra.stid.values[1:]
-    # station_list = 'DYE2,NAE,NSE,NEM,HUM,TUN,CP1,SDM,SDL,KAN_U,NAU,Summit'.split(',')
-    # out1, out2, out3 = zip(*pool.map(run_SEB_firn,station_list))
+    # multi_file_grid_run()
+    ds_carra = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
+    pool = multiprocessing.Pool(5)
+    station_list = ds_carra.stid.values[1:]
+    out1, out2, out3 = zip(*pool.map(run_SEB_firn,station_list))
+    # for station in station_list:
+    #     run_SEB_firn(station)

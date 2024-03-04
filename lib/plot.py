@@ -94,9 +94,8 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
         
     plt.colorbar(im, label=label, ax=ax)
     ax.invert_yaxis()
-    if ylim:
-        if len(ylim)==1: ax.set_ylim(ylim[0], ax.get_ylim()[1])
-        if len(ylim)==2: ax.set_ylim(np.max(ylim), np.min(ylim))
+    if len(ylim)==1: ax.set_ylim(ylim[0], ax.get_ylim()[1])
+    if len(ylim)==2: ax.set_ylim(np.max(ylim), np.min(ylim))
     ax.set_ylabel("Depth (m)")
     
     # adding SUMup observations as colored scatter
@@ -601,6 +600,8 @@ def evaluate_density_sumup(c):
     ds_mod_dens = xr.open_dataset(filename).transpose()
 
     profile_list = df_sumup.profile_key.drop_duplicates()
+    if len(profile_list) == 0: return None
+    
     def new_figure(): 
         fig,ax = plt.subplots(1,6, figsize=(16,7))
         plt.subplots_adjust(left=0.1, right=0.9, top=0.8, wspace=0.2)

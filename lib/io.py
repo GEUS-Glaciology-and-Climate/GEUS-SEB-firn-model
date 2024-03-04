@@ -256,6 +256,20 @@ def write_2d_netcdf(data, name_var, depth_act, time, c):
     int_encoding = {"dtype": "int32", "zlib": True,"complevel": 9}
 
     ds = xr.merge([foo, depth])
+    ds.attrs["title"] = 'Simulated '+long_name[name_var]+'from the GEUS SEB-firn model'
+    ds.attrs["contact"] = 'bav@geus.dk'  
+    ds.attrs["production_date"] = datetime.date.today().isoformat()
+    ds.attrs["run_name"] = c.RunName
+    ds.attrs["latitude"] = c.latitude
+    ds.attrs["longitude"] = c.longitude
+    ds.attrs["altitude"] = c.altitude
+    ds.attrs["station"] = c.station
+    try:
+        ds.attrs["pixel"] = c.pixel
+        ds.attrs["year"] = c.year
+        ds.attrs["month"] = c.month
+    except:
+        pass
     ds.to_netcdf(
         c.output_path + "/" + c.RunName + "/" + c.station + "_" + name_var + ".nc",
         encoding = {'depth': float_encoding,
@@ -294,6 +308,20 @@ def write_1d_netcdf(data, c, var_list=None, time=None, name_file="surface"):
             ds = foo
         else:
             ds = xr.merge([ds, foo])
+    ds.attrs["title"] = 'Simulated surface variables from the GEUS SEB-firn model'
+    ds.attrs["contact"] = 'bav@geus.dk'  
+    ds.attrs["production_date"] = datetime.date.today().isoformat()
+    ds.attrs["run_name"] = c.RunName
+    ds.attrs["latitude"] = c.latitude
+    ds.attrs["longitude"] = c.longitude
+    ds.attrs["altitude"] = c.altitude
+    ds.attrs["station"] = c.station
+    try:
+        ds.attrs["pixel"] = c.pixel
+        ds.attrs["year"] = c.year
+        ds.attrs["month"] = c.month
+    except:
+        pass
     ds.to_netcdf(
         c.output_path + "/" + c.RunName + "/" + c.station + "_" + name_file + ".nc"
     )
