@@ -99,7 +99,7 @@ def load_CARRA_data(*args, resample=True):
     elif len(args) == 2:
         surface_input_path, station = args
         
-    print("- Reading data from CARRA reanalysis set -")
+    print("- Reading data from CARRA reanalysis set -", surface_input_path)
     aws_ds = xr.open_dataset(surface_input_path)
 
     c.altitude= aws_ds.where(aws_ds.stid==c.station, drop=True).altitude.item()
@@ -139,8 +139,8 @@ def load_CARRA_data(*args, resample=True):
     df_carra['ShortwaveRadiationUpWm2'] = df_carra.ShortwaveRadiationDownWm2*df_carra.Albedo
     
     # calcualting snowfall and rainfall
-    df_carra['Snowfallmweq'] = 0  # df_carra['Snowfallmweq'] /3
-    df_carra['Rainfallmweq'] = 0  # df_carra['Rainfallmweq'] /3
+    df_carra['Snowfallmweq'] = 0
+    df_carra['Rainfallmweq'] = 0
     cut_off_temp = 0
     df_carra.loc[df_carra.AirTemperature2C < cut_off_temp,
                  'Snowfallmweq'] = df_carra.loc[
@@ -256,7 +256,7 @@ def write_2d_netcdf(data, name_var, depth_act, time, c):
     int_encoding = {"dtype": "int32", "zlib": True,"complevel": 9}
 
     ds = xr.merge([foo, depth])
-    ds.attrs["title"] = 'Simulated '+long_name[name_var]+'from the GEUS SEB-firn model'
+    ds.attrs["title"] = 'Simulated '+long_name[name_var].lower()+' from the GEUS SEB-firn model'
     ds.attrs["contact"] = 'bav@geus.dk'  
     ds.attrs["production_date"] = datetime.date.today().isoformat()
     ds.attrs["run_name"] = c.RunName
@@ -286,11 +286,8 @@ def write_1d_netcdf(data, c, var_list=None, time=None, name_file="surface"):
         time = data.index
     if not var_list:
         var_list = data.columns
-    time_days_since = (
-        pd.to_timedelta(time - np.datetime64("1900-01-01", "ns")).total_seconds().values
-        / 3600
-        / 24
-    )
+    time_days_since = (pd.to_timedelta(time - np.datetime64("1900-01-01", "ns"))
+                       .total_seconds().values / 3600/ 24)
     float_encoding = {"dtype": "float32", "zlib": True,"complevel": 9}
 
     for name_var in var_list:

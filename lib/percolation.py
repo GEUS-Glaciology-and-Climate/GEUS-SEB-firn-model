@@ -3,7 +3,7 @@ from numba import jit
 
 
 @jit(nopython=True)
-def calc_darcy_fluxes(pslwc, psnowc, psnic, pdgrain, prhofirn):
+def calc_darcy_fluxes(pslwc, psnowc, psnic, pdgrain, prhofirn, zdtime):
     # calc_darcy_fluxes: Calculates the amount of water (mm weq) that each layer
     # can transmit to the next one according to a Darcy flow.
     #
@@ -49,16 +49,11 @@ def calc_darcy_fluxes(pslwc, psnowc, psnic, pdgrain, prhofirn):
         else:
             # Other layers do (should!) not come into a situation where there is only ice and water
             qlim = qlimF(
-                pslwc[jk],
-                pslwc[jk + 1],
-                psnowc[jk],
-                psnowc[jk + 1],
-                psnic[jk],
-                psnic[jk + 1],
-                prhofirn[jk],
-                prhofirn[jk + 1],
-                pdgrain[jk],
-                pdgrain[jk + 1],
+                pslwc[jk], pslwc[jk + 1],
+                psnowc[jk], psnowc[jk + 1],
+                psnic[jk], psnic[jk + 1],
+                prhofirn[jk], prhofirn[jk + 1],
+                pdgrain[jk], pdgrain[jk + 1],
             )
             Theta1 = ThetaF(pslwc[jk], psnowc[jk], prhofirn[jk])
             Theta2 = ThetaF(pslwc[jk + 1], psnowc[jk + 1], prhofirn[jk + 1])
@@ -85,7 +80,6 @@ def calc_darcy_fluxes(pslwc, psnowc, psnic, pdgrain, prhofirn):
             # Total time-step flux according to Hirashima eqn (23)
             # and make sure it doesn't exceed available water in
             # the upper of the two layers:
-            zdtime = 3600
             if qlim > 0:
                 darcy_fluxes[jk] = min(
                     pslwc[jk], qlim * (1 - np.exp(-q0 / qlim * zdtime))
@@ -230,7 +224,7 @@ def hetero_percol(prhofirn, psnowc, psnic, pslwc, pdgrain, c):
 @jit(nopython=True)
 def hHirF(Theta, d):
     # The F in the name hHirF stands for "def"
-    # calculates hydraulic suction h (in m) ac.ccording to
+    # calculates hydraulic suction h (in m) according to
     # Hirashima et al 2010.
     alpha = 7.3 * np.exp(1.9)
     #  Hirashima (15)
@@ -360,19 +354,9 @@ def ThetaF(pl, ps, rhos):
     #     liqmaxloc = c.liqmax
     if ps > 1e-12:
         # Force Theta to be between 0 and 1
-        ThetaF = min(
-            1,
-            max(
-                0,
-                (
-                    (
-                        pl / ps * rhos * 900 / 999.8395 / max(1e-12, 900 - rhos)
-                        - liqmaxloc
-                    )
-                    / (1 - liqmaxloc)
-                ),
-            ),
-        )
+        ThetaF = min(1, max(0, (
+    (pl / ps * rhos * 900 / 999.8395 / max(1e-12, 900 - rhos) - liqmaxloc) / (1 - liqmaxloc)
+                                )))
     else:
         # If there is no snow, write out Theta=1 to avoid divide-by-zero
         ThetaF = 1
@@ -380,7 +364,7 @@ def ThetaF(pl, ps, rhos):
 
 
 @jit(nopython=True)
-def perc_runoff_new(prhofirn, psnowc, psnic, pslwc, pdgrain):
+def perc_runoff_new(prhofirn, psnowc, psnic, pslwc, pdgrain, zdtime):
     # perc_runoff_new: Calculates meltwater percolation and runoff in the column
     # either according to a standard bucket scheme or to a Darcy-like bucket
     # scheme. Update BV2017: no mass shift anymore, the water is
@@ -431,7 +415,7 @@ def perc_runoff_new(prhofirn, psnowc, psnic, pslwc, pdgrain):
         return prhofirn, psnowc, psnic, pslwc, pdgrain, 0
 
     # if do_no_darcy==0:
-    darcy_fluxes = calc_darcy_fluxes(pslwc, psnowc, psnic, pdgrain, prhofirn)
+    darcy_fluxes = calc_darcy_fluxes(pslwc, psnowc, psnic, pdgrain, prhofirn, zdtime)
 
     # Update BV2017: t_runoff is now calculated outside of the subsurface scheme
     # Bottom layer: Receive from above. Give excess liquid to runoff.
@@ -451,7 +435,6 @@ def perc_runoff_new(prhofirn, psnowc, psnic, pslwc, pdgrain):
     liqexcess = max(pslwc[jk] - potret, 0)
 
     t_runoff = 28513.796102033262
-    zdtime = 3600
     do_no_darcy = 0
     avoid_runoff = 0
 
@@ -471,7 +454,6 @@ def perc_runoff_new(prhofirn, psnowc, psnic, pslwc, pdgrain):
             if do_no_darcy:
                 # Potential Darcy-like flux in case of do-no-Darcy,
                 # basically just all liqexcess:
-                # PLA Darcy 2016
                 # if (c.calc_CLliq):
                 liqmaxloc = CLliqF(prhofirn[jk])
                 # else:
@@ -532,11 +514,7 @@ def perc_runoff_new(prhofirn, psnowc, psnic, pslwc, pdgrain):
                 # in other word surface runoff is instantaneous
                 liqro = liqexcess
             else:
-                Theta = ThetaF(
-                    pslwc[jk],
-                    psnowc[jk],
-                    prhofirn[jk],
-                )
+                Theta = ThetaF(pslwc[jk], psnowc[jk], prhofirn[jk])
                 # liqro_darcy = kF(Theta,pdgrain[jk],prhofirn[jk],psnic[jk],psnowc[jk], c) * c.ElevGrad
                 # old version based on Zuo and Oerlemans (1996)
                 liqro_darcy = liqexcess / t_runoff * zdtime

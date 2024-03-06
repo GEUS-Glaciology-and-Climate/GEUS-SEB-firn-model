@@ -58,7 +58,7 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
     #     [pslwc] = hetero_percol (prhofirn, psnowc, psnic, pslwc, pdgrain, c)
 
     prhofirn, psnowc, psnic, pslwc, pdgrain, zrogl = lp.perc_runoff_new(
-        prhofirn, psnowc, psnic, pslwc, pdgrain
+        prhofirn, psnowc, psnic, pslwc, pdgrain, c.zdtime
     )
 
     psnic, pslwc, ptsoil, zrfrz = refreeze(psnowc, psnic, pslwc, ptsoil, c)
@@ -71,10 +71,8 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
         prhofirn, psnowc, psnic, pslwc, ptsoil, pdgrain, c
     )
 
-    #psn = calc_snowdepth1D(psnowc, psnic, pslwc, psnowbkt, c)
-
     pgrndc, pgrndd, pgrndcapc, pgrndhflx = update_tempdiff_params_opt(
-        prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_cond, zso_capa
+        prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_cond, zso_capa, c.zdtime
     )
     return (psnowc, psnic, pslwc, ptsoil, zrfrz, prhofirn, zsupimp, pdgrain, 
             zrogl, ptsoil[0], pgrndc, pgrndd, pgrndcapc, pgrndhflx, dH_comp, 
@@ -1071,7 +1069,7 @@ def numba_insert(arr, num, row):
 
 #@profile
 def update_tempdiff_params_opt(
-    prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_cond, zso_capa
+    prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_cond, zso_capa, zdtime
 ):
     # update_tempdiff_params: Updates the thermal capacity and conductivity of
     # subsurface column based on the new density and temperature profiles. Also
@@ -1086,7 +1084,6 @@ def update_tempdiff_params_opt(
     # Robert S. Fausto (rsf@geus.dk) in FORTRAN then translated to python by
     # Baptiste Vandecrux (bav@geus.dk).
     # =========================================================================
-    zdtime = 3600
 
     # PETER AND RUTH's VERSION (Note: we ignore the liquid content in all of
     # the following). We need physical layer thicknesses (i.e., in

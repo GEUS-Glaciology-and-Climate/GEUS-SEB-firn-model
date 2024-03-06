@@ -17,8 +17,9 @@ import pandas as pd
 import os
 import lib.io as io
 
-output_path= 'C:/Users/bav/data_save/output firn model/'
-run_name = 'pixel_121162_100_layers_3H'
+# output_path= 'C:/Users/bav/data_save/output firn model/'
+output_path = './output/'
+run_name = 'KAN_U_100_layers_3H'
 #%%
 def main(output_path, run_name):
     # %% Loading data
@@ -29,7 +30,12 @@ def main(output_path, run_name):
     tmp = tmp.set_index('key')[['value']]
     c = Struct(**tmp.to_dict()['value'] )
     c.RunName=run_name
-    df_in, c = io.load_surface_input_data(c)
+    if c.surface_input_driver=='CARRA' and c.zdtime == 3600:
+        resample=True
+    else:
+        resample=False
+        
+    df_in, c = io.load_surface_input_data(c, resample=resample)
     if output_path != c.output_path:
         print('Warning: Output has been moved from',c.output_path,'to',output_path)
         c.output_path = output_path
@@ -60,7 +66,7 @@ def main(output_path, run_name):
             print(e)
             pass
 
-    if c.station in ['DY2']:
+    if c.station in ['DY2', 'KAN_U']:
             lpl.plot_var(c.station, c.output_path, c.RunName, 'slwc', 
                          zero_surf=True, ylim=(8,0), year = (2012, 2024))
 
@@ -69,14 +75,25 @@ def main(output_path, run_name):
     lpl.plot_var_start_end(c, 'density_bulk')
 
     # %% Mass balance components
-    fig = plt.figure()
-    ax=plt.gca()
-    df_out.melt_mweq.cumsum().plot(ax=ax, label='melt')
-    df_out.Snowfallmweq.cumsum().plot(ax=ax, label='Snowfall')
-    df_out.zrogl.cumsum().plot(ax=ax, label='runoff')
-    df_out.zrfrz_sum.cumsum().plot(ax=ax, label='refreezing')
-    df_out.snowthick.plot(ax=ax, label='snowthickness')
-    plt.legend()
+    fig, ax = plt.subplots(2,1, sharex=True)
+    ax[0].plot(df_out.index, df_out.smb_mweq.cumsum(), color='k',lw=2,label='SMB')
+    ax[0].fill_between(df_out.index, df_out.sublimation_mweq.cumsum()*0,
+                       -df_out.sublimation_mweq.cumsum(), label='sublimation_mweq')
+    ax[0].fill_between(df_out.index, -df_out.sublimation_mweq.cumsum(),
+                       (df_out.snowfall_mweq - df_out.sublimation_mweq).cumsum(), label='snowfall_mweq')
+    ax[0].fill_between(df_out.index, (df_out.snowfall_mweq - df_out.sublimation_mweq).cumsum(),
+           (df_out.snowfall_mweq + df_out.rainfall_mweq - df_out.sublimation_mweq).cumsum(),
+           label='rainfall_mweq')
+    ax[0].fill_between(df_out.index, df_out.snowfall_mweq.cumsum()*0,
+                       -df_out.runoff_mweq.cumsum(), label='Runoff')
+    ax[0].legend()
+    
+    ax[1].plot(df_out.index, df_out.melt_mweq.cumsum(), label='melt')
+    ax[1].plot(df_out.index, df_out.runoff_mweq.cumsum(), color='tab:red', label='runoff')
+    ax[1].plot(df_out.index, df_out.refreezing_mweq.cumsum(), label='refreezing')
+    ax[1].plot(df_out.index, df_out.snowthick, label='snowthickness')
+    ax[1].legend()
+
     fig.savefig(c.output_path+c.RunName+'/'+c.station+'_SMB.png', dpi=120)
     
     

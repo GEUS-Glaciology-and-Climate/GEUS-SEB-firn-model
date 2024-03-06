@@ -7,7 +7,7 @@ density_bulk,Bulk density,kg m^-3
 T_ice,Subsurface temperature,K
 compaction,Layer compaction,m per time step
 rfrz,Amount of water refrozen,m water equivalent per time step
-refreezing_mweq,Amount of water refrozen,m water equivalent per time step, m w.e.
+refreezing_mweq,Amount of water refrozen, m w.e. per time step
 dgrain,Snow grain diameter,mm
 Year,Year,yr
 Month,Month,m

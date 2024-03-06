@@ -60,6 +60,11 @@ def run_SEB_firn(station='KAN_U'):
         c.multi_file_run = False
     
     freq = '3H'
+    if c.surface_input_driver=='CARRA' and freq == 'H':
+        resample=True
+    else:
+        resample=False
+        
     c.num_lay = 100
     # defining run name
     if SPIN_UP:
@@ -91,7 +96,7 @@ def run_SEB_firn(station='KAN_U'):
         return None
     
     # loading input data
-    df_in, c = io.load_surface_input_data(c, resample=False)
+    df_in, c = io.load_surface_input_data(c, resample=resample)
     
     freq = pd.infer_freq(df_in.index)
     if freq=='H': freq = '1H'
@@ -160,9 +165,9 @@ def run_SEB_firn(station='KAN_U'):
     # %% Writing output
     df_out['snowfall_mweq'] = df_in.Snowfallmweq
     df_out['rainfall_mweq'] = df_in.Rainfallmweq
-    df_out['smb_mweq'] = df_out.Snowfallmweq + df_out.Snowfallmweq - df_out.zrogl - df_out.sublimation_mweq
     df_out['refreezing_mweq'] = zrfrz.sum(axis=0)
     df_out = df_out.rename(columns={'zrogl': 'runoff_mweq'})
+    df_out['smb_mweq'] = df_out.snowfall_mweq + df_out.rainfall_mweq - df_out.runoff_mweq - df_out.sublimation_mweq
 
     io.write_1d_netcdf(df_out, c)
     io.write_2d_netcdf(snic, 'snic', depth_act, df_in.index, c)
@@ -204,13 +209,14 @@ def multi_file_grid_run():
 
     
 if __name__ == "__main__":
-    multiprocessing.set_start_method('spawn')
 
     # run_SEB_firn('KAN_U')
     # multi_file_grid_run()
+    
     ds_carra = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
+    multiprocessing.set_start_method('spawn')
     pool = multiprocessing.Pool(5)
-    station_list = ds_carra.stid.values[1:]
+    station_list = ds_carra.stid.values
     out1, out2, out3 = zip(*pool.map(run_SEB_firn,station_list))
     # for station in station_list:
     #     run_SEB_firn(station)
