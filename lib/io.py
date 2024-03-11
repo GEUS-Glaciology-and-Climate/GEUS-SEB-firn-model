@@ -55,15 +55,10 @@ def load_promice_old(path_promice):
     df["time"] = df.Year * np.nan
 
     try:
-        df["time"] = [
-            datetime.datetime(y, m, d, h).replace(tzinfo=pytz.UTC)
-            for y, m, d, h in zip(
-                df["Year"].values,
-                df["MonthOfYear"].values,
-                df["DayOfMonth"].values,
-                df["HourOfDay(UTC)"].values,
-            )
-        ]
+        df["time"] = [datetime.datetime(y, m, d, h).replace(tzinfo=pytz.UTC)
+            for y, m, d, h in zip(df["Year"].values,
+                df["MonthOfYear"].values, df["DayOfMonth"].values,
+                df["HourOfDay(UTC)"].values)]
     except:
         df["time"] = pd.to_datetime(
             df["Year"] * 100000 + df["DayOfYear"] * 100 + df["HourOfDayUTC"],
@@ -100,13 +95,14 @@ def load_CARRA_data(*args, resample=True):
         surface_input_path, station = args
         
     print("- Reading data from CARRA reanalysis set -", surface_input_path)
-    aws_ds = xr.open_dataset(surface_input_path)
+    with xr.open_dataset(surface_input_path) as ds:
+        aws_ds = ds.where(ds.stid==c.station, drop=True).load()
 
-    c.altitude= aws_ds.where(aws_ds.stid==c.station, drop=True).altitude.item()
-    c.latitude= aws_ds.where(aws_ds.stid==c.station, drop=True).latitude.item()
-    c.longitude= aws_ds.where(aws_ds.stid==c.station, drop=True).longitude.item()
+    c.altitude= aws_ds.altitude.item()
+    c.latitude= aws_ds.latitude.item()
+    c.longitude= aws_ds.longitude.item()
 
-    df_carra = aws_ds.where(aws_ds.stid==station, drop=True).squeeze().to_dataframe()
+    df_carra = aws_ds.squeeze().to_dataframe()
     df_carra['HeightTemperature2m'] = 2
     df_carra['HeightHumidity2m'] = 2
     df_carra['HeightWindSpeed2m'] = 10

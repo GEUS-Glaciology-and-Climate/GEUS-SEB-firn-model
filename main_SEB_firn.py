@@ -24,7 +24,7 @@ import multiprocessing
 def run_SEB_firn(station='KAN_U'):
 # %% 
     start_time = time.time()   
-    SPIN_UP = False
+    SPIN_UP = True
     
     # if  os.path.isfile('./input/initial state/spin up/'+station+'_initial_T_ice.csv'):
     #     print('spin up already done for',station)
@@ -36,6 +36,12 @@ def run_SEB_firn(station='KAN_U'):
     c = ImportConst()        
     c.station = station
     
+    # default setting
+    c.surface_input_path = "./input/weather data/CARRA_at_AWS.nc"
+    c.surface_input_driver = "CARRA"    
+    c.output_path = './output/'  #'C:/Users/bav/data_save/output firn model/'
+    c.multi_file_run = False
+        
     if 'pixel' in station:
         # c.output_path = '../output firn model/grid_'  \
         #     +station.split('_')[-2]+'_'+station.split('_')[-1]+'/'
@@ -53,11 +59,6 @@ def run_SEB_firn(station='KAN_U'):
         c.surface_input_path = "./input/weather data/CARRA_model_input_"+c.year+'_'+c.month+".nc"
         c.surface_input_driver = "CARRA_grid"
         c.multi_file_run = True
-    else:
-        c.surface_input_path = "./input/weather data/CARRA_at_AWS.nc"
-        c.surface_input_driver = "CARRA"    
-        c.output_path = './output/'  #'C:/Users/bav/data_save/output firn model/'
-        c.multi_file_run = False
     
     freq = '3H'
     if c.surface_input_driver=='CARRA' and freq == 'H':
@@ -68,6 +69,7 @@ def run_SEB_firn(station='KAN_U'):
     c.num_lay = 100
     # defining run name
     if SPIN_UP:
+        c.output_path = 'C:/Users/bav/data_save/output firn model/spin up 3H/'
         c.RunName = c.station + "_" + str(c.num_lay) + "_layers_SU_"+freq
     else:
         c.RunName = c.station + "_" + str(c.num_lay) + "_layers_"+freq
@@ -126,8 +128,10 @@ def run_SEB_firn(station='KAN_U'):
     if SPIN_UP:
         df_in = pd.concat((df_in.loc['1991':'2001',:],
                            df_in.loc['1991':'2001',:],
+                           df_in.loc['1991':'2001',:],
+                           df_in.loc['1991':'2001',:],
                            df_in.loc['1991':'2001',:]), ignore_index=True)
-        df_in.index=pd.to_datetime('1991-01-01T00:00:00') + pd.to_timedelta(df_in.index.astype(str).to_series() + 'H')
+        df_in.index=pd.to_datetime('1991-01-01T00:00:00') + pd.to_timedelta(df_in.index.astype(str).to_series() + freq)
     
     for var in ['AirTemperature2C', 'ShortwaveRadiationDownWm2', 'LongwaveRadiationDownWm2',
            'AirPressurehPa', 'WindSpeed2ms', 'RelativeHumidity2',  
@@ -213,10 +217,10 @@ if __name__ == "__main__":
     # run_SEB_firn('KAN_U')
     # multi_file_grid_run()
     
-    ds_carra = xr.open_dataset("./input/weather data/CARRA_at_AWS.nc")
+    with xr.open_dataset("./input/weather data/CARRA_at_AWS.nc") as ds:
+        station_list = ds.stid.load().values
     multiprocessing.set_start_method('spawn')
-    pool = multiprocessing.Pool(5)
-    station_list = ds_carra.stid.values
+    pool = multiprocessing.Pool(7)
     out1, out2, out3 = zip(*pool.map(run_SEB_firn,station_list))
     # for station in station_list:
     #     run_SEB_firn(station)

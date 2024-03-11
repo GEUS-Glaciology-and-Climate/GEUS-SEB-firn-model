@@ -18,6 +18,9 @@ from scipy.interpolate import interp1d
 import matplotlib
 import warnings
 
+from matplotlib import gridspec
+from scipy.stats import linregress
+    
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
@@ -100,21 +103,33 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
     
     # adding SUMup observations as colored scatter
     if len(df_sumup)>0:
-        if var_name == 'T_ice':
-            depth_var = 'depth'
-            sumup_var = 'temperature'
+        depth_var = 'depth'
+        sumup_var = 'temperature'
+        cmap_scatter = cmap
+        vmin_scatter = vmin
+        vmax_scatter = vmax
         if var_name == 'density_bulk':
             depth_var = 'midpoint'
             sumup_var = 'density'
             
-        plt.plot(df_sumup.timestamp,
-            df_sumup[depth_var],
-            marker='o',ls='None', markersize=6, color='lightgray',zorder=1)
-        plt.scatter(df_sumup.timestamp,
-                    df_sumup[depth_var],
-                    12, df_sumup[sumup_var],
-                    vmin=vmin, vmax=vmax,
-                    cmap=cmap, zorder=2)
+        if var_name == 'slwc':
+            plt.plot(df_sumup.timestamp,
+                df_sumup[depth_var],
+                marker='o',ls='None', markersize=3, color='lightgray',zorder=1)
+            plt.plot(df_sumup.loc[df_sumup[sumup_var]>-0.2, 'timestamp'],
+                        df_sumup.loc[df_sumup[sumup_var]>-0.2, depth_var],
+                        marker='o',ls='None', markersize=3, 
+                        color='tab:red', zorder=2)
+        else:
+            plt.plot(df_sumup.timestamp,
+                df_sumup[depth_var],
+                marker='o',ls='None', markersize=6, color='lightgray',zorder=1)
+            plt.scatter(df_sumup.timestamp,
+                        df_sumup[depth_var],
+                        12, df_sumup[sumup_var],
+                        vmin=vmin, vmax=vmax,
+                        cmap=cmap, zorder=2)
+
         ax.set_ylim(df_sumup[depth_var].max()+2, 0)
         ax.set_xlim(df_sumup.timestamp.min()-pd.Timedelta('100D'),
                     df_sumup.timestamp.max()+pd.Timedelta('100D'))
@@ -531,9 +546,97 @@ def evaluate_temperature_sumup(df_out, c):
 
     df_sumup = df_sumup.loc[
         df_sumup.latitude.isin(df_meta_selec.latitude)&df_sumup.longitude.isin(df_meta_selec.longitude),:]
+    
+    # T_ice evaluation
     plot_var(c.station, c.output_path, c.RunName, 'T_ice', zero_surf=True, 
                  df_sumup=df_sumup, tag='_SUMup2024')
+    # infiltration evaluation
+    plot_var(c.station, c.output_path, c.RunName, 'slwc', zero_surf=True, 
+                 df_sumup=df_sumup, ylim=[10], tag='_SUMup2024_slwc')
 
+    # T10m evaluation
+    fig,ax = plt.subplots(1,1,figsize=(7,7))
+    plt.subplots_adjust(bottom=0.4)
+    cmap = matplotlib.cm.get_cmap('tab10')
+
+    for count, ref in enumerate(df_meta_selec.reference_short.unique()):
+        label = ref
+        for n in df_meta_selec.loc[df_meta_selec.reference_short==ref, 'name_key'].drop_duplicates().values:
+            df_subset=df_sumup.loc[(df_sumup.name_key == n)&(df_sumup.depth == 10), :]
+            if len(df_subset)>0:
+                df_subset.plot(ax=ax, x='timestamp', y='temperature',
+                              color = cmap(count),
+                              marker='o',ls='None',
+                              label=label, alpha=0.4, legend=False
+                              )
+
+    df_out.t_i_10m.plot(ax=ax,color='tab:red', label='GEUS model')
+    ax.set_ylabel('10 m temperature (°C)')
+    ax.set_xlabel('')
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1))
+    plt.title(c.station)
+    fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup2024.png', dpi=120)
+
+def load_sumup(c):
+    # Evaluating temperature with SUMup 2024
+    df_sumup = xr.open_dataset(
+        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_temperature_greenland.nc',
+        group='DATA').to_dataframe()
+    ds_meta = xr.open_dataset(
+        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_temperature_greenland.nc',
+        group='METADATA')
+    
+    df_sumup.method_key = df_sumup.method_key.replace(np.nan,-9999)
+    # df_sumup['method'] = ds_meta.method.sel(method_key = df_sumup.method_key.values).astype(str)
+    df_sumup['name'] = ds_meta.name.sel(name_key = df_sumup.name_key.values).astype(str)
+    df_sumup['reference'] = (ds_meta.reference
+                             .drop_duplicates(dim='reference_key')
+                             .sel(reference_key=df_sumup.reference_key.values)
+                             .astype(str))
+    df_sumup['reference_short'] = (ds_meta.reference_short
+                             .drop_duplicates(dim='reference_key')
+                             .sel(reference_key=df_sumup.reference_key.values)
+                             .astype(str))
+    # df_ref = ds_meta.reference.to_dataframe()
+    df_sumup = df_sumup.loc[df_sumup.timestamp>pd.to_datetime('1989')]
+    # selecting Greenland metadata measurements
+    df_meta = df_sumup.loc[df_sumup.latitude>0, 
+                      ['latitude', 'longitude', 'name_key', 'name', 'method_key',
+                       'reference_short','reference', 'reference_key']
+                      ].drop_duplicates()
+    
+    query_point = [[c.latitude, c.longitude]]
+    all_points = df_meta[['latitude', 'longitude']].values
+    df_meta['distance_from_query_point'] = distance.cdist(all_points, query_point, get_distance)
+    min_dist = 10 # in km
+    df_meta_selec = df_meta.loc[df_meta.distance_from_query_point<min_dist, :]   
+
+    return df_sumup.loc[
+        df_sumup.latitude.isin(df_meta_selec.latitude)&df_sumup.longitude.isin(df_meta_selec.longitude),:]
+    
+def evaluate_temperature_scatter(df_out, c, year = None):
+    df_sumup = load_sumup(c)
+    
+    print('plotting',var_name, 'from',run_name)
+    
+    filename = c.output_path+"/" + c.RunName + "/" + c.station + "_T_ice.nc"
+    ds = xr.open_dataset(filename).transpose()
+    ds['T_ice'] = ds.T_ice -273.15
+
+    if year:
+        if len(year) == 2:
+            ds = ds.sel(time=slice(str(year[0]), str(year[1])))
+            tag='_'+str(year[0])+'_'+str(year[1])
+        else:
+            ds = ds.sel(time=str(year))
+            tag='_'+str(year)
+    df_sumup['T_ice_mod'] = np.nan
+    for ind in df_sumup.index:
+        df_sumup.loc[ind,'T_ice'] = (ds.interp(time=df_sumup.loc[ind,'timestamp'],
+                                              method='nearest').set_index(level='depth')
+                                     .interp(level=df_sumup.loc[ind,'depth'],
+                                             method='linear')).T_ice.item()
+    # T10m evaluation
     fig,ax = plt.subplots(1,1,figsize=(7,7))
     plt.subplots_adjust(bottom=0.4)
     cmap = matplotlib.cm.get_cmap('tab10')
@@ -675,3 +778,55 @@ def evaluate_accumulation_snowfox(df_in, c):
         plt.title(c.station)
         plt.ylabel('Snow accumulation (m w.e.)')
         fig.savefig(c.output_path+c.RunName+'/snowfox_eval.png', dpi=120)
+
+def plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SHF','t_i_10m']):
+    fig = plt.figure(figsize=(12, 17))
+    gs = gridspec.GridSpec(len(var_list), 2, width_ratios=[3, 1]) 
+    
+    df_obs = df_obs[~df_obs.index.duplicated(keep='first')]
+    df_out = df_out[~df_out.index.duplicated(keep='first')]
+    common_idx = df_obs.index.intersection(df_out.index)
+    for i, var in enumerate(var_list): 
+        if var not in df_obs.columns:
+            df_obs[var] = np.nan
+        ax1 = plt.subplot(gs[i, 0])
+        ax2 = plt.subplot(gs[i, 1])
+        # first plot
+        ME = np.mean(df_out.loc[common_idx, var] - df_obs.loc[common_idx, var])
+        RMSE = np.sqrt(np.mean((df_out.loc[common_idx, var] - df_obs.loc[common_idx, var])**2))                           
+        df_obs[var].plot(ax=ax1, label='AWS',marker='.',markersize=2)
+        df_out[var].plot(ax=ax1, alpha=0.7, label='SEB model')
+        ax1.set_ylabel(var)
+        ax1.set_xlim(common_idx.min(), common_idx.max())
+        ax1.grid()
+        if i == 0:  ax1.set_title(c.station+'\n\n')
+        ax1.legend()
+    
+        # second plot
+        ax2.plot(df_obs.loc[common_idx,var], df_out.loc[common_idx,var], 
+                 color='k',alpha=0.1,marker='.',ls='None')
+        ax2.set_xlabel('AWS')
+        ax2.set_ylabel('SEB model')        
+        common_idx = df_obs.loc[df_obs[var].notnull()].index.intersection(df_out.loc[df_out[var.replace('_uncor','')].notnull()].index)
+    
+        try:
+            slope, intercept, r_value, p_value, std_err = linregress(
+                df_obs.loc[common_idx, var], df_out.loc[common_idx, var])
+            max_val = max(df_obs.loc[common_idx,var].max(), df_out.loc[common_idx,var].max())
+            min_val = min(df_obs.loc[common_idx,var].min(), df_out.loc[common_idx,var].min())
+            ax2.plot([min_val, max_val], [min_val, max_val], 'k-', label='1:1 Line')
+            regression_line = slope * df_obs[var] + intercept
+            ax2.plot(df_obs[var], regression_line, 'r-', label='Linear Regression')
+        except:
+            pass
+        if i == 0: ax2.legend(loc='lower right')
+        ax2.grid()
+        
+        # Annotate with RMSE and ME
+        ax2.annotate(f'{var}\nRMSE: {RMSE:.2f}\nME: {ME:.2f}', 
+                     xy=(1.05, 0.95), xycoords='axes fraction', 
+                     horizontalalignment='left', verticalalignment='top',
+                     fontsize=10, bbox=dict(boxstyle="round,pad=0.3",
+                                            edgecolor='black', facecolor='white'))
+
+    fig.savefig(c.output_path+c.RunName+'/SEB_evaluation_vs_AWS.png', dpi=120))
