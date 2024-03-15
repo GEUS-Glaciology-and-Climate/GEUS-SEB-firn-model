@@ -17,9 +17,9 @@ import pandas as pd
 import os
 import lib.io as io
 
-# output_path= 'C:/Users/bav/data_save/output firn model/'
-output_path = './output/'
-run_name = 'CP1_100_layers_3H'
+output_path= 'C:/Users/bav/data_save/output firn model/spin up 3H/'
+# output_path = './output/'
+run_name = 'QAS_A_100_layers_SU_3H'
 #%%
 def main(output_path, run_name):
     # %% Loading data
@@ -70,33 +70,7 @@ def main(output_path, run_name):
     if c.station in ['DY2', 'KAN_U','CP1']:
             lpl.plot_var(c.station, c.output_path, c.RunName, 'slwc', 
                          zero_surf=True, ylim=(8,0), year = (2012, 2024))
-
-    # %% Start/end plots
-    lpl.plot_var_start_end(c, 'T_ice')
-    lpl.plot_var_start_end(c, 'density_bulk')
-
-    # %% Mass balance components
-    fig, ax = plt.subplots(2,1, sharex=True)
-    ax[0].plot(df_out.index, df_out.smb_mweq.cumsum(), color='k',lw=2,label='SMB')
-    ax[0].fill_between(df_out.index, df_out.sublimation_mweq.cumsum()*0,
-                       -df_out.sublimation_mweq.cumsum(), label='sublimation_mweq')
-    ax[0].fill_between(df_out.index, -df_out.sublimation_mweq.cumsum(),
-                       (df_out.snowfall_mweq - df_out.sublimation_mweq).cumsum(), label='snowfall_mweq')
-    ax[0].fill_between(df_out.index, (df_out.snowfall_mweq - df_out.sublimation_mweq).cumsum(),
-           (df_out.snowfall_mweq + df_out.rainfall_mweq - df_out.sublimation_mweq).cumsum(),
-           label='rainfall_mweq')
-    ax[0].fill_between(df_out.index, df_out.snowfall_mweq.cumsum()*0,
-                       -df_out.runoff_mweq.cumsum(), label='Runoff')
-    ax[0].legend()
-    
-    ax[1].plot(df_out.index, df_out.melt_mweq.cumsum(), label='melt')
-    ax[1].plot(df_out.index, df_out.runoff_mweq.cumsum(), color='tab:red', label='runoff')
-    ax[1].plot(df_out.index, df_out.refreezing_mweq.cumsum(), label='refreezing')
-    ax[1].plot(df_out.index, df_out.snowthick, label='snowthickness')
-    ax[1].legend()
-
-    fig.savefig(c.output_path+c.RunName+'/'+c.station+'_SMB.png', dpi=120)
-    
+  
     
     # %% Surface height evaluation
     # extracting surface height
@@ -118,12 +92,13 @@ def main(output_path, run_name):
     #     print('cannot find L3 AWS file')
     #     df_obs = pd.DataFrame()
     #     pass
-    
     path_aws_l4 = '../PROMICE/PROMICE-AWS-toolbox/out/L4/'
     if os.path.isfile(path_aws_l4+c.station+'_L4_ext.csv'):
         df_obs = pd.read_csv(path_aws_l4+c.station+'_L4_ext.csv')
+        obs_avail = True
     elif os.path.isfile(path_aws_l4+c.station+'_L4.csv'):
         df_obs = pd.read_csv(path_aws_l4+c.station+'_L4.csv')
+        obs_avail = True
     else:
         path_aws_l4 = '../PROMICE/GC-Net-Level-1-data-processing/L1/daily/'
         if os.path.isfile(path_aws_l4+c.station+'_daily.csv'):
@@ -137,29 +112,32 @@ def main(output_path, run_name):
                                             'OLWR':'LRout',
                                             'Tsurf':'t_surf',
                                             })
+            obs_avail = True
         else:
             print('No observation for', c.station)
-            return []
+            obs_avail = False
+
+            # return []
         # else:
         #     tmp = pd.DataFrame()
     # if len(df_obs)>0:
     #     df_obs.time= pd.to_datetime(df_obs.time).dt.tz_convert(None)
     #     if len(tmp)>0:
-            
-    df_obs.time= pd.to_datetime(df_obs.time).dt.tz_convert(None)
-    df_obs = df_obs.set_index('time')
-    # df_obs = df_obs.resample(pd.infer_freq(df_out.index)).mean()
-    
-    fig = plt.figure()
-    tmp = (df_obs.z_surf_combined -df_out.surface_height).mean()
-    plt.plot(df_obs.index, df_obs.z_surf_combined-tmp, 
-              marker='.',ls='None', label='AWS')
-    plt.plot(df_out.index, df_out.surface_height,color='tab:red',
-             label='model')
-    plt.legend()
-    plt.ylabel('Surface height (m)')
-    plt.title(c.station)
-    fig.savefig(c.output_path+c.RunName+'/'+c.station+'surface_height.png', dpi=120)
+    if obs_avail:
+        df_obs.time= pd.to_datetime(df_obs.time).dt.tz_convert(None)
+        df_obs = df_obs.set_index('time')
+        # df_obs = df_obs.resample(pd.infer_freq(df_out.index)).mean()
+        
+        fig = plt.figure()
+        tmp = (df_obs.z_surf_combined -df_out.surface_height).mean()
+        plt.plot(df_obs.index, df_obs.z_surf_combined-tmp, 
+                  marker='.',ls='None', label='AWS')
+        plt.plot(df_out.index, df_out.surface_height,color='tab:red',
+                 label='model')
+        plt.legend()
+        plt.ylabel('Surface height (m)')
+        plt.title(c.station)
+        fig.savefig(c.output_path+c.RunName+'/'+c.station+'_surface_height.png', dpi=120)
     
     # %% calculating modelled t_i_10m
     # from scipy.interpolate import interp1d
@@ -231,19 +209,25 @@ def main(output_path, run_name):
     df_out['t_surf']  =  ((df_out.LRout_mdl - (1 -  c.em) * df_out.LRin) / c.em / 5.67e-8)**0.25 - 273.15
     df_out['LRout'] = df_out.LRout_mdl
     
-    df_obs['LHF'] = df_obs.dlhf_u
-    df_obs['SHF'] = df_obs.dshf_u
-    if 'ulr' in df_obs.columns:
-        df_obs['LRout'] = df_obs.ulr
-    else:
-        df_obs['LRout'] = np.nan 
+    if obs_avail:
+        df_obs['LHF'] = df_obs.dlhf_u
+        df_obs['SHF'] = df_obs.dshf_u
+        if 'ulr' in df_obs.columns:
+            df_obs['LRout'] = df_obs.ulr
+        else:
+            df_obs['LRout'] = np.nan 
+        lpl.plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SHF','t_i_10m'])
          
-    lpl.plot_observed_surface_vars()
-    lpl.evaluate_temperature_sumup(df_out, c)
-    lpl.evaluate_density_sumup(c)
+    try:
+        lpl.plot_smb_components(df_out, c)
+        lpl.evaluate_temperature_sumup(df_out, c)
+        lpl.evaluate_temperature_scatter(df_out, c, year = None)
+        lpl.evaluate_density_sumup(c)
+    except:
+        pass
     lpl.evaluate_accumulation_snowfox(df_in, c)
-        
-    # Movies
+    lpl.plot_var_start_end(c, 'T_ice')
+    lpl.plot_var_start_end(c, 'density_bulk')    # Movies
     # lpl.plot_movie(c.station, c.output_path, c.RunName, 'T_ice')
     # lpl.plot_movie(c.station, c.output_path, c.RunName, 'density_bulk')
     try:
@@ -251,11 +235,11 @@ def main(output_path, run_name):
     except Exception as e:
         print(e)
         pass
-    try:
-        lpl.find_summer_surface_depths(c)
-    except Exception as e:
-        print(e)
-        pass
+    # try:
+    #     lpl.find_summer_surface_depths(c)
+    # except Exception as e:
+    #     print(e)
+    #     pass
 
 # %%
 import os    

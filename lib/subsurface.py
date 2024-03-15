@@ -26,7 +26,8 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
     # and the total water equivalent thickness of layer n is
     # thickness_weq(n) = snowc(n)+snic(n)+slwc(n)
     # This thickness is allowed to vary within certain rules.
-
+    
+    if (pslwc<0).any(): import pdb; pdb.set_trace()
     ptsoil = tsoil_diffusion(pts, pgrndc, pgrndd, ptsoil)
 
     prhofirn, dH_comp, compaction = densification(
@@ -38,21 +39,25 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
     psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt = snowfall_new(
          zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts, psnowbkt, 
          zraind, zsnmel, c)
+    if (pslwc<0).any(): import pdb; pdb.set_trace()
     
 
     psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt = sublimation_new(
         zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt, c
     )
+    if (pslwc<0).any(): import pdb; pdb.set_trace()
 
     psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil = rainfall_new(
         zraind, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts, c
     )
+    if (pslwc<0).any(): import pdb; pdb.set_trace()
 
     zso_capa, zso_cond = ice_heats(ptsoil, c)
 
     psnowc, psnic, pslwc, ptsoil, psnowbkt = melting_new(
         psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn
     )
+    if (pslwc<0).any(): import pdb; pdb.set_trace()
 
     # if c.hetero_percol
     #     [pslwc] = hetero_percol (prhofirn, psnowc, psnic, pslwc, pdgrain, c)
@@ -60,16 +65,20 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
     prhofirn, psnowc, psnic, pslwc, pdgrain, zrogl = lp.perc_runoff_new(
         prhofirn, psnowc, psnic, pslwc, pdgrain, c.zdtime
     )
+    if (pslwc<0).any(): import pdb; pdb.set_trace()
 
     psnic, pslwc, ptsoil, zrfrz = refreeze(psnowc, psnic, pslwc, ptsoil, c)
+    if (pslwc<0).any(): import pdb; pdb.set_trace()
 
     ptsoil, psnic, pslwc, zsupimp = superimposedice(
         prhofirn, ptsoil, psnowc, psnic, pslwc, zso_cond, c
     )
+    if (pslwc<0).any(): import pdb; pdb.set_trace()
 
     prhofirn, psnowc, psnic, pslwc, ptsoil, pdgrain = merge_small_layers(
         prhofirn, psnowc, psnic, pslwc, ptsoil, pdgrain, c
     )
+    if (psnic<0).any(): import pdb; pdb.set_trace()
 
     pgrndc, pgrndd, pgrndcapc, pgrndhflx = update_tempdiff_params_opt(
         prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_cond, zso_capa, c.zdtime
@@ -345,11 +354,18 @@ def melting_new(psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn):
         cold_content = deltaT * heat_capa
         # in J
         warming_energy = np.minimum(cold_content, zsnmel * 334000 * 999.8395)  # in J
+        if warming_energy < 1e-12:
+            warming_energy=0
+
         # warming layer
         ptsoil[jk] = ptsoil[jk] + warming_energy / heat_capa
         # removing the corresponding amount from the prescribed melt
         zsnmel = zsnmel - warming_energy / 334000 / 999.8395  # in m weq
-
+        # adding what was used for the warming as ice content
+        psnic[jk] = psnic[jk] + warming_energy / 334000 / 999.8395
+        # if we deleted the melt, no need to melt more layers
+        if zsnmel < 1e-12:
+            break
         # Now the melting layer is either at melting point or zsnmel is
         # depleted. We can use the rest of zsnmel to change phase.
 
@@ -367,7 +383,7 @@ def melting_new(psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn):
         psnowc[jk] = psnowc[jk] - snow_melt
         psnic[jk] = psnic[jk] - ice_melt
         pslwc[jk] = pslwc[jk] + min(zsnmel, psnowc[jk] + psnic[jk])
-
+        if (pslwc<0).any(): import pdb; pdb.set_trace()
         zsnmel = zsnmel - min(zsnmel, psnowc[jk] + psnic[jk])
 
     if np.sum((psnowc + psnic) == 0) > 1:
@@ -679,7 +695,6 @@ def refreeze(psnowc, psnic, pslwc, ptsoil, c):
     # refreeze during the time step dt. See Illangaskare et al. 1990, eq. 13
     zpotref = c.Ck * coldcontent * cpiceF(ptsoil) * cfrozen / c.L_fus
     zrfrz = np.minimum(zpotref, pslwc)
-
     pslwc = pslwc - zrfrz
     psnic = psnic + zrfrz
 

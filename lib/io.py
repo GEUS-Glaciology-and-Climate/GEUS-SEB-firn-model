@@ -135,19 +135,19 @@ def load_CARRA_data(*args, resample=True):
     df_carra['ShortwaveRadiationUpWm2'] = df_carra.ShortwaveRadiationDownWm2*df_carra.Albedo
     
     # calcualting snowfall and rainfall
-    df_carra['Snowfallmweq'] = 0
-    df_carra['Rainfallmweq'] = 0
-    cut_off_temp = 0
-    df_carra.loc[df_carra.AirTemperature2C < cut_off_temp,
-                 'Snowfallmweq'] = df_carra.loc[
-                     df_carra.AirTemperature2C < cut_off_temp,'tp'] / 1000
-    df_carra.loc[df_carra.AirTemperature2C >= cut_off_temp,
-                 'Rainfallmweq'] = df_carra.loc[
-                     df_carra.AirTemperature2C >= cut_off_temp,'tp'] / 1000
+    # df_carra['Snowfallmweq'] = 0
+    # df_carra['Rainfallmweq'] = 0
+    # cut_off_temp = 0
+    # df_carra.loc[df_carra.AirTemperature2C < cut_off_temp,
+    #              'Snowfallmweq'] = df_carra.loc[
+    #                  df_carra.AirTemperature2C < cut_off_temp,'tp'] / 1000
+    # df_carra.loc[df_carra.AirTemperature2C >= cut_off_temp,
+    #              'Rainfallmweq'] = df_carra.loc[
+    #                  df_carra.AirTemperature2C >= cut_off_temp,'tp'] / 1000
                      
-    if (df_carra.index[1] - df_carra.index[0]) == pd.Timedelta('1 hours'):
-        df_carra['Snowfallmweq'] = df_carra['Snowfallmweq'] / 3
-        df_carra['Rainfallmweq'] = df_carra['Rainfallmweq'] / 3
+    # if (df_carra.index[1] - df_carra.index[0]) == pd.Timedelta('1 hours'):
+    #     df_carra['Snowfallmweq'] = df_carra['Snowfallmweq'] / 3
+    #     df_carra['Rainfallmweq'] = df_carra['Rainfallmweq'] / 3
     return df_carra
 
 

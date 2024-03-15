@@ -514,13 +514,14 @@ def perc_runoff_new(prhofirn, psnowc, psnic, pslwc, pdgrain, zdtime):
                 # in other word surface runoff is instantaneous
                 liqro = liqexcess
             else:
-                Theta = ThetaF(pslwc[jk], psnowc[jk], prhofirn[jk])
+                # Theta = ThetaF(pslwc[jk], psnowc[jk], prhofirn[jk])
                 # liqro_darcy = kF(Theta,pdgrain[jk],prhofirn[jk],psnic[jk],psnowc[jk], c) * c.ElevGrad
                 # old version based on Zuo and Oerlemans (1996)
                 liqro_darcy = liqexcess / t_runoff * zdtime
 
                 liqro = min(liqro_darcy, liqexcess)
                 pore_space = psnowc[jk] * 999.8395 * (1 / prhofirn[jk] - 1 / 900)
+                if pore_space < 1e-12: pore_space = 0
 
                 # Update PLA
                 if pslwc[jk] - liqro > pore_space:
@@ -528,5 +529,6 @@ def perc_runoff_new(prhofirn, psnowc, psnic, pslwc, pdgrain, zdtime):
 
             # Take runoff from water content and give to runoff box
             zrogl = zrogl + liqro
+
             pslwc[jk] = pslwc[jk] - liqro
     return prhofirn, psnowc, psnic, pslwc, pdgrain, zrogl

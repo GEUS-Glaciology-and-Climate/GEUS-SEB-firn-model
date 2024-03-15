@@ -209,6 +209,8 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
             melt_mweq[k],  # melt
             c.Tdeep, snowbkt[k - 1], c
         )
+        if ((snowc[:, k]+snic[:, k]) == 0).any():
+            import pdb; pdb.set_trace()
             
         # bulk density
         rho[:, k] = (snowc[:, k] + snic[:, k]) / (
@@ -224,7 +226,7 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
         
         if snowthick[k] < 0: snowthick[k] = 0
     
-    if c.multi_file_run:
+    if c.multi_file_run or c.spin_up:
         # saving final state for next run
         file_path = c.output_path + "/" + c.RunName + "/"+ c.station+'_final.pkl'
         

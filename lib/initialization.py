@@ -73,20 +73,46 @@ def IniVar(time, c):
             rho[:, -1] = (snowc[:, -1] + snic[:, -1]) / (
                 snowc[:, -1] / rhofirn[:, -1] + snic[:, -1] / c.rho_ice
             )
-    else:
-        df_ini = InitializationSubsurface(c)
-        rhofirn[:, -1] = df_ini.rhofirn
-        rho[:, -1] = df_ini.rhofirn
-        snic[:, -1] = df_ini.snic
-        snowc[:, -1] = df_ini.snowc
-        if (df_ini.rhofirn == 900 ).all():
-            snic[:, -1] = df_ini.snowc
-            snowc[:, -1] = df_ini.snic        
-        dgrain[:, -1] = df_ini.grain_size_mm
-        tsoil[:, -1] = df_ini.temp_degC
-        grndc[:, -1] = tsoil[:, -1]
-        snowbkt[-1] = 0
-        snowthick[-1] = c.snowthick_ini
+        return (rhofirn,  rho, snowc, snic, slwc, dgrain, tsoil, grndc, grndd,
+                compaction, zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp, 
+                snowbkt, snowthick)
+
+    if c.use_spin_up_init:
+        try:
+            spin_up_run_name = c.station+'_100_layers_3H'
+            previous_output_folder ='./output/spin up 3H/'
+            
+            file_path = previous_output_folder + "/" + spin_up_run_name + "/"  \
+                + c.station + '_final.pkl'
+            with open(file_path, 'rb') as f:
+                [snowc[:, -1], snic[:, -1], slwc[:, -1], tsoil[:, -1],  rhofirn[:, -1],
+                    dgrain[:, -1], Tsurf[-1], grndc[:, -1], grndd[:, -1], snowbkt[-1], 
+                ] =  pickle.load(f)
+                
+                rho[:, -1] = (snowc[:, -1] + snic[:, -1]) / (
+                    snowc[:, -1] / rhofirn[:, -1] + snic[:, -1] / c.rho_ice
+                )
+            print('Initializing with',previous_output_folder + "/" + spin_up_run_name + "/"  \
+                + c.station + '_final.pkl')
+            return (rhofirn,  rho, snowc, snic, slwc, dgrain, tsoil, grndc, grndd,
+                    compaction, zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp, 
+                    snowbkt, snowthick)
+        except Exception as e:
+            print(e)
+
+    df_ini = InitializationSubsurface(c)
+    rhofirn[:, -1] = df_ini.rhofirn
+    rho[:, -1] = df_ini.rhofirn
+    snic[:, -1] = df_ini.snic
+    snowc[:, -1] = df_ini.snowc
+    if (df_ini.rhofirn == 900 ).all():
+        snic[:, -1] = df_ini.snowc
+        snowc[:, -1] = df_ini.snic        
+    dgrain[:, -1] = df_ini.grain_size_mm
+    tsoil[:, -1] = df_ini.temp_degC
+    grndc[:, -1] = tsoil[:, -1]
+    snowbkt[-1] = 0
+    snowthick[-1] = c.snowthick_ini
 
     return (rhofirn,  rho, snowc, snic, slwc, dgrain, tsoil, grndc, grndd,
             compaction, zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp, 
@@ -146,7 +172,7 @@ def InitializationSubsurface(c):
             filename = "./input/initial state/ablation_initial_density.csv"
         else:
             print('Did not find initial density profile. Using "Accumulation_initial_density.csv".')
-            filename = "./input/initial state/Accumulation_initial_density.csv"
+            filename = "./input/initial state/accumulation_initial_density.csv"
     print(filename)
 
     df_ini_dens = pd.read_csv(filename)
@@ -242,7 +268,7 @@ def InitializationSubsurface(c):
             filename = "./input/initial state/ablation_initial_temperature.csv"
         else:
             print('Did not find initial temperature profile. Using "Accumulation_initial_temperature.csv".')
-            filename = "./input/initial state/Accumulation_initial_temperature.csv"
+            filename = "./input/initial state/accumulation_initial_temperature.csv"
             
     print(filename)
     df_ini_temp = pd.read_csv(filename)

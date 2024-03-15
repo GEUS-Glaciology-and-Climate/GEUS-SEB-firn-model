@@ -12,8 +12,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 import netCDF4 as nc
-import matplotlib.dates as mdates
-import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 import matplotlib
 import warnings
@@ -330,23 +328,21 @@ def evaluate_compaction(c):
     df_comp = pd.read_csv("side analysis/Firn viscosity/borehole_shortening_m.csv")
     df_comp.date = pd.to_datetime(df_comp.date)
     df_comp = df_comp.set_index(["instrument_id", "date"])
-
+    
+    ID_list = [i for i in df_comp_info.index if i in df_comp.index.get_level_values(0).unique()]
+    df_comp = df_comp.reset_index('instrument_id')
+    df_comp = df_comp.loc[np.isin(df_comp.instrument_id,ID_list), :]
+    
+# %% 
     fig1, ax = plt.subplots(1, 1)  
-    plot_var(c.station, output_path, run_name, 'density_bulk')
+    # plot_var(c.station, output_path, run_name, 'density_bulk')
     ax.plot(time, -H_surf, label="Surface")
-
-    fig2, ax2 = plt.subplots(len(df_comp_info.index), figsize=(10, 25), sharex=True)
-    fig2.suptitle(site)
-    fig2.subplots_adjust(left=0.1, right=0.99, top=0.9, hspace=0.3)
-
+    
     cmap = matplotlib.cm.get_cmap("Spectral")
-
-    for i, ID in enumerate(df_comp_info.index):
+    
+    compaction_mod = pd.DataFrame()
+    for i, ID in enumerate(ID_list):
         print(site, ID)
-        if ID not in df_comp.index.get_level_values(0).unique():
-            print("No data")
-            ax2[i].set_title("Instrument " + str(ID) + ": no data")
-            continue
         date_start = pd.to_datetime(
             str(df_comp_info.loc[ID, "installation_daynumber_YYYYMMDD"])
         ).to_datetime64()
@@ -355,37 +351,93 @@ def evaluate_compaction(c):
 
         depth_1 = track_horizon(time, H_surf, depth_act, compaction,  date_start, depth_top, step=12)
         depth_2 = track_horizon(time, H_surf, depth_act, compaction,  date_start, depth_bot, step=12)
+        inst_mod = pd.DataFrame()
+        inst_mod['time'] = time
+        inst_mod['depth_top'] = depth_1 - H_surf
+        inst_mod['depth_bot'] = depth_2 - H_surf
+        inst_mod['compaction'] = np.nan
+        inst_mod.iloc[:-1,-1] = -np.diff(depth_2 - depth_1) * 24*3600/c.zdtime *1000
+        inst_mod['ID'] = ID
+        inst_mod = inst_mod.set_index(['time','ID'])
+        inst_mod = inst_mod.loc[inst_mod['compaction'].first_valid_index():inst_mod['compaction'].last_valid_index(),:]
+        compaction_mod = pd.concat((compaction_mod, inst_mod))
 
         ax.plot(time, depth_1 - H_surf, color=cmap(i / len(df_comp_info.index)), label="_no_legend_")
         ax.plot(time, depth_2 - H_surf, color=cmap(i / len(df_comp_info.index)), label="Instrument " + str(ID))
+    ax.set_title(site)
+    ax.legend()
+    ax.grid()
+    ax.set_ylabel("Depth (m)")
+    ax.set_ylim(np.nanmin(depth_2 - H_surf), -np.nanmax(H_surf))
+    fig1.savefig(output_path+"/" + run_name + "/" + site + "_compaction_1.png", dpi=240)
+    
+# %% 
+    fig2, ax2 = plt.subplots(len(ID_list), figsize=(7, 10), sharex=True)
+    fig2.suptitle(site)
+    fig2.subplots_adjust(left=0.1, right=0.99, top=0.94, hspace=0.3)
+    
+
+    for i, ID in enumerate(ID_list):
+
+        date_start = pd.to_datetime(
+            str(df_comp_info.loc[ID, "installation_daynumber_YYYYMMDD"])
+        ).to_datetime64()
+        depth_top = df_comp_info.loc[ID, "borehole_top_from_surface_m"]
+        depth_bot = -df_comp_info.loc[ID, "borehole_bottom_from_surface_m"]
 
         # ax2[i] = plt.subplot(2,1,1)
         # ax2[i].plot(time, (depth_2-depth_1) - (depth_2[0]-depth_1[0]))
         # df_comp.loc[ID,'borehole_shortening_m'].plot(ax=ax1)
         # ax2[i].set_title(site + 'Instrument '+str(ID))
         # ax1 = plt.subplot(2,1,2)
-        df_comp.loc[ID, "borehole_shortening_m"].diff().plot(
+        (-df_comp.loc[df_comp.instrument_id == ID, "borehole_shortening_m"].diff()*1000).plot(
+            ax=ax2[i], label="observed"
+        )
+        tmp = compaction_mod.loc[ (slice(None), ID),:].reset_index('ID')
+        ax2[i].plot(tmp.index, tmp['compaction'], label="simulated")
+        
+        ax2[i].set_xlim(df_comp.borehole_shortening_m.first_valid_index(),
+                        df_comp.borehole_shortening_m.last_valid_index())
+        ax2[i].set_ylim(0, 2.3)
+        ax2[i].grid()
+        ax2[i].set_title("Instrument %s, top: %0.1f m, bottom %0.2f m"%(str(ID), depth_top, depth_bot))
+
+        ax2[i].legend()
+    fig2.text(0.03, 0.5, "Compaction rate (mm d$^{-1}$)", ha="center", va="center", rotation="vertical")
+    fig2.savefig(output_path+"/" + run_name + "/" + site + "_compaction_2.png", dpi=240)
+# %%
+    fig2, ax2 = plt.subplots(len(ID_list), figsize=(7, 10), sharex=True)
+    fig2.suptitle(site)
+    fig2.subplots_adjust(left=0.1, right=0.99, top=0.9, hspace=0.3)
+    
+
+    for i, ID in enumerate(ID_list):
+
+        date_start = pd.to_datetime(
+            str(df_comp_info.loc[ID, "installation_daynumber_YYYYMMDD"])
+        ).to_datetime64()
+        depth_top = df_comp_info.loc[ID, "borehole_top_from_surface_m"]
+        depth_bot = -df_comp_info.loc[ID, "borehole_bottom_from_surface_m"]
+
+
+        (df_comp.loc[df_comp.instrument_id == ID, "borehole_shortening_m"]+depth_bot-depth_top).plot(
             ax=ax2[i], label="Observation"
         )
-        ax2[i].plot(time[:-1], np.diff(depth_2 - depth_1) * 24, label="Simulated")
-        ax2[i].set_ylim(-0.004, 0.001)
-        tmp = df_comp.loc[
-            np.isin(df_comp.index.get_level_values(0), df_comp_info.index), :
-        ].index.get_level_values(1)
-        ax2[i].set_xlim(tmp.min(), tmp.max())
-        ax2[i].set_title("Instrument " + str(ID))
-    ax.set_title(site)
-    ax.legend()
-    ax.grid()
-    ax.set_ylabel("Depth (m)")
-    ax.set_ylim(np.nanmin(depth_2 - H_surf), -np.nanmax(H_surf))
-    ax2[i].legend()
-    fig2.text(0.03, 0.5, "Compaction rate (m d$^{-1}$)",
-        ha="center", va="center", rotation="vertical")
-    fig1.savefig(output_path+"/" + run_name + "/" + site + "_compaction_1.png")
-    fig2.savefig(output_path+"/" + run_name + "/" + site + "_compaction_2.png")
+        tmp = compaction_mod.loc[ (slice(None), ID),:].reset_index('ID')
+        ax2[i].plot(tmp.index, 
+                    compaction_mod.loc[ (slice(None), ID),'depth_bot'] - compaction_mod.loc[ (slice(None), ID),'depth_top'], 
+                    label="Simulated")
+        
+        ax2[i].set_xlim(df_comp.borehole_shortening_m.first_valid_index(),
+                        df_comp.borehole_shortening_m.last_valid_index())
+        ax2[i].grid()
+        ax2[i].set_title("Instrument %s, top: %0.1f m, bottom %0.2f m"%(str(ID), depth_top, depth_bot))
 
+        ax2[i].legend()
+    fig2.text(0.03, 0.5, "Borehole length (m)", ha="center", va="center", rotation="vertical")
+    fig2.savefig(output_path+"/" + run_name + "/" + site + "_compaction_3.png", dpi=240)
 
+# %% 
 def find_summer_surface_depths(c):
     site = c.station
     output_path = c.output_path
@@ -510,74 +562,8 @@ def get_distance(point1, point2):
     distance = R * c
     return distance
 
-def evaluate_temperature_sumup(df_out, c):
-    # Evaluating temperature with SUMup 2024
-    df_sumup = xr.open_dataset(
-        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_temperature_greenland.nc',
-        group='DATA').to_dataframe()
-    ds_meta = xr.open_dataset(
-        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_temperature_greenland.nc',
-        group='METADATA')
-    
-    df_sumup.method_key = df_sumup.method_key.replace(np.nan,-9999)
-    # df_sumup['method'] = ds_meta.method.sel(method_key = df_sumup.method_key.values).astype(str)
-    df_sumup['name'] = ds_meta.name.sel(name_key = df_sumup.name_key.values).astype(str)
-    df_sumup['reference'] = (ds_meta.reference
-                             .drop_duplicates(dim='reference_key')
-                             .sel(reference_key=df_sumup.reference_key.values)
-                             .astype(str))
-    df_sumup['reference_short'] = (ds_meta.reference_short
-                             .drop_duplicates(dim='reference_key')
-                             .sel(reference_key=df_sumup.reference_key.values)
-                             .astype(str))
-    # df_ref = ds_meta.reference.to_dataframe()
-    df_sumup = df_sumup.loc[df_sumup.timestamp>pd.to_datetime('1989')]
-    # selecting Greenland metadata measurements
-    df_meta = df_sumup.loc[df_sumup.latitude>0, 
-                      ['latitude', 'longitude', 'name_key', 'name', 'method_key',
-                       'reference_short','reference', 'reference_key']
-                      ].drop_duplicates()
-    
-    query_point = [[c.latitude, c.longitude]]
-    all_points = df_meta[['latitude', 'longitude']].values
-    df_meta['distance_from_query_point'] = distance.cdist(all_points, query_point, get_distance)
-    min_dist = 10 # in km
-    df_meta_selec = df_meta.loc[df_meta.distance_from_query_point<min_dist, :]   
 
-    df_sumup = df_sumup.loc[
-        df_sumup.latitude.isin(df_meta_selec.latitude)&df_sumup.longitude.isin(df_meta_selec.longitude),:]
-    
-    # T_ice evaluation
-    plot_var(c.station, c.output_path, c.RunName, 'T_ice', zero_surf=True, 
-                 df_sumup=df_sumup, tag='_SUMup2024')
-    # infiltration evaluation
-    plot_var(c.station, c.output_path, c.RunName, 'slwc', zero_surf=True, 
-                 df_sumup=df_sumup, ylim=[10], tag='_SUMup2024_slwc')
-
-    # T10m evaluation
-    fig,ax = plt.subplots(1,1,figsize=(7,7))
-    plt.subplots_adjust(bottom=0.4)
-    cmap = matplotlib.cm.get_cmap('tab10')
-
-    for count, ref in enumerate(df_meta_selec.reference_short.unique()):
-        label = ref
-        for n in df_meta_selec.loc[df_meta_selec.reference_short==ref, 'name_key'].drop_duplicates().values:
-            df_subset=df_sumup.loc[(df_sumup.name_key == n)&(df_sumup.depth == 10), :]
-            if len(df_subset)>0:
-                df_subset.plot(ax=ax, x='timestamp', y='temperature',
-                              color = cmap(count),
-                              marker='o',ls='None',
-                              label=label, alpha=0.4, legend=False
-                              )
-
-    df_out.t_i_10m.plot(ax=ax,color='tab:red', label='GEUS model')
-    ax.set_ylabel('10 m temperature (°C)')
-    ax.set_xlabel('')
-    plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1))
-    plt.title(c.station)
-    fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup2024.png', dpi=120)
-
-def load_sumup(c):
+def load_sumup_temperature(c):
     # Evaluating temperature with SUMup 2024
     df_sumup = xr.open_dataset(
         'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_temperature_greenland.nc',
@@ -612,30 +598,21 @@ def load_sumup(c):
     df_meta_selec = df_meta.loc[df_meta.distance_from_query_point<min_dist, :]   
 
     return df_sumup.loc[
-        df_sumup.latitude.isin(df_meta_selec.latitude)&df_sumup.longitude.isin(df_meta_selec.longitude),:]
-    
-def evaluate_temperature_scatter(df_out, c, year = None):
-    df_sumup = load_sumup(c)
-    
-    print('plotting',var_name, 'from',run_name)
-    
-    filename = c.output_path+"/" + c.RunName + "/" + c.station + "_T_ice.nc"
-    ds = xr.open_dataset(filename).transpose()
-    ds['T_ice'] = ds.T_ice -273.15
+                df_sumup.latitude.isin(df_meta_selec.latitude) \
+                    & df_sumup.longitude.isin(df_meta_selec.longitude),:], df_meta_selec
 
-    if year:
-        if len(year) == 2:
-            ds = ds.sel(time=slice(str(year[0]), str(year[1])))
-            tag='_'+str(year[0])+'_'+str(year[1])
-        else:
-            ds = ds.sel(time=str(year))
-            tag='_'+str(year)
-    df_sumup['T_ice_mod'] = np.nan
-    for ind in df_sumup.index:
-        df_sumup.loc[ind,'T_ice'] = (ds.interp(time=df_sumup.loc[ind,'timestamp'],
-                                              method='nearest').set_index(level='depth')
-                                     .interp(level=df_sumup.loc[ind,'depth'],
-                                             method='linear')).T_ice.item()
+
+
+def evaluate_temperature_sumup(df_out, c):
+    df_sumup, df_meta_selec = load_sumup_temperature(c)
+
+    # T_ice evaluation
+    plot_var(c.station, c.output_path, c.RunName, 'T_ice', zero_surf=True, 
+                 df_sumup=df_sumup, tag='_SUMup2024')
+    # infiltration evaluation
+    plot_var(c.station, c.output_path, c.RunName, 'slwc', zero_surf=True, 
+                 df_sumup=df_sumup, ylim=[10], tag='_SUMup2024_slwc')
+
     # T10m evaluation
     fig,ax = plt.subplots(1,1,figsize=(7,7))
     plt.subplots_adjust(bottom=0.4)
@@ -658,6 +635,65 @@ def evaluate_temperature_scatter(df_out, c, year = None):
     plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1))
     plt.title(c.station)
     fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup2024.png', dpi=120)
+
+
+def evaluate_temperature_scatter(df_out, c, year = None):
+    df_sumup, _ = load_sumup_temperature(c)
+        
+    filename = c.output_path+"/" + c.RunName + "/" + c.station + "_T_ice.nc"
+    ds = xr.open_dataset(filename).transpose()
+    ds['T_ice'] = ds.T_ice -273.15
+
+    if year:
+        if len(year) == 2:
+            ds = ds.sel(time=slice(str(year[0]), str(year[1])))
+            tag='_'+str(year[0])+'_'+str(year[1])
+        else:
+            ds = ds.sel(time=str(year))
+            tag='_'+str(year)
+    df_sumup['T_ice_mod'] = np.nan
+    
+    time_mat = ds.time.expand_dims(dim={"level": ds.level.shape[0]}).transpose().values
+    depth_mat = ds.depth.values
+
+    for i, time_obs in enumerate(df_sumup.timestamp.unique()):
+        if i % 1000 == 0: print(np.trunc(i/len(df_sumup.timestamp.unique())*100),'%')
+        depth_obs = df_sumup.loc[df_sumup.timestamp == time_obs,'depth'].values
+        ds_at_ts = ds.sel(time=time_obs, method='nearest')
+        interp_T_ice = (ds_at_ts.set_coords('depth').swap_dims(level='depth')
+         .interp(depth=depth_obs, method='linear')
+         .T_ice.values)
+        df_sumup.loc[df_sumup.timestamp == time_obs,'T_ice_mod'] = interp_T_ice
+        
+    # plotting
+    fig,ax = plt.subplots(1,1,figsize=(7,7))
+    plt.subplots_adjust(bottom=0.4)
+    sc = ax.scatter(df_sumup.temperature, df_sumup.T_ice_mod,
+               5, df_sumup.depth, marker='.',
+            alpha=0.8,ls='None', cmap='spring')
+    min_T = df_sumup[['temperature','T_ice_mod']].min().min()
+    max_T = df_sumup[['temperature','T_ice_mod']].max().max()
+    ax.plot([min_T, max_T], [min_T, max_T], c='k')
+    cb1 = plt.colorbar(sc, label='depth of observation (m)')
+    cb1.ax.invert_yaxis()
+    RMSE = np.sqrt(np.mean((df_sumup.T_ice_mod - df_sumup.temperature)**2))
+    ME = (df_sumup.T_ice_mod - df_sumup.temperature).mean().item()
+    N = (df_sumup.T_ice_mod - df_sumup.temperature).count().item()
+    ax.grid()
+
+    # Annotate with RMSE and ME
+    ax.annotate(f'RMSE: {RMSE:.2f}\nME: {ME:.2f}\nN: {N:.0f}',
+                  xy=(0.05, 0.95),
+                  xycoords='axes fraction',
+                  horizontalalignment='left', verticalalignment='top',
+                  fontsize=10, bbox=dict(boxstyle="round,pad=0.3",
+                             alpha=0.5, edgecolor='black', facecolor='white'))
+    
+    ax.set_ylabel('Modelled subsurface temperature (°C)')
+    ax.set_xlabel('Observed subsurface temperature (°C)')
+    plt.title(c.station)
+    fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup2024_scatter.png', dpi=120)
+
 
 def evaluate_density_sumup(c):
     # Evaluating density with SUMup 2024
@@ -695,6 +731,7 @@ def evaluate_density_sumup(c):
 
     df_sumup = df_sumup.loc[
         df_sumup.latitude.isin(df_meta_selec.latitude)&df_sumup.longitude.isin(df_meta_selec.longitude),:]
+    
     plot_var(c.station, c.output_path, c.RunName, 'density_bulk', zero_surf=True, 
                  df_sumup=df_sumup, tag='_SUMup2024')
     
@@ -829,4 +866,26 @@ def plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SH
                      fontsize=10, bbox=dict(boxstyle="round,pad=0.3",
                                             edgecolor='black', facecolor='white'))
 
-    fig.savefig(c.output_path+c.RunName+'/SEB_evaluation_vs_AWS.png', dpi=120))
+    fig.savefig(c.output_path+c.RunName+'/SEB_evaluation_vs_AWS.png', dpi=120)
+    
+def plot_smb_components(df_out, c):
+    fig, ax = plt.subplots(2,1, sharex=True)
+    ax[0].plot(df_out.index, df_out.smb_mweq.cumsum(), color='k',lw=2,label='SMB')
+    ax[0].fill_between(df_out.index, df_out.sublimation_mweq.cumsum()*0,
+                       -df_out.sublimation_mweq.cumsum(), label='sublimation_mweq')
+    ax[0].fill_between(df_out.index, -df_out.sublimation_mweq.cumsum(),
+                       (df_out.snowfall_mweq - df_out.sublimation_mweq).cumsum(), label='snowfall_mweq')
+    ax[0].fill_between(df_out.index, (df_out.snowfall_mweq - df_out.sublimation_mweq).cumsum(),
+           (df_out.snowfall_mweq + df_out.rainfall_mweq - df_out.sublimation_mweq).cumsum(),
+           label='rainfall_mweq')
+    ax[0].fill_between(df_out.index, df_out.snowfall_mweq.cumsum()*0,
+                       -df_out.runoff_mweq.cumsum(), label='Runoff')
+    ax[0].legend()
+    
+    ax[1].plot(df_out.index, df_out.melt_mweq.cumsum(), label='melt')
+    ax[1].plot(df_out.index, df_out.runoff_mweq.cumsum(), color='tab:red', label='runoff')
+    ax[1].plot(df_out.index, df_out.refreezing_mweq.cumsum(), label='refreezing')
+    ax[1].plot(df_out.index, df_out.snowthick, label='snowthickness')
+    ax[1].legend()
+
+    fig.savefig(c.output_path+c.RunName+'/'+c.station+'_SMB.png', dpi=120)
