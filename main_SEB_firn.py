@@ -20,18 +20,12 @@ import time
 import plot_output as po
 import xarray as xr
 import multiprocessing
+import shutil
 
 # %% 
 def run_SEB_firn(station='FA-15-1'):
-# %% 
     start_time = time.time()   
-    
-    # if  os.path.isfile('./input/initial state/spin up/'+station+'_initial_T_ice.csv'):
-    #     print('spin up already done for',station)
-    #     return None
-
     print(station)
-    # try:
     # importing standard values for constants
     c = ImportConst()        
     c.station = station
@@ -50,7 +44,7 @@ def run_SEB_firn(station='FA-15-1'):
         c.pixel = station.split('_')[1] 
         c.year = station.split('_')[2] 
         c.month = station.split('_')[3] 
-        c.output_path = 'C:/Users/bav/data_save/output firn model/grid_'  \
+        c.output_path = '/media/bav/ice/Baptiste/CARRA SMB/grid_'  \
             +c.year+'_'+c.month+'/'
         
         try:
@@ -58,7 +52,7 @@ def run_SEB_firn(station='FA-15-1'):
         except Exception as e:
             print(e)
             
-        c.surface_input_path = "./input/weather data/CARRA_model_input_"+c.year+'_'+c.month+".nc"
+        c.surface_input_path = "/media/bav/ice/CARRA/bav/model_input/CARRA_model_input_"+c.year+'_'+c.month+".nc"
         c.surface_input_driver = "CARRA_grid"
         c.multi_file_run = True
     
@@ -144,6 +138,7 @@ def run_SEB_firn(station='FA-15-1'):
     df_out = pd.DataFrame()
     df_out["time"] = df_in.index
     df_out = df_out.set_index("time")
+    
     # %% Running model
     print('reading inputs took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
@@ -166,6 +161,7 @@ def run_SEB_firn(station='FA-15-1'):
     thickness_act = snowc * (c.rho_water / rhofirn) + snic * (c.rho_water / c.rho_ice)
     depth_act = np.cumsum(thickness_act, 0)
     density_bulk = (snowc + snic) / (snowc / rhofirn + snic / c.rho_ice)
+    
     # %% Writing output
     c.write(c.output_path + "/" + c.RunName + "/constants.csv")
     print('writing output files took %0.03f sec'%(time.time() -start_time))
@@ -203,35 +199,34 @@ def run_SEB_firn(station='FA-15-1'):
         print('plotting took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
     return c
-    # except Exception as e:
-    #     print(station,'\n',e,'\n')
-    #     return None
 
 def multi_file_grid_run():
-    year = '1990'
     pool = multiprocessing.Pool(6)
+    for year in range(1990, 2024):
+        print(year)
+        for month in range(13):
+            if year == 1990 and month < 9:
+                continue
+            print(month)
+            filename = "CARRA_model_input_"+str(year)+'_'+str(month).zfill(2)+".nc"
 
-    for month in [9, 10]:
-        ds_carra = xr.open_dataset(
-            "./input/weather data/CARRA_model_input_"+year+'_'+str(month).zfill(2)+".nc")
-        for p in ds_carra.pixel[:1]:
-            run_SEB_firn('pixel_'+str(p.item())+'_'+year+'_'+str(month).zfill(2))
-    # zip(*pool.map(run_SEB_firn,
-    #     ['pixel_'+str(p.item())+'_'+year+'_'+month for p in ds_carra.pixel]
-    #     ))
+            ds_carra = xr.open_dataset('/media/bav/ice/CARRA/bav/model_input/' + filename)
+            zip(*pool.map(run_SEB_firn,
+                ['pixel_'+str(p.item())+'_'+year+'_'+month for p in ds_carra.pixel]
+                ))
 
     
 if __name__ == "__main__":
 
-    run_SEB_firn('HUM')
-    # multi_file_grid_run()
+    # run_SEB_firn('KAN_U')
+    multi_file_grid_run()
     
-    with xr.open_dataset("./input/weather data/CARRA_at_AWS.nc") as ds:
-        station_list = ds.stid.load().values
-    unwanted= ['NUK_K', 'MIT', 'ZAK_A', 'ZAK_L', 'ZAK_Lv3', 'ZAK_U', 'ZAK_Uv3', # local glaciers
-               'LYN_L', 'LYN_T', 'FRE',  # local glaciers
-               'KAN_B', 'NUK_B','WEG_B'] # off-ice AWS
-    station_list = [s for s in station_list if s not in unwanted]
+    # with xr.open_dataset("./input/weather data/CARRA_at_AWS.nc") as ds:
+    #     station_list = ds.stid.load().values
+    # unwanted= ['NUK_K', 'MIT', 'ZAK_A', 'ZAK_L', 'ZAK_Lv3', 'ZAK_U', 'ZAK_Uv3', # local glaciers
+    #            'LYN_L', 'LYN_T', 'FRE',  # local glaciers
+    #            'KAN_B', 'NUK_B','WEG_B'] # off-ice AWS
+    # station_list = [s for s in station_list if s not in unwanted]
     # multiprocessing.set_start_method('spawn')
     # pool = multiprocessing.Pool(5)
     # out1, out2, out3 = zip(*pool.map(run_SEB_firn,station_list))

@@ -27,7 +27,6 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
     # thickness_weq(n) = snowc(n)+snic(n)+slwc(n)
     # This thickness is allowed to vary within certain rules.
     
-    if (pslwc<0).any(): import pdb; pdb.set_trace()
     ptsoil = tsoil_diffusion(pts, pgrndc, pgrndd, ptsoil)
 
     prhofirn, dH_comp, compaction = densification(
@@ -39,25 +38,21 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
     psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt = snowfall_new(
          zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts, psnowbkt, 
          zraind, zsnmel, c)
-    if (pslwc<0).any(): import pdb; pdb.set_trace()
     
 
     psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt = sublimation_new(
         zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt, c
     )
-    if (pslwc<0).any(): import pdb; pdb.set_trace()
 
     psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil = rainfall_new(
         zraind, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts, c
     )
-    if (pslwc<0).any(): import pdb; pdb.set_trace()
 
     zso_capa, zso_cond = ice_heats(ptsoil, c)
 
     psnowc, psnic, pslwc, ptsoil, psnowbkt = melting_new(
         psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn
     )
-    if (pslwc<0).any(): import pdb; pdb.set_trace()
 
     # if c.hetero_percol
     #     [pslwc] = hetero_percol (prhofirn, psnowc, psnic, pslwc, pdgrain, c)
@@ -65,20 +60,16 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
     prhofirn, psnowc, psnic, pslwc, pdgrain, zrogl = lp.perc_runoff_new(
         prhofirn, psnowc, psnic, pslwc, pdgrain, c.zdtime
     )
-    if (pslwc<0).any(): import pdb; pdb.set_trace()
 
     psnic, pslwc, ptsoil, zrfrz = refreeze(psnowc, psnic, pslwc, ptsoil, c)
-    if (pslwc<0).any(): import pdb; pdb.set_trace()
 
     ptsoil, psnic, pslwc, zsupimp = superimposedice(
         prhofirn, ptsoil, psnowc, psnic, pslwc, zso_cond, c
     )
-    if (pslwc<0).any(): import pdb; pdb.set_trace()
 
     prhofirn, psnowc, psnic, pslwc, ptsoil, pdgrain = merge_small_layers(
         prhofirn, psnowc, psnic, pslwc, ptsoil, pdgrain, c
     )
-    if (psnic<0).any(): import pdb; pdb.set_trace()
 
     pgrndc, pgrndd, pgrndcapc, pgrndhflx = update_tempdiff_params_opt(
         prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_cond, zso_capa, c.zdtime
