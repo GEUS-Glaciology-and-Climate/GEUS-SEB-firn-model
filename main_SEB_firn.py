@@ -19,7 +19,7 @@ import os
 import time
 import plot_output as po
 import xarray as xr
-import multiprocessing
+from multiprocessing import Pool
 import shutil
 
 # %% 
@@ -27,17 +27,17 @@ def run_SEB_firn(station='FA-15-1'):
     start_time = time.time()   
     print(station)
     # importing standard values for constants
-    c = ImportConst()        
+    c = ImportConst()
     c.station = station
     c.spin_up = False
     c.use_spin_up_init = True
-    
+
     # default setting
     c.surface_input_path = "./input/weather data/CARRA_at_AWS.nc"
     c.surface_input_driver = "CARRA"
     c.output_path = './output/'  #'C:/Users/bav/data_save/output firn model/'
     c.multi_file_run = False
-        
+
     if 'pixel' in station:
         # c.output_path = '../output firn model/grid_'  \
         #     +station.split('_')[-2]+'_'+station.split('_')[-1]+'/'
@@ -46,22 +46,22 @@ def run_SEB_firn(station='FA-15-1'):
         c.month = station.split('_')[3] 
         c.output_path = '/media/bav/ice/Baptiste/CARRA SMB/grid_'  \
             +c.year+'_'+c.month+'/'
-        
+
         try:
             os.mkdir(c.output_path)
         except Exception as e:
-            print(e)
-            
+            # print(e)
+            pass
         c.surface_input_path = "/media/bav/ice/CARRA/bav/model_input/CARRA_model_input_"+c.year+'_'+c.month+".nc"
         c.surface_input_driver = "CARRA_grid"
         c.multi_file_run = True
-    
+
     freq = '3H'
     if c.surface_input_driver=='CARRA' and freq == 'H':
         resample=True
     else:
         resample=False
-        
+
     c.num_lay = 100
     # defining run name
     if c.spin_up:
@@ -91,17 +91,17 @@ def run_SEB_firn(station='FA-15-1'):
         # pass
         # po.main(c.output_path, c.RunName)
         if os.path.isfile(c.output_path+c.RunName+'/constants.csv'):
-            print('already done. skipping')
-            return None
-    
+#            print('already done. skipping')
+            return
+
     # loading input data
     df_in, c = io.load_surface_input_data(c, resample=resample)
-    
+
     freq = pd.infer_freq(df_in.index)
     if freq=='H': freq = '1H'
     c.delta_time = pd.to_timedelta(freq).total_seconds()
     c.zdtime = c.delta_time 
-    
+
     if c.altitude<1500:
         c.new_bottom_lay=30
     # assigning constants specific to this simulation
@@ -140,7 +140,7 @@ def run_SEB_firn(station='FA-15-1'):
     df_out = df_out.set_index("time")
     
     # %% Running model
-    print('reading inputs took %0.03f sec'%(time.time() -start_time))
+#    print('reading inputs took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
     # The surface values are received 
     (
@@ -155,7 +155,7 @@ def run_SEB_firn(station='FA-15-1'):
         dH_comp, df_out["snowbkt"], compaction, df_out['snowthick']
     ) = HHsubsurf(df_in, c)
     
-    print('\nHHsubsurf took %0.03f sec'%(time.time() -start_time))
+#    print('\nHHsubsurf took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
     
     thickness_act = snowc * (c.rho_water / rhofirn) + snic * (c.rho_water / c.rho_ice)
@@ -164,10 +164,10 @@ def run_SEB_firn(station='FA-15-1'):
     
     # %% Writing output
     c.write(c.output_path + "/" + c.RunName + "/constants.csv")
-    print('writing output files took %0.03f sec'%(time.time() -start_time))
+ #   print('writing output files took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
-    
-    if not c.spin_up and 'pixel' not in station:
+
+    if not c.spin_up:
         df_out['snowfall_mweq'] = df_in.Snowfallmweq
         df_out['rainfall_mweq'] = df_in.Rainfallmweq
         df_out['refreezing_mweq'] = zrfrz.sum(axis=0)
@@ -185,37 +185,37 @@ def run_SEB_firn(station='FA-15-1'):
         io.write_2d_netcdf(snowc, 'snowc', depth_act, df_in.index, c)
         io.write_2d_netcdf(slwc, 'slwc', depth_act, df_in.index, c)
         io.write_2d_netcdf(rhofirn, 'rhofirn', depth_act, df_in.index, c)
-        io.write_2d_netcdf(density_bulk, 'density_bulk', depth_act, df_in.index, c)
+        # io.write_2d_netcdf(density_bulk, 'density_bulk', depth_act, df_in.index, c)
         io.write_2d_netcdf(T_ice, 'T_ice', depth_act, df_in.index, c)
         # io.write_2d_netcdf(rfrz, 'rfrz', depth_act, df_in.index, RunName)
         io.write_2d_netcdf(dgrain, 'dgrain', depth_act, df_in.index, c)
         io.write_2d_netcdf(compaction, 'compaction', depth_act, df_in.index, c)
         
-        print('writing output files took %0.03f sec'%(time.time() -start_time))
+#        print('writing output files took %0.03f sec'%(time.time() -start_time))
         start_time = time.time()
         
         # Plot output
-        po.main(c.output_path, c.RunName)
-        print('plotting took %0.03f sec'%(time.time() -start_time))
+        if not 'pixel' in c.RunName:
+            po.main(c.output_path, c.RunName)
+            print('plotting took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
-    return c
+    return
 
 def multi_file_grid_run():
-    pool = multiprocessing.Pool(6)
     for year in range(1990, 2024):
         print(year)
-        for month in range(13):
+        for month in range(1,13):
             if year == 1990 and month < 9:
                 continue
             print(month)
             filename = "CARRA_model_input_"+str(year)+'_'+str(month).zfill(2)+".nc"
 
             ds_carra = xr.open_dataset('/media/bav/ice/CARRA/bav/model_input/' + filename)
-            zip(*pool.map(run_SEB_firn,
-                ['pixel_'+str(p.item())+'_'+year+'_'+month for p in ds_carra.pixel]
-                ))
+            with Pool(6) as pool:
+                pool.map(run_SEB_firn,
+                ['pixel_'+str(p.item())+'_'+str(year)+'_'+str(month).zfill(2) for p in ds_carra.pixel])
 
-    
+
 if __name__ == "__main__":
 
     # run_SEB_firn('KAN_U')

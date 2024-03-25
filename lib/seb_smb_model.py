@@ -100,9 +100,9 @@ def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
 
     # start of the time loop
     for k in range(len(time)):
-        if k in np.round(np.linspace(0,len(time),51)):
-            sys.stdout.write("%.0f %% "%(100*k/len(time)))
-            sys.stdout.flush()
+        #if k in np.round(np.linspace(0,len(time),51)):
+        #    sys.stdout.write("%.0f %% "%(100*k/len(time)))
+        #    sys.stdout.flush()
         # Step 1/*: Initiate surface variables from previous time step. 
         # The value for k=0 was placed at the end of the array in IniVar.
         snowthick[k] = snowthick[k - 1]
