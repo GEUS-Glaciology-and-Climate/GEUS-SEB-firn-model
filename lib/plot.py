@@ -22,11 +22,30 @@ from scipy.stats import linregress
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
-             df_sumup=[], tag='', year=None):
+             df_sumup=[], tag='', year=None, weq_depth=False):
     print('plotting',var_name, 'from',run_name)
-    filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
-    ds = xr.open_dataset(filename).transpose()
+    if var_name != 'density_bulk':
+        filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
+        ds = xr.open_dataset(filename).transpose()
+    else:
+        filename = output_path+"/" + run_name + "/" + site + "_snowc.nc"
+        snowc = xr.open_dataset(filename).transpose()
+        filename = output_path+"/" + run_name + "/" + site + "_snic.nc"
+        snic = xr.open_dataset(filename).transpose()
+        filename = output_path+"/" + run_name + "/" + site + "_rhofirn.nc"
+        rhofirn = xr.open_dataset(filename).transpose()
+        ds = snowc[['depth']]
+        ds[var_name] = (snowc.snowc + snic.snic) / (snowc.snowc / rhofirn.rhofirn + snic.snic / 900)
     
+    if weq_depth:
+        filename = output_path+"/" + run_name + "/" + site + "_snowc.nc"
+        snowc = xr.open_dataset(filename).transpose()
+        filename = output_path+"/" + run_name + "/" + site + "_snic.nc"
+        snic = xr.open_dataset(filename).transpose()
+        filename = output_path+"/" + run_name + "/" + site + "_slwc.nc"
+        slwc = xr.open_dataset(filename).transpose()
+        ds['depth'] = (snowc.snowc + snic.snic +slwc.slwc).cumsum(axis=1)
+            
     if year:
         if len(year) == 2:
             ds = ds.sel(time=slice(str(year[0]), str(year[1])))
@@ -140,8 +159,20 @@ def plot_var_start_end(c, var_name='T_ice', ylim=[], to_file=False):
     output_path = c.output_path
     run_name = c.RunName
     print('plotting',var_name, 'from',run_name)
-    filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
-    ds = xr.open_dataset(filename).transpose()
+    
+    if var_name != 'density_bulk':
+        filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
+        ds = xr.open_dataset(filename).transpose()
+    else:
+        filename = output_path+"/" + run_name + "/" + site + "_snowc.nc"
+        snowc = xr.open_dataset(filename).transpose()
+        filename = output_path+"/" + run_name + "/" + site + "_snic.nc"
+        snic = xr.open_dataset(filename).transpose()
+        filename = output_path+"/" + run_name + "/" + site + "_rhofirn.nc"
+        rhofirn = xr.open_dataset(filename).transpose()
+        ds = snowc[['depth']]
+        ds[var_name] = (snowc.snowc + snic.snic) / (snowc.snowc / rhofirn.rhofirn + snic.snic / 900)
+        
     ds = ds.resample(time='6H').nearest()
     
     if var_name == "slwc":
@@ -563,7 +594,7 @@ def get_distance(point1, point2):
     return distance
 
 
-def load_sumup_temperature(c):
+def load_sumup_temperature():
     # Evaluating temperature with SUMup 2024
     df_sumup = xr.open_dataset(
         'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_temperature_greenland.nc',
@@ -590,21 +621,12 @@ def load_sumup_temperature(c):
                       ['latitude', 'longitude', 'name_key', 'name', 'method_key',
                        'reference_short','reference', 'reference_key']
                       ].drop_duplicates()
-    
-    query_point = [[c.latitude, c.longitude]]
-    all_points = df_meta[['latitude', 'longitude']].values
-    df_meta['distance_from_query_point'] = distance.cdist(all_points, query_point, get_distance)
-    min_dist = 10 # in km
-    df_meta_selec = df_meta.loc[df_meta.distance_from_query_point<min_dist, :]   
-
-    return df_sumup.loc[
-                df_sumup.latitude.isin(df_meta_selec.latitude) \
-                    & df_sumup.longitude.isin(df_meta_selec.longitude),:], df_meta_selec
-
+    return df_sumup, df_meta
 
 
 def evaluate_temperature_sumup(df_out, c):
-    df_sumup, df_meta_selec = load_sumup_temperature(c)
+    df_sumup, df_meta = load_sumup_temperature()
+    df_sumup, df_meta_selec = select_sumup(df_sumup, df_meta, c)
 
     # T_ice evaluation
     plot_var(c.station, c.output_path, c.RunName, 'T_ice', zero_surf=True, 
@@ -636,6 +658,57 @@ def evaluate_temperature_sumup(df_out, c):
     plt.title(c.station)
     fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup2024.png', dpi=120)
 
+
+# from scipy.interpolate import interp1d
+# from tqdm import tqdm  # Import tqdm for the progress bar  
+# def interpolate_temperature(dates, depth_cor, temp,  depth=10,
+#     min_diff_to_depth=2,  kind="linear" ):
+#     depth_cor = depth_cor.astype(float)
+#     df_interp = pd.DataFrame()
+#     df_interp["date"] = dates
+#     df_interp["temperatureObserved"] = np.nan
+
+#     # preprocessing temperatures for small gaps
+#     tmp = pd.DataFrame(temp)
+#     tmp["time"] = dates
+#     tmp = tmp.set_index("time")
+#     tmp = tmp.resample("H").mean()
+
+#     temp = tmp.loc[dates].values
+#     for i in tqdm(range(len(dates)), desc="Interpolating temperatures", unit="date"):
+#         x = depth_cor[i, :].astype(float)
+#         y = temp[i, :].astype(float)
+#         ind_no_nan = ~np.isnan(x + y)
+#         x = x[ind_no_nan]
+#         y = y[ind_no_nan]
+#         x, indices = np.unique(x, return_index=True)
+#         y = y[indices]
+#         if len(x) < 2 or np.min(np.abs(x - depth)) > min_diff_to_depth:
+#             continue
+#         f = interp1d(x, y, kind, fill_value="extrapolate")
+#         df_interp.iloc[i, 1] = np.min(f(depth), 0)
+
+#     if df_interp.iloc[:5, 1].std() > 0.1:
+#         df_interp.iloc[:5, 1] = np.nan
+#     return df_interp
+def interpolate_temperature_fast(dates, depth_matrix, temp_matrix,  depth=10,
+    min_diff_to_depth=2,  kind="linear" ):
+    # Choose the depth you want to interpolate to (e.g., 10 meters)
+    target_depth = 10
+    N = depth_matrix.shape[0]
+    M = depth_matrix.shape[1]
+    closest_depth_indices = np.abs(depth_matrix - target_depth).argmin(axis=1)
+    closest_depths_idx_1 = np.maximum(0, closest_depth_indices - 1)
+    closest_depths_idx_2 = np.minimum(M - 1, closest_depth_indices + 1)
+    closest_depths = depth_matrix[np.arange(N), closest_depths_idx_1]
+    next_closest_depths = depth_matrix[np.arange(N), closest_depths_idx_2]
+    
+    temp_at_closest_depths = temp_matrix[np.arange(N), closest_depths_idx_1]
+    temp_at_next_closest_depths = temp_matrix[np.arange(N), closest_depths_idx_2]
+    
+    weights = (next_closest_depths - target_depth) / (next_closest_depths - closest_depths)
+    temp_at_10m = temp_at_closest_depths + weights * (temp_at_next_closest_depths - temp_at_closest_depths)
+    return temp_at_10m
 
 def evaluate_temperature_scatter(df_out, c, year = None):
     df_sumup, _ = load_sumup_temperature(c)
@@ -795,7 +868,115 @@ def evaluate_density_sumup(c):
         fig.savefig(
             c.output_path+c.RunName+'/'+'density_evaluation_SUMup_'+str(count)+'.png', 
             dpi=120)
+
+def load_sumup_smb():
+    # Evaluating smb with SUMup 2024
+    df_sumup = xr.open_dataset(
+        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_smb_greenland.nc',
+        group='DATA').to_dataframe()
+    ds_meta = xr.open_dataset(
+        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_smb_greenland.nc',
+        group='METADATA')
+    
+    df_sumup.method_key = df_sumup.method_key.replace(np.nan,-9999)
+    # df_sumup['method'] = ds_meta.method.sel(method_key = df_sumup.method_key.values).astype(str)
+    df_sumup['name'] = ds_meta.name.sel(name_key = df_sumup.name_key.values).astype(str)
+    df_sumup['reference'] = (ds_meta.reference
+                             .drop_duplicates(dim='reference_key')
+                             .sel(reference_key=df_sumup.reference_key.values)
+                             .astype(str))
+    df_sumup['reference_short'] = (ds_meta.reference_short
+                             .drop_duplicates(dim='reference_key')
+                             .sel(reference_key=df_sumup.reference_key.values)
+                             .astype(str))
+    # df_ref = ds_meta.reference.to_dataframe()
+    df_sumup = df_sumup.loc[df_sumup.start_year>1989]
+    # selecting Greenland metadata measurements
+    df_meta = df_sumup.loc[df_sumup.latitude>0, 
+                      ['latitude', 'longitude', 'name_key', 'name', 'method_key',
+                       'reference_short','reference', 'reference_key']
+                      ].drop_duplicates()
+    return df_sumup, df_meta
+
+def select_sumup(df_sumup, df_meta, c):
+    query_point = [[c.latitude, c.longitude]]
+    all_points = df_meta[['latitude', 'longitude']].values
+    df_meta['distance_from_query_point'] = distance.cdist(all_points, query_point, get_distance)
+    min_dist = 2 # in km
+    df_meta_selec = df_meta.loc[df_meta.distance_from_query_point<min_dist, :]   
+
+    return df_sumup.loc[
+                df_sumup.latitude.isin(df_meta_selec.latitude) \
+                    & df_sumup.longitude.isin(df_meta_selec.longitude),:], df_meta_selec
+
+
+
+def evaluate_smb_sumup(df_out, c):
+    df_sumup, df_meta = load_sumup_smb()
+    df_sumup, df_meta_selec = load_sumup_smb(df_sumup, df_meta, c)
+    msk = df_sumup[['start_year','start_date']].isnull().all(axis=1)
+
+    msk = df_sumup.start_date.isnull()
+    df_sumup.loc[msk, 'start_date'] = pd.to_datetime(df_sumup.loc[msk, 'start_year'].astype(int).astype(str)+'-01-01')
+    msk = df_sumup.end_date.isnull()
+    df_sumup.loc[msk, 'end_date'] = pd.to_datetime(df_sumup.loc[msk, 'end_year'].astype(int).astype(str)+'-01-01')
+    msk = df_sumup.start_date == df_sumup.end_date
+    df_sumup.loc[msk, 'end_date'] = pd.to_datetime((df_sumup.loc[msk, 'end_year']+1).astype(int).astype(str)+'-01-01')
         
+    df_sumup['smb_mod'] = np.nan
+    for i in df_sumup.index:
+        df_sumup.loc[i, 'smb_mod'] = df_out.loc[
+            df_sumup.loc[i,'start_date']:df_sumup.loc[i,'end_date'],
+            'smb_mweq'].sum()
+
+
+    def plt_smb(ax, df_sumup):
+        for i in df_sumup.index:
+            ax[0].plot([df_sumup.loc[i, 'start_date'] , df_sumup.loc[i, 'end_date']],
+                     df_sumup.loc[i, 'smb'] *np.array([1., 1.]),
+                     color='tab:blue', marker='x')
+            ax[0].plot([df_sumup.loc[i, 'start_date'] , df_sumup.loc[i, 'end_date']],
+                     df_sumup.loc[i, 'smb_mod'] *np.array([1., 1.]),
+                     color='tab:orange', marker='x')
+        
+        ax[0].plot(np.nan,np.nan, color='tab:blue', label='observed', marker='x')
+        ax[0].plot(np.nan,np.nan, color='tab:orange', label='modelled', marker='x')
+        ax[0].set_xlabel('Year')
+        ax[0].set_ylabel('SMB (m w.e.)')
+        ax[0].legend()
+
+        ax[1].plot(df_sumup.smb, df_sumup.smb_mod, marker='.', ls='None')
+        ax[1].plot([df_sumup.smb_mod.min(), df_sumup.smb_mod.max()],
+                 [df_sumup.smb_mod.min(), df_sumup.smb_mod.max()],
+                 color='k')
+        ax[1].set_xlabel('Observed SMB (m w.e.)')
+        ax[1].set_ylabel('Modelled SMB (m w.e.)')
+        return ax
+    
+
+    msk = (df_sumup.end_date-df_sumup.start_date) <= pd.to_timedelta('7 day')
+    if msk.any():
+        fig = plt.figure(figsize=(12,10))
+        gs  = gridspec.GridSpec(2,2, width_ratios=[0.7, 0.3])
+        ax=[plt.subplot(g) for g in gs]
+
+        df_sumup_selec = df_sumup.loc[msk]        
+        ax[0], ax[1] =plt_smb([ax[0], ax[1]], df_sumup_selec)
+
+        df_sumup_selec = df_sumup.loc[~msk]
+        ax[2], ax[3] =plt_smb([ax[2], ax[3]], df_sumup_selec)
+
+        ax[0].set_title('Daily/weekly measurements', loc='left')
+        ax[2].set_title('Seasonal/annual measurements', loc='left')
+    else:
+        fig = plt.figure(figsize=(12,5))
+        gs  = gridspec.GridSpec(1,2, width_ratios=[0.7, 0.3])
+        ax=[plt.subplot(g) for g in gs]
+        ax=plt_smb(ax, df_sumup)
+    fig.suptitle(c.station)
+    fig.savefig(c.output_path+c.RunName+'/'+c.station+'_SMB_evaluation_SUMup2024.png', dpi=120)
+
+     
 def evaluate_accumulation_snowfox(df_in, c):
     # SnowFox
     if c.station in ['KAN_M', 'QAS_M', 'QAS_U','TAS_A','THU_U2']:

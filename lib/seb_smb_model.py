@@ -68,7 +68,7 @@ plt.close('all')
 # possible to overwrite the default value by defining them again in the
 # "param{kk}" struct hereunder.
 
-def HHsubsurf(weather_df: pd.DataFrame, c: Struct):
+def GEUS_model(weather_df: pd.DataFrame, c: Struct):
     (
      time,  T, z_T, WS, z_WS, RH, z_RH, pres, SRin, SRout, LRin, LRout, 
      snowfall, rainfall, T_rain, theta, theta_v, q, Tsurf, rho_snow, rho_atm, 

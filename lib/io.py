@@ -94,7 +94,7 @@ def load_CARRA_data(*args, resample=True):
     elif len(args) == 2:
         surface_input_path, station = args
         
-    print("- Reading data from CARRA reanalysis set -", surface_input_path)
+    # print("- Reading data from CARRA reanalysis set -", surface_input_path)
     with xr.open_dataset(surface_input_path) as ds:
         aws_ds = ds.where(ds.stid==c.station, drop=True).load()
 

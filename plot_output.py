@@ -17,9 +17,9 @@ import pandas as pd
 import os
 import lib.io as io
 
-output_path= 'C:/Users/bav/data_save/output firn model/spin up 3H/'
-# output_path = './output/'
-run_name = 'QAS_A_100_layers_SU_3H'
+# output_path= 'C:/Users/bav/data_save/output firn model/spin up 3H/'
+output_path = './output/'
+run_name = 'QAS_M_100_layers_3H'
 #%%
 def main(output_path, run_name):
     # %% Loading data
@@ -60,12 +60,12 @@ def main(output_path, run_name):
                 ylim =   [10]
             else:
                 ylim = []
-            lpl.plot_var(c.station, c.output_path, c.RunName, var, ylim=ylim, zero_surf=False)
+            lpl.plot_var(c.station, c.output_path, c.RunName, var, ylim=ylim, zero_surf=True)
         except Exception as e:
-            print('lpl.plot_var(c.station, c.output_path, c.RunName, var, zero_surf=False)')
-            print(var)
-            print(e)
+            print(var, e)
             pass
+        
+    # lpl.plot_var(c.station, c.output_path, c.RunName, 'slwc', ylim=ylim, zero_surf=True, weq_depth=True)
 
     if c.station in ['DY2', 'KAN_U','CP1']:
             lpl.plot_var(c.station, c.output_path, c.RunName, 'slwc', 
@@ -85,13 +85,7 @@ def main(output_path, run_name):
         ds['surface_height'].values[0] = 0
         df_out['surface_height'] = ds['surface_height'].values
         del ds
-    # try:
-    #     path_aws_l3 = 'C:/Users/bav/GitHub/PROMICE data/aws-l3-dev/level_3/'
-    #     df_obs = pd.read_csv(path_aws_l3+c.station+'/'+c.station+'_hour.csv')
-    # except:
-    #     print('cannot find L3 AWS file')
-    #     df_obs = pd.DataFrame()
-    #     pass
+
     path_aws_l4 = '../PROMICE/PROMICE-AWS-toolbox/out/L4/'
     if os.path.isfile(path_aws_l4+c.station+'_L4_ext.csv'):
         df_obs = pd.read_csv(path_aws_l4+c.station+'_L4_ext.csv')
@@ -140,56 +134,6 @@ def main(output_path, run_name):
         fig.savefig(c.output_path+c.RunName+'/'+c.station+'_surface_height.png', dpi=120)
     
     # %% calculating modelled t_i_10m
-    # from scipy.interpolate import interp1d
-    # from tqdm import tqdm  # Import tqdm for the progress bar  
-    # def interpolate_temperature(dates, depth_cor, temp,  depth=10,
-    #     min_diff_to_depth=2,  kind="linear" ):
-    #     depth_cor = depth_cor.astype(float)
-    #     df_interp = pd.DataFrame()
-    #     df_interp["date"] = dates
-    #     df_interp["temperatureObserved"] = np.nan
-    
-    #     # preprocessing temperatures for small gaps
-    #     tmp = pd.DataFrame(temp)
-    #     tmp["time"] = dates
-    #     tmp = tmp.set_index("time")
-    #     tmp = tmp.resample("H").mean()
-
-    #     temp = tmp.loc[dates].values
-    #     for i in tqdm(range(len(dates)), desc="Interpolating temperatures", unit="date"):
-    #         x = depth_cor[i, :].astype(float)
-    #         y = temp[i, :].astype(float)
-    #         ind_no_nan = ~np.isnan(x + y)
-    #         x = x[ind_no_nan]
-    #         y = y[ind_no_nan]
-    #         x, indices = np.unique(x, return_index=True)
-    #         y = y[indices]
-    #         if len(x) < 2 or np.min(np.abs(x - depth)) > min_diff_to_depth:
-    #             continue
-    #         f = interp1d(x, y, kind, fill_value="extrapolate")
-    #         df_interp.iloc[i, 1] = np.min(f(depth), 0)
-    
-    #     if df_interp.iloc[:5, 1].std() > 0.1:
-    #         df_interp.iloc[:5, 1] = np.nan
-    #     return df_interp
-    def interpolate_temperature_fast(dates, depth_matrix, temp_matrix,  depth=10,
-        min_diff_to_depth=2,  kind="linear" ):
-        # Choose the depth you want to interpolate to (e.g., 10 meters)
-        target_depth = 10
-        N = depth_matrix.shape[0]
-        M = depth_matrix.shape[1]
-        closest_depth_indices = np.abs(depth_matrix - target_depth).argmin(axis=1)
-        closest_depths_idx_1 = np.maximum(0, closest_depth_indices - 1)
-        closest_depths_idx_2 = np.minimum(M - 1, closest_depth_indices + 1)
-        closest_depths = depth_matrix[np.arange(N), closest_depths_idx_1]
-        next_closest_depths = depth_matrix[np.arange(N), closest_depths_idx_2]
-        
-        temp_at_closest_depths = temp_matrix[np.arange(N), closest_depths_idx_1]
-        temp_at_next_closest_depths = temp_matrix[np.arange(N), closest_depths_idx_2]
-        
-        weights = (next_closest_depths - target_depth) / (next_closest_depths - closest_depths)
-        temp_at_10m = temp_at_closest_depths + weights * (temp_at_next_closest_depths - temp_at_closest_depths)
-        return temp_at_10m
     
     filename = c.output_path + run_name + "/" + c.station + "_T_ice.nc"
     df = (xr.open_dataset(filename).to_dataframe().unstack('level'))
@@ -199,6 +143,7 @@ def main(output_path, run_name):
     #     df[[v for v in df.columns if 'T_ice' in v]].values-273.15, 
     # )
     # df_out['t_i_10m'] = df_10m.temperatureObserved.values
+    from lib.plot import interpolate_temperature_fast
     df_out['t_i_10m'] = interpolate_temperature_fast(
         df.index, df[[v for v in df.columns if 'depth' in v]].values, 
         df[[v for v in df.columns if 'T_ice' in v]].values-273.15, 
@@ -216,13 +161,17 @@ def main(output_path, run_name):
             df_obs['LRout'] = df_obs.ulr
         else:
             df_obs['LRout'] = np.nan 
-        lpl.plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SHF','t_i_10m'])
-         
+        try:
+            lpl.plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SHF','t_i_10m'])
+        except:
+            print('failed to plot observed variables')
+            pass
     try:
         lpl.plot_smb_components(df_out, c)
         lpl.evaluate_temperature_sumup(df_out, c)
         lpl.evaluate_temperature_scatter(df_out, c, year = None)
         lpl.evaluate_density_sumup(c)
+        lpl.evaluate_smb_sumup(df_out, c)
     except:
         pass
     lpl.evaluate_accumulation_snowfox(df_in, c)

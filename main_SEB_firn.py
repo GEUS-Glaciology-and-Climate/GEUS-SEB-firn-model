@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import lib.io as io
 from lib.initialization import ImportConst
-from lib.seb_smb_model import HHsubsurf
+from lib.seb_smb_model import GEUS_model
 import lib.plot as lpl
 import os
 import time
@@ -23,9 +23,8 @@ from multiprocessing import Pool
 import shutil
 
 # %% 
-def run_SEB_firn(station='FA-15-1'):
+def run_SEB_firn(station='FA-15-1', silent=False):
     start_time = time.time()   
-    print(station)
     # importing standard values for constants
     c = ImportConst()
     c.station = station
@@ -50,7 +49,7 @@ def run_SEB_firn(station='FA-15-1'):
         try:
             os.mkdir(c.output_path)
         except Exception as e:
-            # print(e)
+            if not silent: print(e)
             pass
         c.surface_input_path = "/media/bav/ice/CARRA/bav/model_input/CARRA_model_input_"+c.year+'_'+c.month+".nc"
         c.surface_input_driver = "CARRA_grid"
@@ -68,32 +67,24 @@ def run_SEB_firn(station='FA-15-1'):
         c.output_path = './output/spin up 3H/'
 
     c.RunName = c.station + "_" + str(c.num_lay) + "_layers_"+freq
-    # i = 0
-    # succeeded = 0
-    # while succeeded == 0:
-    # try:
-    #     os.mkdir(c.output_path + c.RunName)
-    # #         succeeded = 1
-    # except:
-    #     print('already done. skipping')
-    #     # po.main(c.output_path, c.RunName)
-    #     return None
 
-    #         if i == 0:
-    #             c.RunName = c.RunName + "_" + str(i)
-    #         else:
-    #             c.RunName = c.RunName[: -len(str(i - 1))] + str(i)
-    #         i = i + 1
     try:
         os.mkdir(c.output_path + c.RunName)
-    #         succeeded = 1
     except:
         # pass
-        # po.main(c.output_path, c.RunName)
-        if os.path.isfile(c.output_path+c.RunName+'/constants.csv'):
-#            print('already done. skipping')
+        try:
+            po.main(c.output_path, c.RunName)
             return
-
+        except Exception as e:
+            print(e)
+        if os.path.isfile(c.output_path+c.RunName+'/constants.csv'):
+            if abs(os.path.getmtime(c.output_path+c.RunName+'/constants.csv') - time.time())/60/60 <24:
+                if not silent: print('recently done. skeeping')
+                return
+            else:
+                if not silent: print('old version found. redoing')
+                # return
+    
     # loading input data
     df_in, c = io.load_surface_input_data(c, resample=resample)
 
@@ -125,6 +116,8 @@ def run_SEB_firn(station='FA-15-1'):
     if c.spin_up:
         df_in = pd.concat((df_in.loc['1991':'2001',:],
                            df_in.loc['1991':'2001',:],
+                           df_in.loc['1991':'2001',:],
+                           df_in.loc['1991':'2001',:],
                            df_in.loc['1991':'2001',:]), ignore_index=True)
         df_in.index=pd.to_datetime('1991-01-01T00:00:00') + pd.to_timedelta(df_in.index.astype(str).to_series() + freq)
     
@@ -132,7 +125,11 @@ def run_SEB_firn(station='FA-15-1'):
            'AirPressurehPa', 'WindSpeed2ms', 'RelativeHumidity2',  
            'ShortwaveRadiationUpWm2', 'Snowfallmweq', 'Rainfallmweq', 'HeightTemperature2m', 
            'HeightHumidity2m', 'HeightWindSpeed2m']:
-        assert ~df_in[var].isnull().any(), var+' has NaNs'
+         if df_in[var].isnull().any():
+             print('!!!!!!!!!!!!!!!!!!')
+             print(var, 'at',c.station, 'has NaNs')
+             print('!!!!!!!!!!!!!!!!!!')
+             return
     print(station, c.Tdeep, 'start/end', df_in.index[0], df_in.index[-1])
     # DataFrame for the surface is created, indexed with time from df_aws
     df_out = pd.DataFrame()
@@ -140,7 +137,7 @@ def run_SEB_firn(station='FA-15-1'):
     df_out = df_out.set_index("time")
     
     # %% Running model
-#    print('reading inputs took %0.03f sec'%(time.time() -start_time))
+    if not silent: print('reading inputs took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
     # The surface values are received 
     (
@@ -153,9 +150,9 @@ def run_SEB_firn(station='FA-15-1'):
         df_out['zrogl'], Tsurf, 
         grndc, grndd, pgrndcapc, pgrndhflx, 
         dH_comp, df_out["snowbkt"], compaction, df_out['snowthick']
-    ) = HHsubsurf(df_in, c)
+    ) = GEUS_model(df_in, c)
     
-#    print('\nHHsubsurf took %0.03f sec'%(time.time() -start_time))
+    if not silent: print('\nSEB firn model took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
     
     thickness_act = snowc * (c.rho_water / rhofirn) + snic * (c.rho_water / c.rho_ice)
@@ -164,7 +161,7 @@ def run_SEB_firn(station='FA-15-1'):
     
     # %% Writing output
     c.write(c.output_path + "/" + c.RunName + "/constants.csv")
- #   print('writing output files took %0.03f sec'%(time.time() -start_time))
+    if not silent: print('writing output files took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
 
     if not c.spin_up:
@@ -191,12 +188,15 @@ def run_SEB_firn(station='FA-15-1'):
         io.write_2d_netcdf(dgrain, 'dgrain', depth_act, df_in.index, c)
         io.write_2d_netcdf(compaction, 'compaction', depth_act, df_in.index, c)
         
-#        print('writing output files took %0.03f sec'%(time.time() -start_time))
+        if not silent: print('writing output files took %0.03f sec'%(time.time() -start_time))
         start_time = time.time()
         
         # Plot output
         if not 'pixel' in c.RunName:
-            po.main(c.output_path, c.RunName)
+            try:
+                po.main(c.output_path, c.RunName)
+            except Exception as e:
+                print(e)
             print('plotting took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
     return
@@ -218,17 +218,21 @@ def multi_file_grid_run():
 
 if __name__ == "__main__":
 
-    # run_SEB_firn('KAN_U')
-    multi_file_grid_run()
+    # run_SEB_firn('FA-15-2')
+    # multi_file_grid_run()
     
-    # with xr.open_dataset("./input/weather data/CARRA_at_AWS.nc") as ds:
-    #     station_list = ds.stid.load().values
-    # unwanted= ['NUK_K', 'MIT', 'ZAK_A', 'ZAK_L', 'ZAK_Lv3', 'ZAK_U', 'ZAK_Uv3', # local glaciers
-    #            'LYN_L', 'LYN_T', 'FRE',  # local glaciers
-    #            'KAN_B', 'NUK_B','WEG_B'] # off-ice AWS
-    # station_list = [s for s in station_list if s not in unwanted]
-    # multiprocessing.set_start_method('spawn')
-    # pool = multiprocessing.Pool(5)
-    # out1, out2, out3 = zip(*pool.map(run_SEB_firn,station_list))
+    with xr.open_dataset("./input/weather data/CARRA_at_AWS.nc") as ds:
+        station_list = ds.stid.load().values
+    unwanted= ['NUK_K', 'MIT', 'ZAK_A', 'ZAK_L', 'ZAK_Lv3', 'ZAK_U', 'ZAK_Uv3', # local glaciers
+                'LYN_L', 'LYN_T', 'FRE',  # local glaciers
+                'KAN_B', 'NUK_B','WEG_B', # off-ice AWS
+                'DY2','NSE','SDL','NAU','NAE','SDM','TUN','HUM','SWC', 'JAR', 'NEM',  # redundant
+                'T2_08','S10','Swiss Camp 10m','SW2','SW4','Crawford Point 1', 'G1','EGP', # redundant
+                'CEN1','THU_L2'
+                ] 
+    station_list = [s for s in station_list if s not in unwanted]
+    station_list = [s for s in station_list if 'v3' not in s]
+    with Pool(4) as pool:
+        pool.map(run_SEB_firn, station_list)
     # for station in station_list:
     #     run_SEB_firn(station)
