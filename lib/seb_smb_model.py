@@ -193,6 +193,7 @@ def GEUS_model(weather_df: pd.DataFrame, c: Struct):
 
         # ========== Step 7/*:  Sub-surface model ====================================
         c.rho_fresh_snow = rho_snow
+
         (
             snowc[:, k], snic[:, k], slwc[:, k],
             T_ice[:, k],  zrfrz[:, k], rhofirn[:, k],
@@ -217,11 +218,9 @@ def GEUS_model(weather_df: pd.DataFrame, c: Struct):
             snowc[:, k] / rhofirn[:, k] + snic[:, k] / c.rho_ice
         )
 
-        snowthick[k] = (
-            snowthick[k] 
+        snowthick[k] = (snowthick[k] 
             + (snowfall[k] + sublimation_mweq[k]) / c.rho_fresh_snow * 1000
-            - dH_comp[k] 
-            - melt_mweq[k] / rho[0, k] * 1000
+            - dH_comp[k] - melt_mweq[k] / rho[0, k] * 1000
             )
         
         if snowthick[k] < 0: snowthick[k] = 0
@@ -330,84 +329,6 @@ def variables_preparation(weather_df: pd.DataFrame, c: Struct):
             rho_atm, nu, mu, L, SHF, LHF, Re, theta_2m, q_2m, ws_10m, meltflux,
             melt_mweq, sublimation_mweq,
             )
-
-
-# # SEB_SMB(rho_bulk[:, k-1], snowbkt[k-1],
-# def SEB_SMB(rho_bulk, snowbkt, psnowc, psnic, pslwc, prhofirn, psnowbkt, c):
-#     # Step 2/*: shortwave radiation balance snow & ice penetration
-#     SRnet, T_ice = SRbalance (SRout, SRin, SRnet, z_icehorizon, snowthick, T_ice, rho_bulk, c)
-#     # Step 5/*:  Surface temperature calculation
-#     k_eff = 0.021 + 2.5e-6*rho_bulk**2
-#     # effective conductivity by Anderson 1976, is ok at limits
-#     # thickness of the first layer in m weq for thermal transfer
-#     thick_first_lay = psnic[0] + psnowc[0]
-
-#     L, LHF, SHF, theta_2m, q_2m, ws_10m, Re, meltflux, Tsurf = SolveSurfaceTemperature_bulk()
-
-#     # Step 6/*:  Mass Budget
-#     # in mweq
-#     melt_mweq = meltflux * c.dt_obs/c.L_fus/c.rho_water
-#     sublimation_mweq = LHF * c.dt_obs/c.L_sub/c.rho_water# in mweq
-#     # positive LHF -> deposition -> dH_subl positive
-#     return melt_mweq, sublimation_mweq, Tsurf
-
-
-#     # Step 7/*:  Sub-surface model
-#     GF[1:c.z_ice_max] = -k_eff[1:c.z_ice_max] * (T_ice[:c.z_ice_max-1, k] - T_ice[1:c.z_ice_max, k])/c.dz_ice
-#     GFsurf[k] =-k_eff[0] * (Tsurf[k] - T_ice[1,k]) / thick_first_lay
-# #         grndhflx = GFsurf[k]
-#     pTsurf = Tsurf[k]
-#     ptsoil_in = T_ice[:,k]
-#     zsn = snowfall[k] + sublimation_mweq[k]
-#     snmel = melt_mweq[k]
-#     raind = rainfall[k]
-#     c.rho_fresh_snow = rho_snow[k]
-
-#     # bulk density
-#     rho[:,k]= (snowc + snic) / (snowc/rhofirn + snic/c.rho_ice)
-#     refreezing[:,k] = zrfrz + supimp
-#     z_icehorizon = floor(snowthick[k]/c.dz_ice)
-#     return RunName, c
-
-# def SolveSurfaceTemperature_bulk():
-#     # Prepare parameters needed for SEB
-#     EB_prev = 1
-#     dTsurf = c.dTsurf_ini # Initial surface temperature step in search for EB=0 (C)
-
-#     # Update BV2017: z_0 is calculated once outside the SEB loop
-#     if snowthick > c.smallno:
-#         # if there is snow
-#         if snowbkt > c.smallno:
-#             # fresh snow
-#             z_0 = c.z0_fresh_snow
-#         else:
-#             # old snow from Lefebre et al (2003) JGR
-#             z_0 = max(c.z0_old_snow,
-#                       c.z0_old_snow + (c.z0_ice -c.z0_old_snow)*(rho_bulk[0] - 600)/(920 - 600))
-
-#     else:
-#         # ice roughness length
-#         z_0 = c.z0_ice
-
-#     for findbalance in range(0, c.iter_max_EB):
-#         # SENSIBLE AND LATENT HEAT FLUX
-#         L, LHF, SHF, theta_2m, q_2m, ws_10m, Re = \
-#             SensLatFluxes_bulk(WS, nu, q, snowthick, Tsurf, theta,
-#                                theta_v, pres, rho_atm, z_WS, z_T,
-#                                z_RH, z_0, c)
-
-#         # SURFACE ENERGY BUDGET
-#         meltflux, Tsurf, dTsurf, EB_prev, stop = \
-#             SurfEnergyBudget(SRnet, LRin, Tsurf, k_eff, thick_first_lay,
-#                              T_ice, T_rain, dTsurf, EB_prev, SHF,
-#                              LHF, rainfall, c)
-#         if stop:
-#             break
-#     # loop surface energy balance
-#     if (iter_max_EB != 1) & ((findbalance == c.iter_max_EB) & (abs(meltflux) >= 10*c.EB_max)):
-#         print('Problem closing energy budget')
-#     return L, LHF, SHF, theta_2m, q_2m, ws_10m, Re, meltflux, Tsurf
-
 
 def SurfEnergyBudget(
     SRnet,  LRin,  Tsurf,  k_eff,  thick_first_lay,  T_ice,  T_rain, 

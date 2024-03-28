@@ -44,7 +44,7 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
         snic = xr.open_dataset(filename).transpose()
         filename = output_path+"/" + run_name + "/" + site + "_slwc.nc"
         slwc = xr.open_dataset(filename).transpose()
-        ds['depth'] = (snowc.snowc + snic.snic +slwc.slwc).cumsum(axis=1)
+        ds['depth'] = (snowc.snowc + snic.snic ).cumsum(axis=1)
             
     if year:
         if len(year) == 2:
@@ -71,7 +71,7 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
         ds['surface_height'].values[0] = 0
         ds['depth'] = ds.depth + ds.surface_height
 
-    ds = ds.resample(time='6H').nearest()
+    # ds = ds.resample(time='6H').nearest()
 
     if var_name == "slwc":
         # change unit to mm / m3
@@ -364,7 +364,6 @@ def evaluate_compaction(c):
     df_comp = df_comp.reset_index('instrument_id')
     df_comp = df_comp.loc[np.isin(df_comp.instrument_id,ID_list), :]
     
-# %% 
     fig1, ax = plt.subplots(1, 1)  
     # plot_var(c.station, output_path, run_name, 'density_bulk')
     ax.plot(time, -H_surf, label="Surface")
@@ -402,7 +401,6 @@ def evaluate_compaction(c):
     ax.set_ylim(np.nanmin(depth_2 - H_surf), -np.nanmax(H_surf))
     fig1.savefig(output_path+"/" + run_name + "/" + site + "_compaction_1.png", dpi=240)
     
-# %% 
     fig2, ax2 = plt.subplots(len(ID_list), figsize=(7, 10), sharex=True)
     fig2.suptitle(site)
     fig2.subplots_adjust(left=0.1, right=0.99, top=0.94, hspace=0.3)
@@ -436,7 +434,7 @@ def evaluate_compaction(c):
         ax2[i].legend()
     fig2.text(0.03, 0.5, "Compaction rate (mm d$^{-1}$)", ha="center", va="center", rotation="vertical")
     fig2.savefig(output_path+"/" + run_name + "/" + site + "_compaction_2.png", dpi=240)
-# %%
+
     fig2, ax2 = plt.subplots(len(ID_list), figsize=(7, 10), sharex=True)
     fig2.suptitle(site)
     fig2.subplots_adjust(left=0.1, right=0.99, top=0.9, hspace=0.3)
@@ -468,7 +466,6 @@ def evaluate_compaction(c):
     fig2.text(0.03, 0.5, "Borehole length (m)", ha="center", va="center", rotation="vertical")
     fig2.savefig(output_path+"/" + run_name + "/" + site + "_compaction_3.png", dpi=240)
 
-# %% 
 def find_summer_surface_depths(c):
     site = c.station
     output_path = c.output_path
@@ -907,7 +904,7 @@ def select_sumup(df_sumup, df_meta, c):
 
     return df_sumup.loc[
                 df_sumup.latitude.isin(df_meta_selec.latitude) \
-                    & df_sumup.longitude.isin(df_meta_selec.longitude),:], df_meta_selec
+                    & df_sumup.longitude.isin(df_meta_selec.longitude),:].copy(), df_meta_selec.copy()
 
 
 

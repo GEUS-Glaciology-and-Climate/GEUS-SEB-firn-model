@@ -422,13 +422,8 @@ def perc_runoff_new(prhofirn, psnowc, psnic, pslwc, pdgrain, zdtime):
     jk = len(pslwc) - 1
     zrogl = 0
     # Remove runoff from layer (and add to runoff-box zrogl)
-    # Adjust bottom layer interface due to removal of mass
-    # PLA Darcy 2016
-    # if c.calc_CLliq:
-    liqmaxloc = CLliqF(prhofirn[jk])
-    # else:
-    #     liqmaxloc = c.liqmax
 
+    liqmaxloc = CLliqF(prhofirn[jk])
     liqmaxM = liqmaxloc * 999.8395 / 900 * (900 / prhofirn[jk] - 1)
     potret = max(liqmaxM * psnowc[jk], 0)
     # Calculate liqexcess from layer water. Make sure it is not negative:

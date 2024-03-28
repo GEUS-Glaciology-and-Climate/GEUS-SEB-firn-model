@@ -16,41 +16,39 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
     #     snowc - Layerwise snow content (m weq)
     #     rhofirn - Layerwise density of snow (kg/m3)
     #     slush - Amount of liquid in slush bucket (m weq)
-    #     snmel - Melting of snow and ice (daily np.sum, mm/day weq)
-    #     rogl - Runoff (daily np.sum, mm/day weq)
-    #     sn - Snow depth (m weq)
-    #     rfrz - Layerwise refreezing (daily np.sum, mm/day weq)
-    #     supimp - Superimposed ice formation (daily np.sum, mm/day weq)
+    #     snmel - Melting of snow and ice (m weq)
+    #     rogl - Runoff (m weq)
+    #     rfrz - Layerwise refreezing (m weq)
+    #     supimp - Superimposed ice formation (m weq)
     # thickness_act(n) = snowc(n)*(rho_w/rhofirn(n)) + snic*(rho_w/rho_ice) + slwc
     # Each layer has a part which is snow (snowc), ice (snic) and water (slwc),
     # and the total water equivalent thickness of layer n is
     # thickness_weq(n) = snowc(n)+snic(n)+slwc(n)
     # This thickness is allowed to vary within certain rules.
-    
+
     ptsoil = tsoil_diffusion(pts, pgrndc, pgrndd, ptsoil)
 
-    prhofirn, dH_comp, compaction = densification(
-        pslwc, psnowc, psnic, prhofirn, ptsoil, c
-    )
+    prhofirn, dH_comp, compaction = densification(pslwc, psnowc, psnic, prhofirn, ptsoil, c)
 
     pdgrain = graingrowth(pslwc, psnowc, pdgrain, c)
 
-    psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt = snowfall_new(
-         zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts, psnowbkt, 
-         zraind, zsnmel, c)
+    psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt = add_snow(
+         zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts, psnowbkt, c)
     
-
-    psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt = sublimation_new(
+    psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt = sublimation(
         zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt, c
     )
 
-    psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil = rainfall_new(
-        zraind, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts, c
-    )
+    if ((zsnmel > c.smallno)|(zraind > c.smallno)) & (psnowbkt > c.smallno):
+        ptsoil[0], psnowc[0], pslwc[0], psnowbkt, prhofirn[0], pdgrain[0] = \
+            switch_snowbucket_to_first_layer(ptsoil[0], psnic[0], psnowc[0], 
+             pslwc[0],pts,psnowbkt, prhofirn[0], pdgrain[0], c.T_0, c.dgrainNew, c.rho_fresh_snow)
 
+    pslwc = add_rain(zraind, pslwc, c)
+    # print((psnowc+psnic+pslwc).sum())
     zso_capa, zso_cond = ice_heats(ptsoil, c)
 
-    psnowc, psnic, pslwc, ptsoil, psnowbkt = melting_new(
+    psnowc, psnic, pslwc, ptsoil, psnowbkt = melting(
         psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn
     )
 
@@ -78,7 +76,31 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
             zrogl, ptsoil[0], pgrndc, pgrndd, pgrndcapc, pgrndhflx, dH_comp, 
             psnowbkt, compaction)
 
+@jit(nopython=True)
+def switch_snowbucket_to_first_layer(ptsoil, psnic, psnowc, pslwc,pts,psnowbkt,
+                             prhofirn, pdgrain, T_0, dgrainNew, rho_fresh_snow):
+    # Update BV 2017
+    # if there is rain or melt, the fresh snow bucket is added to the snow
+    # compartment of the first layer
+    # mass-weighted average for temperature
+    ptsoil = (
+        ptsoil * (psnowc + pslwc + psnic) + min(pts, T_0) * psnowbkt
+    ) / (psnowc + pslwc + psnic + psnowbkt)
 
+    # snow-mass-weighted average for grain size
+    pdgrain = (psnowc * pdgrain + psnowbkt * dgrainNew) / (
+        psnowc + psnowbkt
+    )
+
+    # volume-weighted average for density
+    prhofirn = (psnowc + psnowbkt) / (
+        psnowbkt / rho_fresh_snow + psnowc / prhofirn
+    )
+
+    psnowc = psnowc + psnowbkt
+    psnowbkt = 0
+    return ptsoil, psnowc, pslwc,psnowbkt,prhofirn, pdgrain
+        
 @jit(nopython=True)
 def tsoil_diffusion(pts, pgrndc, pgrndd, ptsoil):
     #   tsoil_diffusion: Update subsurface temperatures ptsoil based on previous
@@ -287,7 +309,7 @@ def zsn_condF(prhofirn):
 
 
 # @jit(nopython=True)
-def melting_new(psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn):
+def melting(psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn):
     # melting: Transform an amount zsnmel (m eq) of frozen material into liquid
     # water. Starts at the surface and continues downward as long as more
     # material needs to be melted. Update BV2017: The proportion of ice and snow
@@ -321,13 +343,7 @@ def melting_new(psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn):
 
     # First we handle melting. Make sure all melt energy is used. Start by melting in
     # top layer. If necessary go to deeper layers.
-
-    # first  we melt the content of the snow bucket
-    if (psnowbkt > 1e-12) & (zsnmel > 1e-12):
-        psnowbkt = psnowbkt - min(psnowbkt, zsnmel)
-        zsnmel = zsnmel - min(psnowbkt, zsnmel)
-        pslwc[0] = pslwc[0] + min(psnowbkt, zsnmel)
-
+        
     for jk in range(len(pslwc)):
         # Exit when melt is depleted
         if zsnmel < 1e-12:
@@ -607,24 +623,20 @@ def merge_small_layers(prhofirn, psnowc, psnic, pslwc, ptsoil, pdgrain, c):
     return prhofirn, psnowc, psnic, pslwc, ptsoil, pdgrain
 
 
-def rainfall_new(zraind, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts, c):
-    # add_rainfall: Routine that adds rain water input on top of the
+def add_rain(zraind, pslwc, c):
+    # add_rain: Routine that adds rain water input on top of the
     # subsurface column. Update BV2017: No mass shift anymore. Water is just
     # added to the water fraction of the top layer and the total mass of the layer is
     # allowed to change.
     #   input:
     #         zraind - amount (m weq) of input rain.
-    #         prhofirn - vector of firn (snow) density (kg/m**3)
-    #         psnowc, psnic, pslwc - vectors of respectively snow, ice and
-    #         liquid water part for each subsurface layer (m weq).
-    #         ptsoil - vector of subsurface temperature (K)
-    #         pdgrain - Vector of layer grain size. see graingrowth def.
-    #         pts - surface temperature (K)
+    #         pslwc - vectors of respectivel liquid water part for each 
+    #         subsurface layer (m weq).
     #         c - Structure containing all the physical, site-depant or user
     #         defined variables.
     #
     #   output:
-    #          updated [psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil]
+    #          updated pslwc
     #
     #   This script was originally developped by Peter Langen (pla@dmi.dk) and
     #   Robert S. Fausto (rsf@geus.dk) in FORTRAN then translated to python by
@@ -632,16 +644,16 @@ def rainfall_new(zraind, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts, c
     # =========================================================================
 
     if zraind > c.smallno:
-        T_rain_in = max(pts, c.T_0)
-        ptsoil[0] = (
-            (psnowc[0] + psnic[0] + pslwc[0]) * ptsoil[0] + zraind * T_rain_in
-        ) / (psnowc[0] + psnic[0] + pslwc[0] + zraind)
+        # ideally rain coming with T_rain>c.T_0 should give their heat to melt
+        # the surface snow. Not implemented yet.
+        # T_rain_in = max(pts, c.T_0)
+        # ptsoil[0] = (
+        #     (psnowc[0] + psnic[0] + pslwc[0]) * ptsoil[0] + zraind * T_rain_in
+        # ) / (psnowc[0] + psnic[0] + pslwc[0] + zraind)
 
         pslwc[0] = pslwc[0] + zraind
-    # rain switch the psnowbkt into the first layer to mimic the fresh snow
-    # getting wet
 
-    return psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil
+    return pslwc
 
 
 def refreeze(psnowc, psnic, pslwc, ptsoil, c):
@@ -670,7 +682,7 @@ def refreeze(psnowc, psnic, pslwc, ptsoil, c):
     #   Robert S. Fausto and later to python by Baptiste Vandecrux
     #   (bav@geus.dk).
     # ========================================================================
-    #  Here we do the refreezing based on the cold content
+    # Here we do the refreezing based on the cold content
     # of each layer converting mass from liquid to ice.
     zrfrz = np.zeros_like(psnowc)
     zpotref = np.zeros_like(psnowc)
@@ -695,21 +707,9 @@ def refreeze(psnowc, psnic, pslwc, ptsoil, c):
     return psnic, pslwc, ptsoil, zrfrz
 
 
-def snowfall_new(
-    zsn,
-    psnowc,
-    psnic,
-    pslwc,
-    pdgrain,
-    prhofirn,
-    ptsoil,
-    pts,
-    psnowbkt,
-    zraind,
-    zsnmel,
-    c,
-):
-    # snowfall_new: Routine that adds new fallen snow (net from
+def add_snow(zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts, 
+                 psnowbkt, c):
+    # add_snow: Routine that adds new fallen snow (net from
     # sublimation)on top of the subsurface column. It is first accumulated in
     # psnowbkt and only when psnowbkt exceed a threshold then a new layer is
     # created. Update BV2017: No mass shift anymore. When a new layer is created, two
@@ -736,24 +736,11 @@ def snowfall_new(
     #   Peter L. Langen (pla@dmi.dk) and Robert S. Fausto (rsf@geus.dk).
     # =========================================================================
 
-    if zsn > 0:  # ! zsn means snowfall in timestep
+    if zsn > 0:  # ! positive zsn means snowfall in timestep
         # snowfall added to the fresh snow bucket
         psnowbkt = psnowbkt + zsn
 
         if psnowbkt > c.lim_new_lay + c.smallno:
-            # enough material for a new layer
-            #         if np.sum(psnic+psnowc+pslwc)> c.lim_max_column
-            # Update BV2017
-            # if the column (excluding last layer) is larger than a threshold,
-            # then last layer is discarded, all the layers are shifted downward
-            # and the new snow layer is put in first layer.
-            #             psnowc[1:] = psnowc[:-1]
-            #             psnic[1:] = psnic[:-1]
-            #             pslwc[1:] = pslwc[:-1]
-            #             pdgrain[1:] = pdgrain[:-1]
-            #             prhofirn[1:] = prhofirn[:-1]
-            #             ptsoil[1:] = ptsoil[:-1]
-            #         else
             [psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil] = merge_layer(
                 psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil, c
             )
@@ -767,27 +754,6 @@ def snowfall_new(
             pdgrain[0] = c.dgrainNew
             psnowbkt = 0
 
-    # Update BV 2017
-    # if there is rain or melt, the fresh snow bucket is added to the snow
-    # compartment of the first layer
-    if ((zraind > c.smallno) | (zsnmel > c.smallno)) & (psnowbkt > c.smallno):
-        # mass-weighted average for temperature
-        ptsoil[0] = (
-            ptsoil[0] * (psnowc[0] + pslwc[0] + psnic[0]) + min(pts, c.T_0) * psnowbkt
-        ) / (psnowc[0] + pslwc[0] + psnic[0] + psnowbkt)
-
-        # snow-mass-weighted average for grain size
-        pdgrain[0] = (psnowc[0] * pdgrain[0] + psnowbkt * c.dgrainNew) / (
-            psnowc[0] + psnowbkt
-        )
-
-        # volume-weighted average for density
-        prhofirn[0] = (psnowc[0] + psnowbkt) / (
-            psnowbkt / c.rho_fresh_snow + psnowc[0] / prhofirn[0]
-        )
-
-        psnowc[0] = psnowc[0] + psnowbkt
-        psnowbkt = 0
     return psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt
 
 
@@ -889,8 +855,8 @@ def split_layer(psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil, c):
     return psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil
 
 
-def sublimation_new(zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt, c):
-    # sublimation_new: Routine that removes sublimation from the first layer of
+def sublimation(zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt, c):
+    # sublimation: Routine that removes sublimation from the first layer of
     # the column. Update BV2017: The proportion of ice and snow that is
     # sublimated is given by the proportion of ice
     # and snow present in the layer. If the first layer
@@ -931,11 +897,11 @@ def sublimation_new(zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowb
         while zsnout > c.smallno:
             # Update BV2017: Snow and ice are now melted simultaneously
             zdel = min(zsnout, psnowc[0] + psnic[0])
-            snow_melt = psnowc[0] / (psnowc[0] + psnic[0]) * zdel
-            ice_melt = psnic[0] / (psnowc[0] + psnic[0]) * zdel
+            snow_subl = psnowc[0] / (psnowc[0] + psnic[0]) * zdel
+            ice_subl= psnic[0] / (psnowc[0] + psnic[0]) * zdel
 
-            psnowc[0] = psnowc[0] - snow_melt
-            psnic[0] = psnic[0] - ice_melt
+            psnowc[0] = psnowc[0] - snow_subl
+            psnic[0] = psnic[0] - ice_subl
             zsnout = zsnout - zdel
 
             if psnowc[0] + psnic[0] + pslwc[0] < c.lim_new_lay - c.smallno:

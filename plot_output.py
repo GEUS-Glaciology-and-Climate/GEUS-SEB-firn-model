@@ -60,12 +60,12 @@ def main(output_path, run_name):
                 ylim =   [10]
             else:
                 ylim = []
-            lpl.plot_var(c.station, c.output_path, c.RunName, var, ylim=ylim, zero_surf=True)
+            lpl.plot_var(c.station, c.output_path, c.RunName, var, ylim=ylim, zero_surf=False)
         except Exception as e:
             print(var, e)
             pass
         
-    # lpl.plot_var(c.station, c.output_path, c.RunName, 'slwc', ylim=ylim, zero_surf=True, weq_depth=True)
+    lpl.plot_var(c.station, c.output_path, c.RunName, 'density_bulk', zero_surf=False, weq_depth=True)
 
     if c.station in ['DY2', 'KAN_U','CP1']:
             lpl.plot_var(c.station, c.output_path, c.RunName, 'slwc', 
@@ -75,7 +75,7 @@ def main(output_path, run_name):
     # %% Surface height evaluation
     # extracting surface height
     if 'surface_height' not in df_out.columns:
-        filename = c.output_path + run_name + "/" + c.station + "_T_ice.nc"
+        filename = c.output_path + c.RunName + "/" + c.station + "_T_ice.nc"
         ds = xr.open_dataset(filename).transpose()
         ds['surface_height'] = (ds.depth.isel(level=-1)
                 -ds.depth.isel(level=-1).isel(time=0)

@@ -23,7 +23,7 @@ from multiprocessing import Pool
 import shutil
 
 # %% 
-def run_SEB_firn(station='FA-15-1', silent=False):
+def run_SEB_firn(station='QAS_M', silent=False):
     start_time = time.time()   
     # importing standard values for constants
     c = ImportConst()
@@ -71,22 +71,23 @@ def run_SEB_firn(station='FA-15-1', silent=False):
     try:
         os.mkdir(c.output_path + c.RunName)
     except:
-        # pass
-        try:
-            po.main(c.output_path, c.RunName)
-            return
-        except Exception as e:
-            print(e)
-        if os.path.isfile(c.output_path+c.RunName+'/constants.csv'):
-            if abs(os.path.getmtime(c.output_path+c.RunName+'/constants.csv') - time.time())/60/60 <24:
-                if not silent: print('recently done. skeeping')
-                return
-            else:
-                if not silent: print('old version found. redoing')
+        pass
+        # try:
+        #     po.main(c.output_path, c.RunName)
+        #     return
+        # except Exception as e:
+        #     print(e)
+        # if os.path.isfile(c.output_path+c.RunName+'/constants.csv'):
+        #     if abs(os.path.getmtime(c.output_path+c.RunName+'/constants.csv') - time.time())/60/60 <24:
+        #         if not silent: print('recently done. skeeping')
+        #         return
+        #     else:
+        #         if not silent: print('old version found. redoing')
                 # return
     
     # loading input data
     df_in, c = io.load_surface_input_data(c, resample=resample)
+    df_in =df_in.loc['1990':'1995']
 
     freq = pd.infer_freq(df_in.index)
     if freq=='H': freq = '1H'
@@ -155,10 +156,16 @@ def run_SEB_firn(station='FA-15-1', silent=False):
     if not silent: print('\nSEB firn model took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
     
-    thickness_act = snowc * (c.rho_water / rhofirn) + snic * (c.rho_water / c.rho_ice)
+    thickness_act = snowc * c.rho_water / rhofirn + snic * c.rho_water / c.rho_ice
     depth_act = np.cumsum(thickness_act, 0)
     density_bulk = (snowc + snic) / (snowc / rhofirn + snic / c.rho_ice)
     
+    depth_lowest_layer = np.insert(np.diff(depth_act[-1,:]),0,0)
+    depth_lowest_layer[depth_lowest_layer<=6]=0
+    surface_height = (depth_act[-1,:] -depth_act[-1,0])-depth_lowest_layer.cumsum()
+    df_out['surface_height'] = surface_height
+    import pdb; pdb.set_trace()
+
     # %% Writing output
     c.write(c.output_path + "/" + c.RunName + "/constants.csv")
     if not silent: print('writing output files took %0.03f sec'%(time.time() -start_time))
@@ -218,21 +225,21 @@ def multi_file_grid_run():
 
 if __name__ == "__main__":
 
-    # run_SEB_firn('FA-15-2')
+    run_SEB_firn('QAS_M')
     # multi_file_grid_run()
     
-    with xr.open_dataset("./input/weather data/CARRA_at_AWS.nc") as ds:
-        station_list = ds.stid.load().values
-    unwanted= ['NUK_K', 'MIT', 'ZAK_A', 'ZAK_L', 'ZAK_Lv3', 'ZAK_U', 'ZAK_Uv3', # local glaciers
-                'LYN_L', 'LYN_T', 'FRE',  # local glaciers
-                'KAN_B', 'NUK_B','WEG_B', # off-ice AWS
-                'DY2','NSE','SDL','NAU','NAE','SDM','TUN','HUM','SWC', 'JAR', 'NEM',  # redundant
-                'T2_08','S10','Swiss Camp 10m','SW2','SW4','Crawford Point 1', 'G1','EGP', # redundant
-                'CEN1','THU_L2'
-                ] 
-    station_list = [s for s in station_list if s not in unwanted]
-    station_list = [s for s in station_list if 'v3' not in s]
-    with Pool(4) as pool:
-        pool.map(run_SEB_firn, station_list)
+    # with xr.open_dataset("./input/weather data/CARRA_at_AWS.nc") as ds:
+    #     station_list = ds.stid.load().values
+    # unwanted= ['NUK_K', 'MIT', 'ZAK_A', 'ZAK_L', 'ZAK_Lv3', 'ZAK_U', 'ZAK_Uv3', # local glaciers
+    #             'LYN_L', 'LYN_T', 'FRE',  # local glaciers
+    #             'KAN_B', 'NUK_B','WEG_B', # off-ice AWS
+    #             'DY2','NSE','SDL','NAU','NAE','SDM','TUN','HUM','SWC', 'JAR', 'NEM',  # redundant
+    #             'T2_08','S10','Swiss Camp 10m','SW2','SW4','Crawford Point 1', 'G1','EGP', # redundant
+    #             'CEN1','THU_L2'
+    #             ] 
+    # station_list = [s for s in station_list if s not in unwanted]
+    # station_list = [s for s in station_list if 'v3' not in s]
+    # with Pool(4) as pool:
+    #     pool.map(run_SEB_firn, station_list)
     # for station in station_list:
     #     run_SEB_firn(station)
