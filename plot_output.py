@@ -64,8 +64,6 @@ def main(output_path, run_name):
         except Exception as e:
             print(var, e)
             pass
-        
-    lpl.plot_var(c.station, c.output_path, c.RunName, 'density_bulk', zero_surf=False, weq_depth=True)
 
     if c.station in ['DY2', 'KAN_U','CP1']:
             lpl.plot_var(c.station, c.output_path, c.RunName, 'slwc', 
@@ -74,18 +72,6 @@ def main(output_path, run_name):
     
     # %% Surface height evaluation
     # extracting surface height
-    if 'surface_height' not in df_out.columns:
-        filename = c.output_path + c.RunName + "/" + c.station + "_T_ice.nc"
-        ds = xr.open_dataset(filename).transpose()
-        ds['surface_height'] = (ds.depth.isel(level=-1)
-                -ds.depth.isel(level=-1).isel(time=0)
-                -(ds.depth.isel(level=-1).diff(dim='time')
-                  .where(ds.depth.isel(level=-1)
-                         .diff(dim='time')>6,0).cumsum()))
-        ds['surface_height'].values[0] = 0
-        df_out['surface_height'] = ds['surface_height'].values
-        del ds
-
     path_aws_l4 = '../PROMICE/PROMICE-AWS-toolbox/out/L4/'
     if os.path.isfile(path_aws_l4+c.station+'_L4_ext.csv'):
         df_obs = pd.read_csv(path_aws_l4+c.station+'_L4_ext.csv')
@@ -169,7 +155,7 @@ def main(output_path, run_name):
     try:
         lpl.plot_smb_components(df_out, c)
         lpl.evaluate_temperature_sumup(df_out, c)
-        lpl.evaluate_temperature_scatter(df_out, c, year = None)
+        # lpl.evaluate_temperature_scatter(df_out, c, year = None)
         lpl.evaluate_density_sumup(c)
         lpl.evaluate_smb_sumup(df_out, c)
     except:

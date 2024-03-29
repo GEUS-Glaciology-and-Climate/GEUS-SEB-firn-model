@@ -41,3 +41,4 @@ RH_2m_wrtw,2m relative humidity with regards to water,%
 ws_10m,10 m wind speed,m s^-1
 q_2m,2m specific humidity,g m^-3
 Re,Reynolds number,-
+surface_height,Surface height,m

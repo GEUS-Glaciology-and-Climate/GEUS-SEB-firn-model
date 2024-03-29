@@ -25,16 +25,16 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
     # and the total water equivalent thickness of layer n is
     # thickness_weq(n) = snowc(n)+snic(n)+slwc(n)
     # This thickness is allowed to vary within certain rules.
-
+    
     ptsoil = tsoil_diffusion(pts, pgrndc, pgrndd, ptsoil)
-
+    
     prhofirn, dH_comp, compaction = densification(pslwc, psnowc, psnic, prhofirn, ptsoil, c)
 
     pdgrain = graingrowth(pslwc, psnowc, pdgrain, c)
 
     psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt = add_snow(
          zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts, psnowbkt, c)
-    
+        
     psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt = sublimation(
         zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt, c
     )
@@ -491,21 +491,11 @@ def merge_layer(psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil, c):
     w6 = 1
     w7 = 3
     crit = (
-        w1 * crit_1
-        + w2 * crit_2
-        + w3 * crit_3
-        + w4 * crit_4
-        + w5 * crit_5
-        + w6 * crit_6
-        + w7 * crit_7
+        w1 * crit_1 + w2 * crit_2  + w3 * crit_3  + w4 * crit_4
+        + w5 * crit_5 + w6 * crit_6 + w7 * crit_7
     ) / (w1 + w2 + w3 + w4 + w5 + w6 + w7)
-    i_merg = np.where(crit == max(crit))[-1]
-    # for some reason np.where gives back a list of numpy arrays
-    if isinstance(i_merg, list) | (type(i_merg).__module__ == np.__name__):
-        # print(crit)
-        # print(max(crit))
-        # print(np.where(crit == max(crit)))
-        i_merg = i_merg[0]
+    i_merg = np.argwhere(crit == max(crit))[-1][-1]
+
     # layer of index i_merg and i_merg+1 are merged
     if (psnowc[i_merg + 1] + psnowc[i_merg]) > 1e-12:
         if psnowc[i_merg + 1] < 1e-12:
@@ -545,7 +535,7 @@ def merge_layer(psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil, c):
     pslwc[i_merg + 1] = pslwc[i_merg + 1] + pslwc[i_merg]
 
     # shifting column to free top layer
-    if i_merg != 1:
+    if i_merg != 0:
         psnowc[1 : i_merg + 1] = psnowc[:i_merg]
         psnic[1 : i_merg + 1] = psnic[:i_merg]
         pslwc[1 : i_merg + 1] = pslwc[:i_merg]

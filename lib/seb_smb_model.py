@@ -193,7 +193,6 @@ def GEUS_model(weather_df: pd.DataFrame, c: Struct):
 
         # ========== Step 7/*:  Sub-surface model ====================================
         c.rho_fresh_snow = rho_snow
-
         (
             snowc[:, k], snic[:, k], slwc[:, k],
             T_ice[:, k],  zrfrz[:, k], rhofirn[:, k],
@@ -605,11 +604,8 @@ def SensLatFluxes_bulk_opt(
                     )
                 
                 th_star, q_star = get_th_star_q_star(
-                    c.kappa, theta,
-                    Tsurf, z_T,
-                    z_h, psi_h2, psi_h1,
-                    q, q_surf, z_RH,
-                    z_q, psi_q2, psi_q
+                    c.kappa, theta, Tsurf, z_T, z_h, psi_h2, psi_h1,
+                    q, q_surf, z_RH, z_q, psi_q2, psi_q
                 )
 
                 q_star = c.kappa * (q - q_surf) / (np.log(z_RH / z_q) - psi_q2 + psi_q)               

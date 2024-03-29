@@ -61,12 +61,9 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
     if zero_surf:
         ds['surface_height'] = 0 * ds.depth.isel(level=-1)
     else:
-        ds['surface_height'] = -(ds.depth.isel(level=-1)
-                                -ds.depth.isel(level=-1).isel(time=0)
-                                -(ds.depth.isel(level=-1)
-                                  .diff(dim='time')
-                                  .where(ds.depth.isel(level=-1)
-                                         .diff(dim='time')>6,0)
+        ds['surface_height'] = -(ds.depth.isel(level=-1)-ds.depth.isel(level=-1).isel(time=0)
+                                -(ds.depth.isel(level=-1).diff(dim='time').where(
+                                    np.abs(ds.depth.isel(level=-1).diff(dim='time'))>3,0)
                                   .cumsum()))
         ds['surface_height'].values[0] = 0
         ds['depth'] = ds.depth + ds.surface_height
@@ -203,20 +200,18 @@ def plot_var_start_end(c, var_name='T_ice', ylim=[], to_file=False):
     if var_name == "T_ice":
         T10m.loc[T10m.site==c.station, :].plot(x='temperatureObserved',
                                                y='depthOfTemperatureObservation',
-                                               ax=plt.gca(),
+                                               ax=plt.gca(), label='observed T10m',
                                                marker='o', ls='None')
-        plt.axvline(float(c.Tdeep)-273.15, ls='--')
-        plt.axvline(ds.isel(level=0).median().T_ice, ls='-.')
-        plt.axvline(ds.isel(level=1).median().T_ice, ls=':')
-        plt.axvline(ds.isel(level=10).median().T_ice, ls=':')
-        plt.axvline(ds.isel(level=20).median().T_ice, ls=':')
+        plt.axvline(float(c.Tdeep)-273.15, c='k', label='Tdeep')
+        plt.axvline(ds.isel(level=0).median().T_ice, ls='-.',label='median T_ice(level=0)')
         plt.axvline(    ds_T10m.sel(latitude = T10m.loc[T10m.site==c.station, 'latitude'].mean(),
                         longitude = T10m.loc[T10m.site==c.station, 'longitude'].mean(),
-                        method='nearest').sel(time=slice('1980','1990')).T10m.mean().item(), c='tab:red')
+                        method='nearest').sel(time=slice('1980','1990')).T10m.mean().item(), 
+                    ls='--',label='T10m reconstructed 1980-1990 avg', c='tab:red')
         plt.axvline(    ds_T10m.sel(latitude = T10m.loc[T10m.site==c.station, 'latitude'].mean(),
                         longitude = T10m.loc[T10m.site==c.station, 'longitude'].mean(),
                         method='nearest').sel(time=slice('2000','2020')).T10m.mean().item(), 
-                    ls='--', c='tab:red')
+                    ls=':',label='T10m reconstructed 2000-2020 avg', c='tab:orange')
 
     plt.legend()
     plt.title(site)
@@ -624,7 +619,9 @@ def load_sumup_temperature():
 def evaluate_temperature_sumup(df_out, c):
     df_sumup, df_meta = load_sumup_temperature()
     df_sumup, df_meta_selec = select_sumup(df_sumup, df_meta, c)
-
+    if len(df_sumup)==0:
+        print('no temperature in SUMup for ',c.station)
+        return
     # T_ice evaluation
     plot_var(c.station, c.output_path, c.RunName, 'T_ice', zero_surf=True, 
                  df_sumup=df_sumup, tag='_SUMup2024')
@@ -708,7 +705,8 @@ def interpolate_temperature_fast(dates, depth_matrix, temp_matrix,  depth=10,
     return temp_at_10m
 
 def evaluate_temperature_scatter(df_out, c, year = None):
-    df_sumup, _ = load_sumup_temperature(c)
+    df_sumup, df_meta = load_sumup_temperature()
+    df_sumup, df_meta_selec = select_sumup(df_sumup, df_meta, c)
         
     filename = c.output_path+"/" + c.RunName + "/" + c.station + "_T_ice.nc"
     ds = xr.open_dataset(filename).transpose()
@@ -765,8 +763,7 @@ def evaluate_temperature_scatter(df_out, c, year = None):
     fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup2024_scatter.png', dpi=120)
 
 
-def evaluate_density_sumup(c):
-    # Evaluating density with SUMup 2024
+def load_sumup_density():
     df_sumup = xr.open_dataset(
         'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_density_greenland.nc',
         group='DATA').to_dataframe()
@@ -792,26 +789,33 @@ def evaluate_density_sumup(c):
                       ['latitude', 'longitude', 'profile_key', 'profile', 'method_key',
                        'reference_short','reference', 'reference_key']
                       ].drop_duplicates()
-    
-    query_point = [[c.latitude, c.longitude]]
-    all_points = df_meta[['latitude', 'longitude']].values
-    df_meta['distance_from_query_point'] = distance.cdist(all_points, query_point, get_distance)
-    min_dist = 10 # in km
-    df_meta_selec = df_meta.loc[df_meta.distance_from_query_point<min_dist, :]   
+    return df_sumup, df_meta
 
-    df_sumup = df_sumup.loc[
-        df_sumup.latitude.isin(df_meta_selec.latitude)&df_sumup.longitude.isin(df_meta_selec.longitude),:]
+def evaluate_density_sumup(c):
+    # Evaluating density with SUMup 2024
+    df_sumup, df_meta = load_sumup_density()
+    df_sumup, df_meta_selec = select_sumup(df_sumup, df_meta,c)
+    
+    profile_list = df_sumup.profile_key.drop_duplicates()
+    if len(profile_list) == 0: 
+        print('no density profile in SUMup for',c.station)
+        return None
+    
     
     plot_var(c.station, c.output_path, c.RunName, 'density_bulk', zero_surf=True, 
                  df_sumup=df_sumup, tag='_SUMup2024')
     
     # plot each profile
-    filename = c.output_path+"/" + c.RunName + "/" + c.station + "_density_bulk.nc"
-    ds_mod_dens = xr.open_dataset(filename).transpose()
 
-    profile_list = df_sumup.profile_key.drop_duplicates()
-    if len(profile_list) == 0: return None
-    
+    filename = c.output_path+"/" + c.RunName + "/" + c.station + "_snowc.nc"
+    snowc = xr.open_dataset(filename).transpose()
+    filename = c.output_path+"/" + c.RunName + "/" + c.station + "_snic.nc"
+    snic = xr.open_dataset(filename).transpose()
+    filename = c.output_path+"/" + c.RunName + "/" + c.station + "_rhofirn.nc"
+    rhofirn = xr.open_dataset(filename).transpose()
+    ds_mod_dens = snowc[['depth']]
+    ds_mod_dens['density_bulk'] = (snowc.snowc + snic.snic) / (snowc.snowc / rhofirn.rhofirn + snic.snic / 900)
+
     def new_figure(): 
         fig,ax = plt.subplots(1,6, figsize=(16,7))
         plt.subplots_adjust(left=0.1, right=0.9, top=0.8, wspace=0.2)
@@ -910,7 +914,7 @@ def select_sumup(df_sumup, df_meta, c):
 
 def evaluate_smb_sumup(df_out, c):
     df_sumup, df_meta = load_sumup_smb()
-    df_sumup, df_meta_selec = load_sumup_smb(df_sumup, df_meta, c)
+    df_sumup, df_meta_selec = select_sumup(df_sumup, df_meta, c)
     msk = df_sumup[['start_year','start_date']].isnull().all(axis=1)
 
     msk = df_sumup.start_date.isnull()
