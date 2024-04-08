@@ -195,11 +195,11 @@ for stid, ax in zip(station_list, ax_list):
         
         tmp = (df_obs.z_surf_combined -df_out.surface_height).mean()
         p = ax.plot(df_obs.index, df_obs.z_surf_combined-tmp, 
-                  alpha=0.7, lw=4, label=stid+' observed')
+                  alpha=0.7, lw=4, label='observed')
         ax.plot(df_out.index, df_out.surface_height,color=p[-1].get_color(),
-                 label=stid+' modelled')
+                 label='modelled')
     
-        ax.legend(loc='lower right')
+        ax.legend(title=stid, loc='upper left')
         ax.xaxis.set_major_locator(locator)
         ax.grid('both')
     except:
@@ -210,17 +210,22 @@ fig.text(0.04, 0.5, 'Surface height (m)', va='center', rotation='vertical')
 fig.savefig('side analysis/surface_height_SMB_vs_obs_accumulation.png', dpi=300)
 
 #%% SMB at all sites
-compute_smb_evaluation = False
+compute_smb_evaluation = True
 
 if compute_smb_evaluation:
     with xr.open_dataset("./input/weather data/CARRA_at_AWS.nc") as ds:
         ds_aws = ds.load()
-        
+        station_list = ds_aws.stid.load().values
     unwanted= ['NUK_K', 'MIT', 'ZAK_A', 'ZAK_L', 'ZAK_Lv3', 'ZAK_U', 'ZAK_Uv3', # local glaciers
                 'LYN_L', 'LYN_T', 'FRE',  # local glaciers
                 'KAN_B', 'NUK_B','WEG_B', # off-ice AWS
-                'DY2','NSE','SDL','NAU','NAE','SDM','T2_08','CEN1'  # redundant
-                ]
+                'DY2','NSE','SDL','NAU','NAE','SDM','TUN','HUM','SWC', 'JAR', 'NEM',  # redundant
+                'T2_08','S10','Swiss Camp 10m','SW2','SW4','Crawford Point 1', 'G1','EGP', # redundant
+                'CEN1','THU_L2'
+                ] 
+    station_list = [s for s in station_list if s not in unwanted]
+    station_list = [s for s in station_list if 'v3' not in s]
+        
     ds_aws=ds_aws.where(~ds_aws.stid.isin(unwanted), drop=True)
     
     output_path= './output'
@@ -236,10 +241,12 @@ if compute_smb_evaluation:
     df_sumup['smb_mod'] = np.nan
     
     df_all_smb = pd.DataFrame()
-    for stid in ds_aws.stid[1:]:
-        run_name = stid.item() + '_100_layers_3H'
+    for stid in station_list:
+        run_name = stid + '_100_layers_3H'
         if not os.path.isfile(output_path+'/'+ run_name+'/constants.csv'):
+            print('!!!!',stid,'run not finsished !!!!')
             continue
+
         tmp =pd.read_csv(output_path+'/'+ run_name+'/constants.csv', dtype={'key':str})
         tmp['value_num'] = pd.to_numeric(tmp.value, errors='coerce')
         tmp.loc[tmp.value_num.notnull(),'value'] = tmp.loc[tmp.value_num.notnull(),'value_num']
@@ -294,7 +301,7 @@ fig.savefig('side analysis/SMB_evaluation_SUMup2024.png', dpi=300)
 import lib.plot as lplt
 output_path= './output'
 
-compute_T10m_evaluation = False
+compute_T10m_evaluation = True
 
 if compute_T10m_evaluation:
     with xr.open_dataset("./input/weather data/CARRA_at_AWS.nc") as ds:
@@ -315,8 +322,8 @@ if compute_T10m_evaluation:
     df_sumup = df_sumup.loc[df_sumup.depth==10, :]
     
     df_all_temps = pd.DataFrame()
-    for stid in ds_aws.stid[1:]:
-        run_name = stid.item() + '_100_layers_3H'
+    for stid in station_list:
+        run_name = stid + '_100_layers_3H'
         if not os.path.isfile(output_path+'/'+ run_name+'/constants.csv'):
             continue
         tmp =pd.read_csv(output_path+'/'+ run_name+'/constants.csv', dtype={'key':str})
@@ -371,3 +378,32 @@ ax.legend(loc='lower center',ncol=4, bbox_to_anchor=(0.5,-1.05))
 ax.set_xlabel('Observed T10m (m w.e.)')
 ax.set_ylabel('Modelled T10m (m w.e.)')
 fig.savefig('side analysis/T10m_evaluation_SUMup2024.png', dpi=300)
+
+# %% Grain size evaluation
+ds_gs = pd.read_csv(r'C:\Users\bav\GitHub\SUMup\grain-size\output\grain_size_ssa_compilation.csv')
+output_path = './output/'
+run_name = 'Summit_100_layers_3H'
+plt.close('all')
+ds = xr.open_dataset(output_path+run_name+'/Summit_dgrain.nc')
+
+for tag in ['Lomonaco','Tedesco']:
+    fig, ax = plt.subplots(1,2)
+    plt.subplots_adjust(top=0.8)
+    ds_selec = ds_gs.loc[ds_gs.reference_short.str.startswith(tag),:]
+    tmp = ds.sel(time=ds_selec.timestamp.iloc[0],method='nearest')
+    ax[0].plot(tmp.dgrain, -tmp.depth, label='model')
+    ax[1].plot(tmp.dgrain, -tmp.depth, label='model')
+    ax[0].plot(ds_selec.grain_diameter_mm, -ds_selec.start_depth_m, label=ds_selec.reference_short.iloc[0])
+    ax[1].plot(ds_selec.grain_diameter_mm, -ds_selec.start_depth_m, label=ds_selec.reference_short.iloc[0])
+    ax[1].yaxis.tick_right()
+    ax[1].yaxis.set_label_position("right")
+    for i in [0,1]:
+        ax[i].set_ylabel('Depth (m)')
+        ax[i].set_xlabel('Grain diameter (mm)')
+        ax[i].grid()
+    ax[1].set_ylim(-4,0)
+    ax[1].set_xlim(0,3)
+    ax[0].set_xlim(0,5)
+    ax[0].legend(title='Summit '+ds_selec.timestamp.iloc[0], loc='lower right',
+                 bbox_to_anchor=(1.5,1))
+    fig.savefig('side analysis/grain_size_evaluation_'+tag+'.png', dpi=300)
