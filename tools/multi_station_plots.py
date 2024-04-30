@@ -391,10 +391,10 @@ for tag in ['Lomonaco','Tedesco']:
     plt.subplots_adjust(top=0.8)
     ds_selec = ds_gs.loc[ds_gs.reference_short.str.startswith(tag),:]
     tmp = ds.sel(time=ds_selec.timestamp.iloc[0],method='nearest')
-    ax[0].plot(tmp.dgrain, -tmp.depth, label='model')
+    ax[0].plot(tmp.dgrain, -tmp.depth,label='model')
     ax[1].plot(tmp.dgrain, -tmp.depth, label='model')
-    ax[0].plot(ds_selec.grain_diameter_mm, -ds_selec.start_depth_m, label=ds_selec.reference_short.iloc[0])
-    ax[1].plot(ds_selec.grain_diameter_mm, -ds_selec.start_depth_m, label=ds_selec.reference_short.iloc[0])
+    ax[0].plot(ds_selec.grain_diameter_mm, -ds_selec.start_depth_m,  marker='o',ls='None',label=ds_selec.reference_short.iloc[0])
+    ax[1].plot(ds_selec.grain_diameter_mm, -ds_selec.start_depth_m,  marker='o',ls='None',label=ds_selec.reference_short.iloc[0])
     ax[1].yaxis.tick_right()
     ax[1].yaxis.set_label_position("right")
     for i in [0,1]:
@@ -406,4 +406,30 @@ for tag in ['Lomonaco','Tedesco']:
     ax[0].set_xlim(0,5)
     ax[0].legend(title='Summit '+ds_selec.timestamp.iloc[0], loc='lower right',
                  bbox_to_anchor=(1.5,1))
+    fig.savefig('side analysis/grain_size_evaluation_'+tag+'.png', dpi=300)
+    #%% 
+run_name = 'EastGRIP_100_layers_3H'
+ds = xr.open_dataset(output_path+run_name+'/EastGRIP_dgrain.nc')
+
+for tag in ['Montagnat']:
+    fig, ax = plt.subplots(1,1)
+    ax=[ax]
+    plt.subplots_adjust(top=0.8)
+    ds_selec = ds_gs.loc[ds_gs.reference_short.str.startswith(tag),:]
+    tmp = ds.sel(time=ds_selec.timestamp.iloc[0],method='nearest')
+    ax[0].plot(tmp.dgrain, -tmp.depth, label='model')
+    for name in ds_selec.name.unique():
+        ax[0].plot(ds_selec.loc[ds_selec.name==name, 'grain_diameter_mm'],
+                   -ds_selec.loc[ds_selec.name==name, 'start_depth_m'], 
+                   marker='o',ls='None',
+                   label=name)
+
+    ax[0].set_ylabel('Depth (m)')
+    ax[0].set_xlabel('Grain diameter (mm)')
+    ax[0].grid()
+
+    ax[0].set_xlim(0,2.5)
+    ax[0].set_ylim(-3.1,0.1)
+    ax[0].legend(title='EastGRIP '+ds_selec.timestamp.iloc[0], loc='lower right',
+                 bbox_to_anchor=(0.7,1))
     fig.savefig('side analysis/grain_size_evaluation_'+tag+'.png', dpi=300)

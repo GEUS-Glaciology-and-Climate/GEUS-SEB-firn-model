@@ -19,7 +19,7 @@ import lib.io as io
 
 # output_path= 'C:/Users/bav/data_save/output firn model/spin up 3H/'
 output_path = './output/'
-run_name = 'QAS_M_100_layers_3H'
+run_name = 'QAS_L_100_layers_3H'
 #%%
 def main(output_path, run_name):
     # %% Loading data

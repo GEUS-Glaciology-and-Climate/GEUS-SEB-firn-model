@@ -71,14 +71,15 @@ def run_SEB_firn(station='QAS_M', silent=False):
     try:
         os.mkdir(c.output_path + c.RunName)
     except:
-        pass
+        # pass
         # try:
         #     po.main(c.output_path, c.RunName)
         #     return
         # except Exception as e:
         #     print(e)
-        # if os.path.isfile(c.output_path+c.RunName+'/constants.csv'):
-        #     if abs(os.path.getmtime(c.output_path+c.RunName+'/constants.csv') - time.time())/60/60 <24:
+        if os.path.isfile(c.output_path+c.RunName+'/'+c.station+'_rhofirn.nc'):
+            return
+            #     if abs(os.path.getmtime(c.output_path+c.RunName+'/constants.csv') - time.time())/60/60 <24:
         #         if not silent: print('recently done. skeeping')
         #         return
         #     else:
@@ -221,7 +222,7 @@ def multi_file_grid_run():
 
 if __name__ == "__main__":
 
-    # run_SEB_firn('QAS_M')
+    # run_SEB_firn('H2')
     # multi_file_grid_run()
     
     with xr.open_dataset("./input/weather data/CARRA_at_AWS.nc") as ds:
@@ -235,7 +236,7 @@ if __name__ == "__main__":
                 ] 
     station_list = [s for s in station_list if s not in unwanted]
     station_list = [s for s in station_list if 'v3' not in s]
-    with Pool(4) as pool:
-        pool.map(run_SEB_firn, station_list)
-    # for station in station_list:
-    #     run_SEB_firn(station)
+    # # with Pool(4) as pool:
+    # #     pool.map(run_SEB_firn, station_list)
+    for station in station_list:
+        run_SEB_firn(station)

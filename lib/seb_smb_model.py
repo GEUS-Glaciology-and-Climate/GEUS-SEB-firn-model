@@ -138,6 +138,7 @@ def GEUS_model(weather_df: pd.DataFrame, c: Struct):
         k_eff = 0.021 + 2.5e-6 * rho[:, k] ** 2
 
         # effective conductivity by Anderson 1976, is ok at limits
+        # https://repository.library.noaa.gov/view/noaa/6392
         # thickness of the first layer in m weq for thermal transfer
         thick_first_lay = snic[0, k - 1] + snowc[0, k - 1]
 
