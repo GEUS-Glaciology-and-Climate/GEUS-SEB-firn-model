@@ -15,6 +15,7 @@ import netCDF4 as nc
 from scipy.interpolate import interp1d
 import matplotlib
 import warnings
+import matplotlib as mpl
 
 from matplotlib import gridspec
 from scipy.stats import linregress
@@ -51,7 +52,7 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
             ds = ds.sel(time=slice(str(year[0]), str(year[1])))
             tag='_'+str(year[0])+'_'+str(year[1])
         else:
-            ds = ds.sel(time=str(year))
+            ds = ds.sel(time=str(year[0]))
             tag='_'+str(year)
     # if len(df_sumup)>0:
     #     ds = ds.sel(time=slice(df_sumup.timestamp.min(),
@@ -92,6 +93,12 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
         if ~np.isnan(plot_info.loc[var_name].vmin):
             vmin = plot_info.loc[var_name, 'vmin']
             vmax = plot_info.loc[var_name, 'vmax']
+            
+    cmap = mpl.cm.get_cmap("winter").copy()
+    cmap.set_under('white')
+    vmin = 0.0001
+    vmax = 5
+    
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     plt.subplots_adjust(left=0.07, right=0.99, top=0.95, bottom=0.1, hspace=0.2)
     fig.suptitle(site)
@@ -111,9 +118,6 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
         
     plt.colorbar(im, label=label, ax=ax)
     ax.invert_yaxis()
-    if len(ylim)==1: ax.set_ylim(ylim[0], ax.get_ylim()[1])
-    if len(ylim)==2: ax.set_ylim(np.max(ylim), np.min(ylim))
-    ax.set_ylabel("Depth (m)")
     
     # adding SUMup observations as colored scatter
     if len(df_sumup)>0:
@@ -127,16 +131,17 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
             sumup_var = 'density'
             
         if var_name == 'slwc':
-            plt.plot(df_sumup.timestamp,
+            h1 = plt.plot(df_sumup.timestamp,
                 df_sumup[depth_var],
-                marker='o',ls='None', markersize=3, color='lightgray',zorder=1)
-            plt.plot(df_sumup.loc[df_sumup[sumup_var]>-0.2, 'timestamp'],
+                marker='o',ls='None', markersize=3, color='lightgray',
+                zorder=1, label='thermistor <-0.2 °C')
+            h2 = plt.plot(df_sumup.loc[df_sumup[sumup_var]>-0.2, 'timestamp'],
                         df_sumup.loc[df_sumup[sumup_var]>-0.2, depth_var],
-                        marker='o',ls='None', markersize=3, 
-                        color='tab:red', zorder=2)
+                        marker='o',ls='None', markersize=3, alpha=0.5,
+                        color='tab:red', zorder=2, label='thermistor >-0.2 °C')
+            plt.legend(loc='lower right')
         else:
-            plt.plot(df_sumup.timestamp,
-                df_sumup[depth_var],
+            plt.plot(df_sumup.timestamp, df_sumup[depth_var],
                 marker='o',ls='None', markersize=6, color='lightgray',zorder=1)
             plt.scatter(df_sumup.timestamp,
                         df_sumup[depth_var],
@@ -148,6 +153,14 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
         ax.set_xlim(df_sumup.timestamp.min()-pd.Timedelta('100D'),
                     df_sumup.timestamp.max()+pd.Timedelta('100D'))
     
+    if len(ylim)==1: ax.set_ylim(ylim[0], ax.get_ylim()[1])
+    if len(ylim)==2: ax.set_ylim(np.max(ylim), np.min(ylim))
+    ax.set_ylabel("Depth (m)")
+    if year:
+        if len(year) == 2:
+            ax.set_xlim(pd.to_datetime(str(year[0])), pd.to_datetime(str(year[1])))
+        else:
+            ax.set_xlim(pd.to_datetime(str(year[0])), pd.to_datetime(str(year[0]+1)))
     fig.savefig(output_path+"/" + run_name + "/" + site + "_" + var_name +tag+ ".png")
     return fig, ax
 
@@ -461,49 +474,108 @@ def evaluate_compaction(c):
     fig2.text(0.03, 0.5, "Borehole length (m)", ha="center", va="center", rotation="vertical")
     fig2.savefig(output_path+"/" + run_name + "/" + site + "_compaction_3.png", dpi=240)
 
+from scipy.optimize import curve_fit
+import matplotlib
+from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
 def find_summer_surface_depths(c):
     site = c.station
     output_path = c.output_path
     run_name = c.RunName
     filename = output_path+"/" + run_name + "/" + site + "_compaction.nc"
-    ds = nc.Dataset(filename)
-    compaction = ds["compaction"][:]
-    time_org = np.asarray(ds["time"][:])
-    time = np.datetime64("1900-01-01T00") + np.round((time_org) * 24 * 3600) * np.timedelta64(1, "s")
-    depth_act = np.asarray(ds["depth"][:])
-    H_surf = depth_act[-1, :] - depth_act[-1, 0]
+    ds = xr.open_dataset(filename)
+    compaction = ds["compaction"].data
+    time = ds["time"].data
+    depth_act = ds["depth"].data
+    H_surf = (ds.depth.isel(level=-1)
+            -ds.depth.isel(level=-1).isel(time=0)
+            -(ds.depth.isel(level=-1).diff(dim='time')
+              .where(np.abs(ds.depth.isel(level=-1)
+                      .diff(dim='time'))>1,0).cumsum())).data
+    H_surf = np.insert(H_surf,0,0)
     df_ssd = pd.DataFrame(index=pd.to_datetime(time))
     df_ssd['H_surf'] = H_surf
     # list_years = [2015, 2016, 2017, 2018, 2019, 2020, 2021] 
     list_years = df_ssd.index.year.unique()
+    # list_years = np.arange(2010,2024)
     for i, yr in enumerate(list_years):
         print(yr)
-        date_start = np.datetime64(str(yr)+'-09-01')
+        date_start = np.datetime64(str(yr)+'-06-01')
         df_ssd[str(yr)] = track_horizon(time, H_surf, depth_act, compaction,  date_start, 0, step=48)
-        
-    cmap = matplotlib.cm.get_cmap("Spectral")
-    fig1, ax = plt.subplots(2, 1,figsize=(8,8))  
-    
-    ax[0].plot(time, -H_surf, label="Surface")
-    for i, yr in  enumerate(list_years):
-        ax[0].plot(time, df_ssd[str(yr)].values - df_ssd.H_surf, 
-                color=cmap(i / len(df_ssd.index.year.unique()[:-1])), 
-                label="_no_legend_")
+    df_ssd = df_ssd.resample('M').first()
+    for m in range(1,7):
+        df_ssd.loc['2024-'+str(m).zfill(2)+'-01',:]=np.nan
 
-    ax[0].set_title(site)
-    ax[0].grid()
-    ax[0].set_ylabel("Height (m)")
-    ax[0].set_ylim(-np.nanmin(H_surf), -np.nanmax(H_surf))
+    di = df_ssd.index
+    df_ssd = df_ssd.reset_index().iloc[:,1:]
+    
+    def func(x,  c, d):
+        return  c * x + d
+
+    guess = (-0.5, 0.5)
+    fit_df_ssd = df_ssd.copy()
+    col_params = {}
+    # Curve fit each column
+    for col in fit_df_ssd.columns:
+        # Get x & y
+        if col == '2023':
+            x = fit_df_ssd['2020'].dropna().iloc[:-7].index.astype(float).values
+            y = fit_df_ssd['2020'].dropna().iloc[:-7].values  
+        else:
+            x = fit_df_ssd[col].dropna()[:-7].index.astype(float).values
+            y = fit_df_ssd[col].dropna()[:-7].values            
+        # Curve fit column and get curve parameters
+        params = curve_fit(func, x, y, guess)
+        # Store optimized parameters
+        col_params[col] = params[0]
+    
+    # Extrapolate each column
+    for col in df_ssd.columns:
+        # Get the index values for NaNs in the column
+        if col != 'H_surf':
+            x = df_ssd.loc[
+                pd.isnull(df_ssd[col]) & (di>=pd.to_datetime(col+'-06-01')),
+                col].index.astype(float).values
+        else:
+            x = df_ssd[pd.isnull(df_ssd[col])].index.astype(float).values
+        # Extrapolate those points with the fitted function
+        df_ssd.loc[x, col] = func(x, *col_params[col]) - func(x, *col_params[col])[0] \
+             + df_ssd.loc[df_ssd[col].last_valid_index(), col]
+    df_ssd.index = di
+
+            
+    fig1, ax = plt.subplots(1, 1,figsize=(12,8))  
+    
+    # ax[0].plot(time, -H_surf, label="Surface")
+    # for i, yr in  enumerate(list_years):
+    #     ax[0].plot(time, df_ssd[str(yr)].values - df_ssd.H_surf, 
+    #             color=cmap(i / len(df_ssd.index.year.unique()[:-1])), 
+    #             label="_no_legend_")
+
+    # ax[0].set_title(site)
+    # ax[0].grid()
+    # ax[0].set_ylabel("Height (m)")
+    # ax[0].set_ylim(-np.nanmin(H_surf), -np.nanmax(H_surf))
     
     for i, yr in  enumerate(list_years):
-        ax[1].plot(time, -df_ssd[str(yr)].values, 
-                color=cmap(i / len(df_ssd.index.year.unique()[:-1])), 
-                label="_no_legend_")
-    ax[1].grid()
-    ax[1].set_ylabel("Depth (m)")
-
-    fig1.savefig(output_path+"/" + run_name + "/" + site + "_summer_surface_depth_step_48.png",dpi=240)
-    df_ssd.resample('D').mean().to_csv(output_path+"/" + run_name + "/" + site + "_summer_surface_depth.csv")
+        ax.plot(df_ssd.index, -df_ssd[str(yr)].values, 
+                color='k', 
+                label="_no_legend_")        
+    ax.grid()
+    ax.set_ylim(-12,0.1)
+    ax.set_xlim(pd.to_datetime('2010-01-01'),pd.to_datetime('2024-06-01'))
+    # ax[0].set_ylim(-H_surf[-1]-0.1, -H_surf[-1]+12)
+    ax.set_ylabel("Depth (m)")
+    ax.xaxis.set_major_locator(matplotlib.dates.YearLocator(base=1))
+    ax.xaxis.set_minor_locator(matplotlib.dates.MonthLocator(bymonthday=1))
+    ax.tick_params(axis='x', which='minor', bottom=False)
+    ax.yaxis.set_major_locator(MultipleLocator(1))
+    ax.yaxis.set_minor_locator(MultipleLocator(0.1))
+    ax.tick_params(axis='both', which='both', right=True, top=True, labelright=True, labeltop=True, labelrotation=0)
+    ax.set_title(c.station)
+    fig1.savefig(output_path+"/" + run_name + "/" + site + "_summer_surface_depth_step_48.png",dpi=300)
+    df_ssd.to_csv(
+        output_path+"/" + run_name + "/" + site + "_summer_surface_depth.csv",
+        float_format='%.2f')
 
 
 def plot_summary(df, c, filetag="summary", var_list=None):

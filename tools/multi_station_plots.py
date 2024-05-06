@@ -407,7 +407,7 @@ for tag in ['Lomonaco','Tedesco']:
     ax[0].legend(title='Summit '+ds_selec.timestamp.iloc[0], loc='lower right',
                  bbox_to_anchor=(1.5,1))
     fig.savefig('side analysis/grain_size_evaluation_'+tag+'.png', dpi=300)
-    #%% 
+
 run_name = 'EastGRIP_100_layers_3H'
 ds = xr.open_dataset(output_path+run_name+'/EastGRIP_dgrain.nc')
 
@@ -433,3 +433,69 @@ for tag in ['Montagnat']:
     ax[0].legend(title='EastGRIP '+ds_selec.timestamp.iloc[0], loc='lower right',
                  bbox_to_anchor=(0.7,1))
     fig.savefig('side analysis/grain_size_evaluation_'+tag+'.png', dpi=300)
+
+# %% LWC at several sites
+station_list = ['H2', 'KAN_U', 'FA-13','Summit']
+from lib.plot import load_sumup_temperature, select_sumup, plot_var
+df_sumup, df_meta = load_sumup_temperature()
+# %% 
+for stid in station_list:
+    # %%
+    stid='FA-13'
+    output_path = './output/'
+    run_name = stid+'_100_layers_3H'
+    
+    print(run_name)
+    try: 
+        tmp =pd.read_csv(output_path+'/'+ run_name+'/constants.csv', dtype={'key':str})
+    except:
+        # continue
+        pass
+    tmp['value_num'] = pd.to_numeric(tmp.value, errors='coerce')
+    tmp.loc[tmp.value_num.notnull(),'value'] = tmp.loc[tmp.value_num.notnull(),'value_num']
+    tmp = tmp.set_index('key')[['value']]
+    c = Struct(**tmp.to_dict()['value'] )
+    c.RunName=run_name
+        
+    df_sumup_selec, df_meta_selec = select_sumup(df_sumup, df_meta, c)
+
+    # infiltration evaluation
+    plot_var(c.station, c.output_path, c.RunName, 'slwc', zero_surf=True, 
+                 df_sumup=df_sumup_selec, ylim=[20], tag='_SUMup2024_slwc')
+
+#%% SMB at some sites
+
+station_list = ['H2', 'KAN_U', 'FA-13','Summit']
+
+plt.figure()
+for stid in station_list:
+    output_path = './output/'
+    run_name = stid+'_100_layers_3H'
+    
+    print(run_name)
+    try: 
+        tmp =pd.read_csv(output_path+'/'+ run_name+'/constants.csv', dtype={'key':str})
+    except:
+        continue
+    tmp['value_num'] = pd.to_numeric(tmp.value, errors='coerce')
+    tmp.loc[tmp.value_num.notnull(),'value'] = tmp.loc[tmp.value_num.notnull(),'value_num']
+    tmp = tmp.set_index('key')[['value']]
+    c = Struct(**tmp.to_dict()['value'] )
+    c.RunName=run_name
+    
+    df_in, c = io.load_surface_input_data(c, resample=False)
+    if output_path != c.output_path:
+        print('Warning: Output has been moved from',c.output_path,'to',output_path)
+        c.output_path = output_path
+        
+    #  loading surface variables
+    try:
+        df_out = xr.open_dataset(c.output_path+run_name+'/'+c.station+'_surface.nc').to_dataframe()
+        df_in = df_in.loc[df_out.index[0]:df_out.index[-1],:]
+    except Exception as e:
+        print(e)
+    df_melt_a = df_out.melt_mweq.resample('Y').sum()
+    df_melt_a.plot(label=stid+' mean: %0.2f m a-1'%df_melt_a.mean().item())
+plt.ylabel('Annual surface melt (m w.e.)')
+plt.grid()
+plt.legend()

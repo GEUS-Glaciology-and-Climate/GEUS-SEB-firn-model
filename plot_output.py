@@ -16,10 +16,20 @@ from lib.initialization import Struct
 import pandas as pd
 import os
 import lib.io as io
-
+def name_alias(stid):
+    rename = {'South Dome':'SDM', 'Saddle':'SDL', 'NASA-U': 'NAU',
+                'NASA-E': 'NAE', 'NEEM': 'NEM', 'E-GRIP': 'EGP',
+                'DYE-2': 'DY2', 'Tunu-N':'TUN'
+                # ['Summit', 'DMI'],
+                # ['Summit', 'NOAA']
+}
+    if stid in rename.keys():
+        return rename[stid]
+    else:
+        return stid
 # output_path= 'C:/Users/bav/data_save/output firn model/spin up 3H/'
 output_path = './output/'
-run_name = 'QAS_L_100_layers_3H'
+run_name = 'South Dome_100_layers_3H'
 #%%
 def main(output_path, run_name):
     # %% Loading data
@@ -73,15 +83,15 @@ def main(output_path, run_name):
     # %% Surface height evaluation
     # extracting surface height
     path_aws_l4 = '../PROMICE/PROMICE-AWS-toolbox/out/L4/'
-    if os.path.isfile(path_aws_l4+c.station+'_L4_ext.csv'):
-        df_obs = pd.read_csv(path_aws_l4+c.station+'_L4_ext.csv')
+    if os.path.isfile(path_aws_l4+name_alias(c.station)+'_L4_ext.csv'):
+        df_obs = pd.read_csv(path_aws_l4+name_alias(c.station)+'_L4_ext.csv')
         obs_avail = True
-    elif os.path.isfile(path_aws_l4+c.station+'_L4.csv'):
-        df_obs = pd.read_csv(path_aws_l4+c.station+'_L4.csv')
+    elif os.path.isfile(path_aws_l4+name_alias(c.station)+'_L4.csv'):
+        df_obs = pd.read_csv(path_aws_l4+name_alias(c.station)+'_L4.csv')
         obs_avail = True
     else:
         path_aws_l4 = '../PROMICE/GC-Net-Level-1-data-processing/L1/daily/'
-        if os.path.isfile(path_aws_l4+c.station+'_daily.csv'):
+        if os.path.isfile(path_aws_l4+c.station.replace(' ','')+'_daily.csv'):
             import nead
             df_obs = nead.read(path_aws_l4+c.station.replace(' ','')+'_daily.csv').to_dataframe()
             df_obs = df_obs.rename(columns={'timestamp':'time',
