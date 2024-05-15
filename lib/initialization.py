@@ -98,7 +98,8 @@ def IniVar(time, c):
                     compaction, zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp, 
                     snowbkt, snowthick)
         except Exception as e:
-            print(e)
+            pass
+            # print(e)
 
     df_ini = InitializationSubsurface(c)
     rhofirn[:, -1] = df_ini.rhofirn
@@ -168,12 +169,12 @@ def InitializationSubsurface(c):
     filename = c.initial_state_folder_path + c.station + "_initial_density_bulk.csv"
     if not os.path.isfile(filename):
         if  c.altitude < 1500:
-            print('Did not find initial density profile. Using "ablation_initial_density.csv".')
+            # print('Did not find initial density profile. Using "ablation_initial_density.csv".')
             filename = "./input/initial state/ablation_initial_density.csv"
         else:
-            print('Did not find initial density profile. Using "Accumulation_initial_density.csv".')
+            # print('Did not find initial density profile. Using "Accumulation_initial_density.csv".')
             filename = "./input/initial state/accumulation_initial_density.csv"
-    print(filename)
+    # print(filename)
 
     df_ini_dens = pd.read_csv(filename)
     df_ini_dens.loc[df_ini_dens.density_bulk.isnull(), "density_bulk"] = 350
@@ -264,13 +265,13 @@ def InitializationSubsurface(c):
     filename = c.initial_state_folder_path + c.station + "_initial_T_ice.csv"
     if not os.path.isfile(filename):
         if  c.altitude < 1500:
-            print('Did not find initial temperature profile. Using "ablation_initial_temperature.csv".')
+            # print('Did not find initial temperature profile. Using "ablation_initial_temperature.csv".')
             filename = "./input/initial state/ablation_initial_temperature.csv"
         else:
-            print('Did not find initial temperature profile. Using "Accumulation_initial_temperature.csv".')
+            # print('Did not find initial temperature profile. Using "Accumulation_initial_temperature.csv".')
             filename = "./input/initial state/accumulation_initial_temperature.csv"
             
-    print(filename)
+    # print(filename)
     df_ini_temp = pd.read_csv(filename)
     df_ini_temp = df_ini_temp.loc[df_ini_temp.depth >= 0, :]
 

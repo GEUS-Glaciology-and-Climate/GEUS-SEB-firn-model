@@ -155,7 +155,7 @@ def load_CARRA_grid(c):
     surface_input_path = c.surface_input_path
     pixel = int(c.station.split('_')[1])
             
-    print("- Reading data from CARRA reanalysis set -")
+    # print("- Reading data from CARRA reanalysis set -")
     aws_ds = xr.open_dataset(surface_input_path).sel(pixel=pixel)
     
     meta_ds = ( xr.open_dataset('input/weather data/fractions.west.nc')[['orography', 'latitude','longitude']]
@@ -272,6 +272,7 @@ def write_2d_netcdf(data, name_var, depth_act, time, c):
                     name_var: float_encoding,
                     'level':int_encoding}
     )
+    ds.close()
 
 
 def write_1d_netcdf(data, c, var_list=None, time=None, name_file="surface"):
@@ -318,4 +319,5 @@ def write_1d_netcdf(data, c, var_list=None, time=None, name_file="surface"):
     ds.to_netcdf(
         c.output_path + "/" + c.RunName + "/" + c.station + "_" + name_file + ".nc"
     )
+    ds.close()
 
