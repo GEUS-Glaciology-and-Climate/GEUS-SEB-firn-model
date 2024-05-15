@@ -94,11 +94,10 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
             vmin = plot_info.loc[var_name, 'vmin']
             vmax = plot_info.loc[var_name, 'vmax']
             
-    cmap = mpl.cm.get_cmap("winter").copy()
-    cmap.set_under('white')
-    vmin = 0.0001
-    vmax = 5
-    
+    if var_name == 'slwc':
+        cmap = mpl.cm.get_cmap("winter").copy()
+        cmap.set_under('white')
+
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     plt.subplots_adjust(left=0.07, right=0.99, top=0.95, bottom=0.1, hspace=0.2)
     fig.suptitle(site)
