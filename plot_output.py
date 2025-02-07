@@ -18,7 +18,7 @@ import os
 import lib.io as io
 def name_alias(stid):
     rename = {'South Dome':'SDM', 'Saddle':'SDL', 'NASA-U': 'NAU',
-                'NASA-E': 'NAE', 'NEEM': 'NEM', 'E-GRIP': 'EGP',
+                'NASA-E': 'NAE', 'NEEM': 'NEM', 'EastGRIP': 'EGP',
                 'DYE-2': 'DY2', 'Tunu-N':'TUN'
                 # ['Summit', 'DMI'],
                 # ['Summit', 'NOAA']
@@ -29,7 +29,7 @@ def name_alias(stid):
         return stid
 # output_path= 'C:/Users/bav/data_save/output firn model/spin up 3H/'
 output_path = './output/'
-run_name = 'South Dome_100_layers_3H'
+run_name = 'SWC_O_100_layers_3H'
 #%%
 def main(output_path, run_name):
     # %% Loading data
@@ -44,29 +44,29 @@ def main(output_path, run_name):
         resample=True
     else:
         resample=False
-        
+
     df_in, c = io.load_surface_input_data(c, resample=resample)
     if output_path != c.output_path:
         print('Warning: Output has been moved from',c.output_path,'to',output_path)
         c.output_path = output_path
-        
+
     #  loading surface variables
     try:
         df_out = xr.open_dataset(c.output_path+run_name+'/'+c.station+'_surface.nc').to_dataframe()
         df_in = df_in.loc[df_out.index[0]:df_out.index[-1],:]
     except Exception as e:
         print(e)
-       
+
     # %% plotting surface variables
     try:
         lpl.plot_summary(df_out, c, 'SEB_output')
     except Exception as e:
         print(e)
-        
+
     # %% plotting subsurface variables
     for var in ['compaction','T_ice','density_bulk','slwc','dgrain']:
         try:
-            if len(df_in) <300: 
+            if len(df_in) <300:
                 ylim =   [10]
             else:
                 ylim = []
@@ -76,15 +76,16 @@ def main(output_path, run_name):
             pass
 
     if c.station in ['DY2', 'KAN_U','CP1']:
-            lpl.plot_var(c.station, c.output_path, c.RunName, 'slwc', 
+            lpl.plot_var(c.station, c.output_path, c.RunName, 'slwc',
                          zero_surf=True, ylim=(8,0), year = (2012, 2024))
-  
-    
+
+
     # %% Surface height evaluation
     # extracting surface height
     path_aws_l4 = '../PROMICE/PROMICE-AWS-toolbox/out/L4/'
+    path_aws_l4 = 'C:/Users/bav/GitHub/PROMICE data/aws-l3-dev/sites/'
     if os.path.isfile(path_aws_l4+name_alias(c.station)+'_L4_ext.csv'):
-        df_obs = pd.read_csv(path_aws_l4+name_alias(c.station)+'_L4_ext.csv')
+        df_obs = pd.read_csv(path_aws_l4+'SWC/SWC_day.csv')
         obs_avail = True
     elif os.path.isfile(path_aws_l4+name_alias(c.station)+'_L4.csv'):
         df_obs = pd.read_csv(path_aws_l4+name_alias(c.station)+'_L4.csv')
@@ -114,13 +115,13 @@ def main(output_path, run_name):
     #     df_obs.time= pd.to_datetime(df_obs.time).dt.tz_convert(None)
     #     if len(tmp)>0:
     if obs_avail:
-        df_obs.time= pd.to_datetime(df_obs.time).dt.tz_convert(None)
+        df_obs.time= pd.to_datetime(df_obs.time)
         df_obs = df_obs.set_index('time')
         # df_obs = df_obs.resample(pd.infer_freq(df_out.index)).mean()
-        
+
         fig = plt.figure()
         tmp = (df_obs.z_surf_combined -df_out.surface_height).mean()
-        plt.plot(df_obs.index, df_obs.z_surf_combined-tmp, 
+        plt.plot(df_obs.index, df_obs.z_surf_combined-tmp,
                   marker='.',ls='None', label='AWS')
         plt.plot(df_out.index, df_out.surface_height,color='tab:red',
                  label='model')
@@ -128,35 +129,35 @@ def main(output_path, run_name):
         plt.ylabel('Surface height (m)')
         plt.title(c.station)
         fig.savefig(c.output_path+c.RunName+'/'+c.station+'_surface_height.png', dpi=120)
-    
+
     # %% calculating modelled t_i_10m
-    
+
     filename = c.output_path + run_name + "/" + c.station + "_T_ice.nc"
     df = (xr.open_dataset(filename).to_dataframe().unstack('level'))
     df.columns = df.columns.map('{0[0]}_{0[1]}'.format)
     # df_10m = interpolate_temperature(
-    #     df.index, df[[v for v in df.columns if 'depth' in v]].values, 
-    #     df[[v for v in df.columns if 'T_ice' in v]].values-273.15, 
+    #     df.index, df[[v for v in df.columns if 'depth' in v]].values,
+    #     df[[v for v in df.columns if 'T_ice' in v]].values-273.15,
     # )
     # df_out['t_i_10m'] = df_10m.temperatureObserved.values
     from lib.plot import interpolate_temperature_fast
     df_out['t_i_10m'] = interpolate_temperature_fast(
-        df.index, df[[v for v in df.columns if 'depth' in v]].values, 
-        df[[v for v in df.columns if 'T_ice' in v]].values-273.15, 
+        df.index, df[[v for v in df.columns if 'depth' in v]].values,
+        df[[v for v in df.columns if 'T_ice' in v]].values-273.15,
     )
-    
 
-    # %% plotting ['t_surf','LRout','LHF','SHF','t_i_10m']    
+
+    # %% plotting ['t_surf','LRout','LHF','SHF','t_i_10m']
     df_out['t_surf']  =  ((df_out.LRout_mdl - (1 -  c.em) * df_out.LRin) / c.em / 5.67e-8)**0.25 - 273.15
     df_out['LRout'] = df_out.LRout_mdl
-    
+
     if obs_avail:
         df_obs['LHF'] = df_obs.dlhf_u
         df_obs['SHF'] = df_obs.dshf_u
         if 'ulr' in df_obs.columns:
             df_obs['LRout'] = df_obs.ulr
         else:
-            df_obs['LRout'] = np.nan 
+            df_obs['LRout'] = np.nan
         try:
             lpl.plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SHF','t_i_10m'])
         except:
@@ -187,7 +188,7 @@ def main(output_path, run_name):
     #     pass
 
 # %%
-import os    
+import os
 if __name__ == "__main__":
     # for run_name in os.listdir('C:/Users/bav/data_save/output firn model/'):
     main(output_path=output_path, run_name=run_name)
