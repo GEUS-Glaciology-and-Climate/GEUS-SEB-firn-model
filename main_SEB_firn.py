@@ -212,11 +212,11 @@ if __name__ == "__main__":
                 ]
     station_list = [s for s in station_list if s not in unwanted]
     station_list = [s for s in station_list if 'v3' not in s]
-    # # with Pool(4) as pool:
-    # #     pool.map(run_SEB_firn, station_list)
+    with Pool(7) as pool:
+        pool.map(run_SEB_firn, station_list)
     # for station in ['FA-13']:
-    for station in station_list:
-        try:
-            run_SEB_firn(station)
-        except Exception as e:
-            print(e)
+    # for station in station_list:
+    #     try:
+    #         run_SEB_firn(station)
+    #     except Exception as e:
+    #         print(e)

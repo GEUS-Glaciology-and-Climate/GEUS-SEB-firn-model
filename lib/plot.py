@@ -19,7 +19,7 @@ import matplotlib as mpl
 
 from matplotlib import gridspec
 from scipy.stats import linregress
-    
+
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
@@ -37,7 +37,7 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
         rhofirn = xr.open_dataset(filename).transpose()
         ds = snowc[['depth']]
         ds[var_name] = (snowc.snowc + snic.snic) / (snowc.snowc / rhofirn.rhofirn + snic.snic / 900)
-    
+
     if weq_depth:
         filename = output_path+"/" + run_name + "/" + site + "_snowc.nc"
         snowc = xr.open_dataset(filename).transpose()
@@ -46,7 +46,7 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
         filename = output_path+"/" + run_name + "/" + site + "_slwc.nc"
         slwc = xr.open_dataset(filename).transpose()
         ds['depth'] = (snowc.snowc + snic.snic ).cumsum(axis=1)
-            
+
     if year:
         if len(year) == 2:
             ds = ds.sel(time=slice(str(year[0]), str(year[1])))
@@ -58,7 +58,7 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
     #     ds = ds.sel(time=slice(df_sumup.timestamp.min(),
     #                       df_sumup.timestamp.max())
     #                 ).where((ds.depth<df_sumup.depth.max()+15).all(dim='time'), drop=True)
-    
+
     if zero_surf:
         ds['surface_height'] = 0 * ds.depth.isel(level=-1)
     else:
@@ -77,13 +77,13 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
     if var_name == "T_ice":
         # change unit to mm / m3
         ds[var_name] = ds[var_name] -273.15
-    
+
     # default plot infos
     label = var_name
     cmap = 'magma'
     vmin = np.percentile(ds[var_name], 5)
     vmax = np.percentile(ds[var_name], 95)
-            
+
     # updating for pre-set values
     plot_info = pd.read_csv('lib/plot_info.csv', skipinitialspace=True)
     if var_name in plot_info.variable_name.to_list():
@@ -93,7 +93,7 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
         if ~np.isnan(plot_info.loc[var_name].vmin):
             vmin = plot_info.loc[var_name, 'vmin']
             vmax = plot_info.loc[var_name, 'vmax']
-            
+
     if var_name == 'slwc':
         cmap = mpl.cm.get_cmap("winter").copy()
         cmap.set_under('white')
@@ -101,9 +101,9 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     plt.subplots_adjust(left=0.07, right=0.99, top=0.95, bottom=0.1, hspace=0.2)
     fig.suptitle(site)
-    
+
     im = ax.pcolormesh(
-                   ds.time.expand_dims(dim={"level": ds.level.shape[0]+1}).transpose(), 
+                   ds.time.expand_dims(dim={"level": ds.level.shape[0]+1}).transpose(),
                    np.hstack([ds.surface_height.values.reshape([-1,1]),
                                   ds.depth.values]),
                    ds[var_name].isel(time=slice(1,None)),
@@ -111,13 +111,13 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
                    cmap = cmap, vmin=vmin, vmax=vmax,
                    zorder=0
                    )
-    
+
     if not zero_surf:
         ax.plot(ds.time, ds.surface_height, linewidth=2, color="k")
-        
+
     plt.colorbar(im, label=label, ax=ax)
     ax.invert_yaxis()
-    
+
     # adding SUMup observations as colored scatter
     if len(df_sumup)>0:
         depth_var = 'depth'
@@ -128,7 +128,7 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
         if var_name == 'density_bulk':
             depth_var = 'midpoint'
             sumup_var = 'density'
-            
+
         if var_name == 'slwc':
             h1 = plt.plot(df_sumup.timestamp,
                 df_sumup[depth_var],
@@ -151,7 +151,7 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
         ax.set_ylim(df_sumup[depth_var].max()+2, 0)
         ax.set_xlim(df_sumup.timestamp.min()-pd.Timedelta('100D'),
                     df_sumup.timestamp.max()+pd.Timedelta('100D'))
-    
+
     if len(ylim)==1: ax.set_ylim(ylim[0], ax.get_ylim()[1])
     if len(ylim)==2: ax.set_ylim(np.max(ylim), np.min(ylim))
     ax.set_ylabel("Depth (m)")
@@ -168,7 +168,7 @@ def plot_var_start_end(c, var_name='T_ice', ylim=[], to_file=False):
     output_path = c.output_path
     run_name = c.RunName
     print('plotting',var_name, 'from',run_name)
-    
+
     if var_name != 'density_bulk':
         filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
         ds = xr.open_dataset(filename).transpose()
@@ -181,29 +181,29 @@ def plot_var_start_end(c, var_name='T_ice', ylim=[], to_file=False):
         rhofirn = xr.open_dataset(filename).transpose()
         ds = snowc[['depth']]
         ds[var_name] = (snowc.snowc + snic.snic) / (snowc.snowc / rhofirn.rhofirn + snic.snic / 900)
-        
+
     ds = ds.resample(time='6H').nearest()
-    
+
     if var_name == "slwc":
         # change unit to mm / m3
         ds[var_name] = ds[var_name] * 1000 / ds.depth
     if var_name == "T_ice":
         # change unit to mm / m3
         ds[var_name] = ds[var_name] -273.15
-        
+
         T10m = pd.read_csv('../../Data/Firn temperature/output/10m_temperature_dataset_monthly.csv')
         ds_T10m = xr.open_dataset('../../Data/Firn temperature/output/T10m_prediction.nc')
 
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     # plt.subplots_adjust(left=0.07, right=0.99, top=0.95, bottom=0.1, hspace=0.2)
-    plt.plot( ds[var_name].isel(time=0), 
+    plt.plot( ds[var_name].isel(time=0),
              ds.depth.isel(time=0),
              marker='o',
              color='tab:blue',
              label=ds.time.isel(time=0).dt.strftime("%Y-%m-%d").item(),
              )
 
-    plt.plot(ds[var_name].isel(time=-1), 
+    plt.plot(ds[var_name].isel(time=-1),
              ds.depth.isel(time=-1),
              marker='o',
              color='tab:red',
@@ -218,11 +218,11 @@ def plot_var_start_end(c, var_name='T_ice', ylim=[], to_file=False):
         plt.axvline(ds.isel(level=0).median().T_ice, ls='-.',label='median T_ice(level=0)')
         plt.axvline(    ds_T10m.sel(latitude = T10m.loc[T10m.site==c.station, 'latitude'].mean(),
                         longitude = T10m.loc[T10m.site==c.station, 'longitude'].mean(),
-                        method='nearest').sel(time=slice('1980','1990')).T10m.mean().item(), 
+                        method='nearest').sel(time=slice('1980','1990')).T10m.mean().item(),
                     ls='--',label='T10m reconstructed 1980-1990 avg', c='tab:red')
         plt.axvline(    ds_T10m.sel(latitude = T10m.loc[T10m.site==c.station, 'latitude'].mean(),
                         longitude = T10m.loc[T10m.site==c.station, 'longitude'].mean(),
-                        method='nearest').sel(time=slice('2000','2020')).T10m.mean().item(), 
+                        method='nearest').sel(time=slice('2000','2020')).T10m.mean().item(),
                     ls=':',label='T10m reconstructed 2000-2020 avg', c='tab:orange')
 
     plt.legend()
@@ -238,7 +238,7 @@ def plot_var_start_end(c, var_name='T_ice', ylim=[], to_file=False):
          .to_dataframe()[[var_name]+['depth']]
          .set_index('depth')
          .to_csv('input/initial state/spin up/'+c.station+'_initial_'+var_name+'.csv'))
-        
+
     fig.savefig(output_path+"/" + run_name + "/" + site + "_" + var_name + "_start_end.png")
     return fig, ax
 
@@ -247,26 +247,26 @@ def plot_movie(site, output_path,  run_name, var_name, ylim=[]):
     filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
     ds = xr.open_dataset(filename).transpose()
     ds = ds.resample(time='6H').nearest()
-    
+
     if var_name == "slwc":
         # change unit to mm / m3
         ds[var_name] = ds[var_name] * 1000 / ds.depth
     if var_name == "T_ice":
         # change unit to mm / m3
         ds[var_name] = ds[var_name] -273.15
-        
+
     import matplotlib.pyplot as plt
     from matplotlib.animation import FuncAnimation
     from tqdm import tqdm
-    
+
     # Assuming ds is your dataset and var_name is the variable name
     # Adjust the parameters accordingly
-    
+
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-    
+
     def update(frame):
         ax.clear()
-        ax.plot(ds[var_name].isel(time=frame), 
+        ax.plot(ds[var_name].isel(time=frame),
                 ds.depth.isel(time=frame),
                 marker='o',
                 color='tab:blue',
@@ -275,11 +275,11 @@ def plot_movie(site, output_path,  run_name, var_name, ylim=[]):
         ax.set_title(f'Timestamp: {ds[var_name].time.isel(time=frame).values}')
         ax.set_xlim(ds[var_name].min(), ds[var_name].max())
         ax.set_ylim(80,0)
-        
-    animation = FuncAnimation(fig, update, 
+
+    animation = FuncAnimation(fig, update,
                               frames=range(0,len(ds.time),24*7),
                               interval=100, repeat=False)
-    
+
     # Save the animation as an MP4 file
     animation.save(output_path + '/'+run_name+'/'+var_name+'.gif', fps=30, writer='pillow')
     plt.show()
@@ -288,7 +288,7 @@ def track_horizon(time, H_surf, depth_act, compaction, date_start, depth_start, 
     ind_start = (np.abs(time - date_start)).argmin()
 
     length_out = len(time)
-    depth_hor = np.empty(length_out) * np.nan
+    depth_hor = np.ones(length_out) * np.nan
     depth_hor[ind_start] = depth_start
 
     for i in range(ind_start + step, len(time), step):
@@ -304,11 +304,11 @@ def track_horizon(time, H_surf, depth_act, compaction, date_start, depth_start, 
         )
         ind_prev = int(
             interp1d(
-                np.insert(depth_mod, 0, 0), np.arange(len(depth_mod) + 1), 
+                np.insert(depth_mod, 0, 0), np.arange(len(depth_mod) + 1),
                 kind="previous", fill_value=0
             )(depth_hor[i])
         )
-        comp_tot = np.sum(comp_mod[ind_next:]) 
+        comp_tot = np.sum(comp_mod[ind_next:])
 
         # plus compaction within the layer where the horizon is
         comp = (
@@ -320,7 +320,7 @@ def track_horizon(time, H_surf, depth_act, compaction, date_start, depth_start, 
         # comp_tot = comp_tot + comp
 
         depth_hor[i] = depth_hor[i] + comp_tot
-        
+
     # interpolating between the steps
     if np.sum(np.isnan(depth_hor)) > 0:
         depth_hor[np.isnan(depth_hor)] = interp1d(
@@ -346,16 +346,16 @@ def evaluate_compaction(c):
     df_comp_info = pd.read_csv(
         "side analysis/Firn viscosity/Compaction_Instrument_Metadata.csv"
     ).set_index("sitename")
-    
+
     if site == 'DY2': site='DYE-2'
     if site == 'NSE': site='NASA-SE'
     if site == 'SDL': site='Saddle'
     if site == 'SUM': site='Summit'
     if site == 'EastGRIP': site='EGP'
-    
+
     if site not in df_comp_info.index.unique():
         return None
-    
+
     df_comp_info = (df_comp_info.loc[site, ["instrument_ID",
                                         "installation_daynumber_YYYYMMDD",
                                         "borehole_top_from_surface_m",
@@ -366,24 +366,24 @@ def evaluate_compaction(c):
     df_comp = pd.read_csv("side analysis/Firn viscosity/borehole_shortening_m.csv")
     df_comp.date = pd.to_datetime(df_comp.date)
     df_comp = df_comp.set_index(["instrument_id", "date"])
-    
+
     ID_list = [i for i in df_comp_info.index if i in df_comp.index.get_level_values(0).unique()]
     df_comp = df_comp.reset_index('instrument_id')
     df_comp = df_comp.loc[np.isin(df_comp.instrument_id,ID_list), :]
-    
-    fig1, ax = plt.subplots(1, 1)  
+
+    fig1, ax = plt.subplots(1, 1)
     # plot_var(c.station, output_path, run_name, 'density_bulk')
     ax.plot(time, -H_surf, label="Surface")
-    
+
     cmap = matplotlib.cm.get_cmap("Spectral")
-    
+
     compaction_mod = pd.DataFrame()
     for i, ID in enumerate(ID_list):
         print(site, ID)
         date_start = pd.to_datetime(
             str(df_comp_info.loc[ID, "installation_daynumber_YYYYMMDD"])
         ).to_datetime64()
-        depth_top = df_comp_info.loc[ID, "borehole_top_from_surface_m"]
+        depth_top = -df_comp_info.loc[ID, "borehole_top_from_surface_m"]
         depth_bot = -df_comp_info.loc[ID, "borehole_bottom_from_surface_m"]
 
         depth_1 = track_horizon(time, H_surf, depth_act, compaction,  date_start, depth_top, step=12)
@@ -407,11 +407,11 @@ def evaluate_compaction(c):
     ax.set_ylabel("Depth (m)")
     ax.set_ylim(np.nanmin(depth_2 - H_surf), -np.nanmax(H_surf))
     fig1.savefig(output_path+"/" + run_name + "/" + site + "_compaction_1.png", dpi=240)
-    
+
     fig2, ax2 = plt.subplots(len(ID_list), figsize=(7, 10), sharex=True)
     fig2.suptitle(site)
     fig2.subplots_adjust(left=0.1, right=0.99, top=0.94, hspace=0.3)
-    
+
 
     for i, ID in enumerate(ID_list):
 
@@ -426,12 +426,12 @@ def evaluate_compaction(c):
         # df_comp.loc[ID,'borehole_shortening_m'].plot(ax=ax1)
         # ax2[i].set_title(site + 'Instrument '+str(ID))
         # ax1 = plt.subplot(2,1,2)
-        (-df_comp.loc[df_comp.instrument_id == ID, "borehole_shortening_m"].diff()*1000).plot(
+        (-df_comp.loc[df_comp.instrument_id == ID, "borehole_shortening_m"].rolling('14D', center=True).mean().diff()*1000).plot(
             ax=ax2[i], label="observed"
         )
         tmp = compaction_mod.loc[ (slice(None), ID),:].reset_index('ID')
         ax2[i].plot(tmp.index, tmp['compaction'], label="simulated")
-        
+
         ax2[i].set_xlim(df_comp.borehole_shortening_m.first_valid_index(),
                         df_comp.borehole_shortening_m.last_valid_index())
         ax2[i].set_ylim(0, 2.3)
@@ -445,7 +445,7 @@ def evaluate_compaction(c):
     fig2, ax2 = plt.subplots(len(ID_list), figsize=(7, 10), sharex=True)
     fig2.suptitle(site)
     fig2.subplots_adjust(left=0.1, right=0.99, top=0.9, hspace=0.3)
-    
+
 
     for i, ID in enumerate(ID_list):
 
@@ -460,10 +460,10 @@ def evaluate_compaction(c):
             ax=ax2[i], label="Observation"
         )
         tmp = compaction_mod.loc[ (slice(None), ID),:].reset_index('ID')
-        ax2[i].plot(tmp.index, 
-                    compaction_mod.loc[ (slice(None), ID),'depth_bot'] - compaction_mod.loc[ (slice(None), ID),'depth_top'], 
+        ax2[i].plot(tmp.index,
+                    compaction_mod.loc[ (slice(None), ID),'depth_bot'] - compaction_mod.loc[ (slice(None), ID),'depth_top'],
                     label="Simulated")
-        
+
         ax2[i].set_xlim(df_comp.borehole_shortening_m.first_valid_index(),
                         df_comp.borehole_shortening_m.last_valid_index())
         ax2[i].grid()
@@ -493,7 +493,7 @@ def find_summer_surface_depths(c):
     H_surf = np.insert(H_surf,0,0)
     df_ssd = pd.DataFrame(index=pd.to_datetime(time))
     df_ssd['H_surf'] = H_surf
-    # list_years = [2015, 2016, 2017, 2018, 2019, 2020, 2021] 
+    # list_years = [2015, 2016, 2017, 2018, 2019, 2020, 2021]
     list_years = df_ssd.index.year.unique()
     # list_years = np.arange(2010,2024)
     for i, yr in enumerate(list_years):
@@ -506,7 +506,7 @@ def find_summer_surface_depths(c):
 
     di = df_ssd.index
     df_ssd = df_ssd.reset_index().iloc[:,1:]
-    
+
     def func(x,  c, d):
         return  c * x + d
 
@@ -518,15 +518,15 @@ def find_summer_surface_depths(c):
         # Get x & y
         if col == '2023':
             x = fit_df_ssd['2020'].dropna().iloc[:-7].index.astype(float).values
-            y = fit_df_ssd['2020'].dropna().iloc[:-7].values  
+            y = fit_df_ssd['2020'].dropna().iloc[:-7].values
         else:
             x = fit_df_ssd[col].dropna()[:-7].index.astype(float).values
-            y = fit_df_ssd[col].dropna()[:-7].values            
+            y = fit_df_ssd[col].dropna()[:-7].values
         # Curve fit column and get curve parameters
         params = curve_fit(func, x, y, guess)
         # Store optimized parameters
         col_params[col] = params[0]
-    
+
     # Extrapolate each column
     for col in df_ssd.columns:
         # Get the index values for NaNs in the column
@@ -541,24 +541,24 @@ def find_summer_surface_depths(c):
              + df_ssd.loc[df_ssd[col].last_valid_index(), col]
     df_ssd.index = di
 
-            
-    fig1, ax = plt.subplots(1, 1,figsize=(12,8))  
-    
+
+    fig1, ax = plt.subplots(1, 1,figsize=(12,8))
+
     # ax[0].plot(time, -H_surf, label="Surface")
     # for i, yr in  enumerate(list_years):
-    #     ax[0].plot(time, df_ssd[str(yr)].values - df_ssd.H_surf, 
-    #             color=cmap(i / len(df_ssd.index.year.unique()[:-1])), 
+    #     ax[0].plot(time, df_ssd[str(yr)].values - df_ssd.H_surf,
+    #             color=cmap(i / len(df_ssd.index.year.unique()[:-1])),
     #             label="_no_legend_")
 
     # ax[0].set_title(site)
     # ax[0].grid()
     # ax[0].set_ylabel("Height (m)")
     # ax[0].set_ylim(-np.nanmin(H_surf), -np.nanmax(H_surf))
-    
+
     for i, yr in  enumerate(list_years):
-        ax.plot(df_ssd.index, -df_ssd[str(yr)].values, 
-                color='k', 
-                label="_no_legend_")        
+        ax.plot(df_ssd.index, -df_ssd[str(yr)].values,
+                color='k',
+                label="_no_legend_")
     ax.grid()
     ax.set_ylim(-12,0.1)
     ax.set_xlim(pd.to_datetime('2010-01-01'),pd.to_datetime('2024-06-01'))
@@ -594,7 +594,7 @@ def plot_summary(df, c, filetag="summary", var_list=None):
     count_fig = 0
 
     for i, var in enumerate(var_list):
-        var = str(var)           
+        var = str(var)
         if "_origin" in var.lower():
             continue
         if var + "_Origin" in df.columns:
@@ -610,7 +610,7 @@ def plot_summary(df, c, filetag="summary", var_list=None):
         ax[count].set_ylabel(var)
         ax[count].grid()
         ax[count].set_xlim((df.index[0], df.index[-1]))
-        
+
         if var == "L": ax[count].set_ylim((-30000, 30000))
 
         count = count + 1
@@ -631,12 +631,12 @@ def plot_summary(df, c, filetag="summary", var_list=None):
         for k in range(count + 1, len(ax)):
             ax[k].set_axis_off()
     ax[0].set_title(c.station)
-    
+
     plt.savefig(
         c.output_path + "/" + c.RunName + "/" + c.station + "_summary_" + str(count_fig),
         bbox_inches="tight",
     )
-    
+
 
 from scipy.spatial import distance
 from math import sin, cos, sqrt, atan2, radians
@@ -665,7 +665,9 @@ def load_sumup_temperature():
     ds_meta = xr.open_dataset(
         'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_temperature_greenland.nc',
         group='METADATA')
-    
+    # decoding strings as utf-8
+    for v in ['name','reference','reference_short','method']:
+        ds_meta[v] = ds_meta[v].str.decode('utf-8')
     df_sumup.method_key = df_sumup.method_key.replace(np.nan,-9999)
     # df_sumup['method'] = ds_meta.method.sel(method_key = df_sumup.method_key.values).astype(str)
     df_sumup['name'] = ds_meta.name.sel(name_key = df_sumup.name_key.values).astype(str)
@@ -680,7 +682,7 @@ def load_sumup_temperature():
     # df_ref = ds_meta.reference.to_dataframe()
     df_sumup = df_sumup.loc[df_sumup.timestamp>pd.to_datetime('1989')]
     # selecting Greenland metadata measurements
-    df_meta = df_sumup.loc[df_sumup.latitude>0, 
+    df_meta = df_sumup.loc[df_sumup.latitude>0,
                       ['latitude', 'longitude', 'name_key', 'name', 'method_key',
                        'reference_short','reference', 'reference_key']
                       ].drop_duplicates()
@@ -694,10 +696,10 @@ def evaluate_temperature_sumup(df_out, c):
         print('no temperature in SUMup for ',c.station)
         return
     # T_ice evaluation
-    plot_var(c.station, c.output_path, c.RunName, 'T_ice', zero_surf=True, 
+    plot_var(c.station, c.output_path, c.RunName, 'T_ice', zero_surf=True,
                  df_sumup=df_sumup, tag='_SUMup2024')
     # infiltration evaluation
-    plot_var(c.station, c.output_path, c.RunName, 'slwc', zero_surf=True, 
+    plot_var(c.station, c.output_path, c.RunName, 'slwc', zero_surf=True,
                  df_sumup=df_sumup, ylim=[10], tag='_SUMup2024_slwc')
 
     # T10m evaluation
@@ -725,7 +727,7 @@ def evaluate_temperature_sumup(df_out, c):
 
 
 # from scipy.interpolate import interp1d
-# from tqdm import tqdm  # Import tqdm for the progress bar  
+# from tqdm import tqdm  # Import tqdm for the progress bar
 # def interpolate_temperature(dates, depth_cor, temp,  depth=10,
 #     min_diff_to_depth=2,  kind="linear" ):
 #     depth_cor = depth_cor.astype(float)
@@ -767,10 +769,10 @@ def interpolate_temperature_fast(dates, depth_matrix, temp_matrix,  depth=10,
     closest_depths_idx_2 = np.minimum(M - 1, closest_depth_indices + 1)
     closest_depths = depth_matrix[np.arange(N), closest_depths_idx_1]
     next_closest_depths = depth_matrix[np.arange(N), closest_depths_idx_2]
-    
+
     temp_at_closest_depths = temp_matrix[np.arange(N), closest_depths_idx_1]
     temp_at_next_closest_depths = temp_matrix[np.arange(N), closest_depths_idx_2]
-    
+
     weights = (next_closest_depths - target_depth) / (next_closest_depths - closest_depths)
     temp_at_10m = temp_at_closest_depths + weights * (temp_at_next_closest_depths - temp_at_closest_depths)
     return temp_at_10m
@@ -778,7 +780,7 @@ def interpolate_temperature_fast(dates, depth_matrix, temp_matrix,  depth=10,
 def evaluate_temperature_scatter(df_out, c, year = None):
     df_sumup, df_meta = load_sumup_temperature()
     df_sumup, df_meta_selec = select_sumup(df_sumup, df_meta, c)
-        
+
     filename = c.output_path+"/" + c.RunName + "/" + c.station + "_T_ice.nc"
     ds = xr.open_dataset(filename).transpose()
     ds['T_ice'] = ds.T_ice -273.15
@@ -791,7 +793,7 @@ def evaluate_temperature_scatter(df_out, c, year = None):
             ds = ds.sel(time=str(year))
             tag='_'+str(year)
     df_sumup['T_ice_mod'] = np.nan
-    
+
     time_mat = ds.time.expand_dims(dim={"level": ds.level.shape[0]}).transpose().values
     depth_mat = ds.depth.values
 
@@ -803,7 +805,7 @@ def evaluate_temperature_scatter(df_out, c, year = None):
          .interp(depth=depth_obs, method='linear')
          .T_ice.values)
         df_sumup.loc[df_sumup.timestamp == time_obs,'T_ice_mod'] = interp_T_ice
-        
+
     # plotting
     fig,ax = plt.subplots(1,1,figsize=(7,7))
     plt.subplots_adjust(bottom=0.4)
@@ -827,7 +829,7 @@ def evaluate_temperature_scatter(df_out, c, year = None):
                   horizontalalignment='left', verticalalignment='top',
                   fontsize=10, bbox=dict(boxstyle="round,pad=0.3",
                              alpha=0.5, edgecolor='black', facecolor='white'))
-    
+
     ax.set_ylabel('Modelled subsurface temperature (°C)')
     ax.set_xlabel('Observed subsurface temperature (°C)')
     plt.title(c.station)
@@ -841,7 +843,10 @@ def load_sumup_density():
     ds_meta = xr.open_dataset(
         'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_density_greenland.nc',
         group='METADATA')
-    
+    # decoding strings as utf-8
+    for v in ['profile','reference','reference_short','method']:
+        ds_meta[v] = ds_meta[v].str.decode('utf-8')
+
     df_sumup.method_key = df_sumup.method_key.replace(np.nan,-9999)
     # df_sumup['method'] = ds_meta.method.sel(method_key = df_sumup.method_key.values).astype(str)
     df_sumup['profile'] = ds_meta.profile.sel(profile_key = df_sumup.profile_key.values).astype(str)
@@ -856,7 +861,7 @@ def load_sumup_density():
     # df_ref = ds_meta.reference.to_dataframe()
     df_sumup = df_sumup.loc[df_sumup.timestamp>pd.to_datetime('1989')]
     # selecting Greenland metadata measurements
-    df_meta = df_sumup.loc[df_sumup.latitude>0, 
+    df_meta = df_sumup.loc[df_sumup.latitude>0,
                       ['latitude', 'longitude', 'profile_key', 'profile', 'method_key',
                        'reference_short','reference', 'reference_key']
                       ].drop_duplicates()
@@ -866,16 +871,16 @@ def evaluate_density_sumup(c):
     # Evaluating density with SUMup 2024
     df_sumup, df_meta = load_sumup_density()
     df_sumup, df_meta_selec = select_sumup(df_sumup, df_meta,c)
-    
+
     profile_list = df_sumup.profile_key.drop_duplicates()
-    if len(profile_list) == 0: 
+    if len(profile_list) == 0:
         print('no density profile in SUMup for',c.station)
         return None
-    
-    
-    plot_var(c.station, c.output_path, c.RunName, 'density_bulk', zero_surf=True, 
+
+
+    plot_var(c.station, c.output_path, c.RunName, 'density_bulk', zero_surf=True,
                  df_sumup=df_sumup, tag='_SUMup2024')
-    
+
     # plot each profile
 
     filename = c.output_path+"/" + c.RunName + "/" + c.station + "_snowc.nc"
@@ -887,24 +892,24 @@ def evaluate_density_sumup(c):
     ds_mod_dens = snowc[['depth']]
     ds_mod_dens['density_bulk'] = (snowc.snowc + snic.snic) / (snowc.snowc / rhofirn.rhofirn + snic.snic / 900)
 
-    def new_figure(): 
+    def new_figure():
         fig,ax = plt.subplots(1,6, figsize=(16,7))
         plt.subplots_adjust(left=0.1, right=0.9, top=0.8, wspace=0.2)
         return fig, ax
     fig,ax = new_figure()
     count = 0
     for i, p in enumerate(profile_list):
-        df_profile = df_sumup.loc[df_sumup.profile_key == p, :]
-        
+        df_profile = df_sumup.loc[df_sumup.profile_key == p, :].sort_values(by='start_depth')
+
         if df_meta.loc[df_meta.profile_key == p, 'reference_short'].item() == 'Clerx et al. (2022)':
             df_profile[['start_depth','stop_depth','midpoint']]
         if df_profile[['start_depth','stop_depth','midpoint']].isnull().all().all():
-            print('no data in profile', p, 
+            print('no data in profile', p,
                   df_meta.loc[df_meta.profile_key == p, 'profile'].item(),
                   df_meta.loc[df_meta.profile_key == p, 'reference_short'].item())
             continue
 
-            
+
         df_profile.plot(ax=ax[i-count*6], y='start_depth',x='density',
                         drawstyle="steps-pre",
                         label='observation')
@@ -930,15 +935,15 @@ def evaluate_density_sumup(c):
         ax[i-count*6].set_xlim(100,1000)
         ax[i-count*6].grid()
 
-        if (i-count*6) == 5: 
+        if (i-count*6) == 5:
             fig.savefig(
-                c.output_path+c.RunName+'/'+'density_evaluation_SUMup_'+str(count)+'.png', 
+                c.output_path+c.RunName+'/'+'density_evaluation_SUMup_'+str(count)+'.png',
                 dpi=120)
             count = count +1
             fig,ax = new_figure()
     if (i-count*6) != 5:
         fig.savefig(
-            c.output_path+c.RunName+'/'+'density_evaluation_SUMup_'+str(count)+'.png', 
+            c.output_path+c.RunName+'/'+'density_evaluation_SUMup_'+str(count)+'.png',
             dpi=120)
 
 def load_sumup_smb():
@@ -949,7 +954,9 @@ def load_sumup_smb():
     ds_meta = xr.open_dataset(
         'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_smb_greenland.nc',
         group='METADATA')
-    
+    # decoding strings as utf-8
+    for v in ['name','reference','reference_short','method']:
+        ds_meta[v] = ds_meta[v].str.decode('utf-8')
     df_sumup.method_key = df_sumup.method_key.replace(np.nan,-9999)
     # df_sumup['method'] = ds_meta.method.sel(method_key = df_sumup.method_key.values).astype(str)
     df_sumup['name'] = ds_meta.name.sel(name_key = df_sumup.name_key.values).astype(str)
@@ -964,7 +971,7 @@ def load_sumup_smb():
     # df_ref = ds_meta.reference.to_dataframe()
     df_sumup = df_sumup.loc[df_sumup.start_year>1989]
     # selecting Greenland metadata measurements
-    df_meta = df_sumup.loc[df_sumup.latitude>0, 
+    df_meta = df_sumup.loc[df_sumup.latitude>0,
                       ['latitude', 'longitude', 'name_key', 'name', 'method_key',
                        'reference_short','reference', 'reference_key']
                       ].drop_duplicates()
@@ -975,7 +982,7 @@ def select_sumup(df_sumup, df_meta, c):
     all_points = df_meta[['latitude', 'longitude']].values
     df_meta['distance_from_query_point'] = distance.cdist(all_points, query_point, get_distance)
     min_dist = 2 # in km
-    df_meta_selec = df_meta.loc[df_meta.distance_from_query_point<min_dist, :]   
+    df_meta_selec = df_meta.loc[df_meta.distance_from_query_point<min_dist, :]
 
     return df_sumup.loc[
                 df_sumup.latitude.isin(df_meta_selec.latitude) \
@@ -994,7 +1001,7 @@ def evaluate_smb_sumup(df_out, c):
     df_sumup.loc[msk, 'end_date'] = pd.to_datetime(df_sumup.loc[msk, 'end_year'].astype(int).astype(str)+'-01-01')
     msk = df_sumup.start_date == df_sumup.end_date
     df_sumup.loc[msk, 'end_date'] = pd.to_datetime((df_sumup.loc[msk, 'end_year']+1).astype(int).astype(str)+'-01-01')
-        
+
     df_sumup['smb_mod'] = np.nan
     for i in df_sumup.index:
         df_sumup.loc[i, 'smb_mod'] = df_out.loc[
@@ -1010,7 +1017,7 @@ def evaluate_smb_sumup(df_out, c):
             ax[0].plot([df_sumup.loc[i, 'start_date'] , df_sumup.loc[i, 'end_date']],
                      df_sumup.loc[i, 'smb_mod'] *np.array([1., 1.]),
                      color='tab:orange', marker='x')
-        
+
         ax[0].plot(np.nan,np.nan, color='tab:blue', label='observed', marker='x')
         ax[0].plot(np.nan,np.nan, color='tab:orange', label='modelled', marker='x')
         ax[0].set_xlabel('Year')
@@ -1024,7 +1031,7 @@ def evaluate_smb_sumup(df_out, c):
         ax[1].set_xlabel('Observed SMB (m w.e.)')
         ax[1].set_ylabel('Modelled SMB (m w.e.)')
         return ax
-    
+
 
     msk = (df_sumup.end_date-df_sumup.start_date) <= pd.to_timedelta('7 day')
     if msk.any():
@@ -1032,7 +1039,7 @@ def evaluate_smb_sumup(df_out, c):
         gs  = gridspec.GridSpec(2,2, width_ratios=[0.7, 0.3])
         ax=[plt.subplot(g) for g in gs]
 
-        df_sumup_selec = df_sumup.loc[msk]        
+        df_sumup_selec = df_sumup.loc[msk]
         ax[0], ax[1] =plt_smb([ax[0], ax[1]], df_sumup_selec)
 
         df_sumup_selec = df_sumup.loc[~msk]
@@ -1048,18 +1055,18 @@ def evaluate_smb_sumup(df_out, c):
     fig.suptitle(c.station)
     fig.savefig(c.output_path+c.RunName+'/'+c.station+'_SMB_evaluation_SUMup2024.png', dpi=120)
 
-     
+
 def evaluate_accumulation_snowfox(df_in, c):
     # SnowFox
     if c.station in ['KAN_M', 'QAS_M', 'QAS_U','TAS_A','THU_U2']:
         file = '../../Data/SUMup/data/SMB data/to add/SnowFox_GEUS/SF_'+c.station+'.txt'
-    
+
         df_sf = pd.read_csv(file,delim_whitespace=True)
         df_sf[df_sf==-999] = np.nan
         df_sf['time'] = pd.to_datetime(df_sf[['Year','Month','Day']])
         df_sf = df_sf.set_index('time')
         df_sf['SWE_mweq'] =df_sf['SWE(cmWeq)']/100
-    
+
         fig = plt.figure()
         ax=plt.gca()
         df_sf.SWE_mweq.plot(ax=ax, marker='o')
@@ -1071,19 +1078,19 @@ def evaluate_accumulation_snowfox(df_in, c):
 
 def plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SHF','t_i_10m']):
     fig = plt.figure(figsize=(12, 17))
-    gs = gridspec.GridSpec(len(var_list), 2, width_ratios=[3, 1]) 
-    
+    gs = gridspec.GridSpec(len(var_list), 2, width_ratios=[3, 1])
+
     df_obs = df_obs[~df_obs.index.duplicated(keep='first')]
     df_out = df_out[~df_out.index.duplicated(keep='first')]
     common_idx = df_obs.index.intersection(df_out.index)
-    for i, var in enumerate(var_list): 
+    for i, var in enumerate(var_list):
         if var not in df_obs.columns:
             df_obs[var] = np.nan
         ax1 = plt.subplot(gs[i, 0])
         ax2 = plt.subplot(gs[i, 1])
         # first plot
         ME = np.mean(df_out.loc[common_idx, var] - df_obs.loc[common_idx, var])
-        RMSE = np.sqrt(np.mean((df_out.loc[common_idx, var] - df_obs.loc[common_idx, var])**2))                           
+        RMSE = np.sqrt(np.mean((df_out.loc[common_idx, var] - df_obs.loc[common_idx, var])**2))
         df_obs[var].plot(ax=ax1, label='AWS',marker='.',markersize=2)
         df_out[var].plot(ax=ax1, alpha=0.7, label='SEB model')
         ax1.set_ylabel(var)
@@ -1091,14 +1098,14 @@ def plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SH
         ax1.grid()
         if i == 0:  ax1.set_title(c.station+'\n\n')
         ax1.legend()
-    
+
         # second plot
-        ax2.plot(df_obs.loc[common_idx,var], df_out.loc[common_idx,var], 
+        ax2.plot(df_obs.loc[common_idx,var], df_out.loc[common_idx,var],
                  color='k',alpha=0.1,marker='.',ls='None')
         ax2.set_xlabel('AWS')
-        ax2.set_ylabel('SEB model')        
+        ax2.set_ylabel('SEB model')
         common_idx = df_obs.loc[df_obs[var].notnull()].index.intersection(df_out.loc[df_out[var.replace('_uncor','')].notnull()].index)
-    
+
         try:
             slope, intercept, r_value, p_value, std_err = linregress(
                 df_obs.loc[common_idx, var], df_out.loc[common_idx, var])
@@ -1111,16 +1118,16 @@ def plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SH
             pass
         if i == 0: ax2.legend(loc='lower right')
         ax2.grid()
-        
+
         # Annotate with RMSE and ME
-        ax2.annotate(f'{var}\nRMSE: {RMSE:.2f}\nME: {ME:.2f}', 
-                     xy=(1.05, 0.95), xycoords='axes fraction', 
+        ax2.annotate(f'{var}\nRMSE: {RMSE:.2f}\nME: {ME:.2f}',
+                     xy=(1.05, 0.95), xycoords='axes fraction',
                      horizontalalignment='left', verticalalignment='top',
                      fontsize=10, bbox=dict(boxstyle="round,pad=0.3",
                                             edgecolor='black', facecolor='white'))
 
     fig.savefig(c.output_path+c.RunName+'/SEB_evaluation_vs_AWS.png', dpi=120)
-    
+
 def plot_smb_components(df_out, c):
     fig, ax = plt.subplots(2,1, sharex=True)
     ax[0].plot(df_out.index, df_out.smb_mweq.cumsum(), color='k',lw=2,label='SMB')
@@ -1134,7 +1141,7 @@ def plot_smb_components(df_out, c):
     ax[0].fill_between(df_out.index, df_out.snowfall_mweq.cumsum()*0,
                        -df_out.runoff_mweq.cumsum(), label='Runoff')
     ax[0].legend()
-    
+
     ax[1].plot(df_out.index, df_out.melt_mweq.cumsum(), label='melt')
     ax[1].plot(df_out.index, df_out.runoff_mweq.cumsum(), color='tab:red', label='runoff')
     ax[1].plot(df_out.index, df_out.refreezing_mweq.cumsum(), label='refreezing')

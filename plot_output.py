@@ -28,8 +28,8 @@ def name_alias(stid):
     else:
         return stid
 # output_path= 'C:/Users/bav/data_save/output firn model/spin up 3H/'
-output_path = './output/'
-run_name = 'SWC_O_100_layers_3H'
+output_path = './output/new/'
+run_name = 'CP1_100_layers_3H'
 #%%
 def main(output_path, run_name):
     # %% Loading data
@@ -82,17 +82,14 @@ def main(output_path, run_name):
 
     # %% Surface height evaluation
     # extracting surface height
-    path_aws_l4 = '../PROMICE/PROMICE-AWS-toolbox/out/L4/'
-    path_aws_l4 = 'C:/Users/bav/GitHub/PROMICE data/aws-l3-dev/sites/'
-    if os.path.isfile(path_aws_l4+name_alias(c.station)+'_L4_ext.csv'):
-        df_obs = pd.read_csv(path_aws_l4+'SWC/SWC_day.csv')
-        obs_avail = True
-    elif os.path.isfile(path_aws_l4+name_alias(c.station)+'_L4.csv'):
-        df_obs = pd.read_csv(path_aws_l4+name_alias(c.station)+'_L4.csv')
+
+    path_aws_l4 = 'C:/Users/bav/GitHub/PROMICE data/thredds/level_3_sites/hour/'
+    if os.path.isfile(path_aws_l4+name_alias(c.station)+'_hour.csv'):
+        df_obs = pd.read_csv(path_aws_l4+name_alias(c.station)+'_hour.csv')
         obs_avail = True
     else:
-        path_aws_l4 = '../PROMICE/GC-Net-Level-1-data-processing/L1/daily/'
-        if os.path.isfile(path_aws_l4+c.station.replace(' ','')+'_daily.csv'):
+        path_aws_l4 = '../PROMICE/GC-Net-Level-1-data-processing/L1/hour/'
+        if os.path.isfile(path_aws_l4+c.station.replace(' ','')+'.csv'):
             import nead
             df_obs = nead.read(path_aws_l4+c.station.replace(' ','')+'_daily.csv').to_dataframe()
             df_obs = df_obs.rename(columns={'timestamp':'time',
@@ -117,7 +114,7 @@ def main(output_path, run_name):
     if obs_avail:
         df_obs.time= pd.to_datetime(df_obs.time)
         df_obs = df_obs.set_index('time')
-        # df_obs = df_obs.resample(pd.infer_freq(df_out.index)).mean()
+        df_obs = df_obs.resample(pd.infer_freq(df_out.index)).mean()
 
         fig = plt.figure()
         tmp = (df_obs.z_surf_combined -df_out.surface_height).mean()
@@ -169,8 +166,8 @@ def main(output_path, run_name):
         # lpl.evaluate_temperature_scatter(df_out, c, year = None)
         lpl.evaluate_density_sumup(c)
         lpl.evaluate_smb_sumup(df_out, c)
-    except:
-        pass
+    except Exception as e:
+        print(e)
     lpl.evaluate_accumulation_snowfox(df_in, c)
     lpl.plot_var_start_end(c, 'T_ice')
     lpl.plot_var_start_end(c, 'density_bulk')    # Movies
@@ -180,7 +177,7 @@ def main(output_path, run_name):
         lpl.evaluate_compaction(c)
     except Exception as e:
         print(e)
-        pass
+
     # try:
     #     lpl.find_summer_surface_depths(c)
     # except Exception as e:
