@@ -32,28 +32,9 @@ def run_SEB_firn(station='FA-13', silent=False, pert=None):
     c.use_spin_up_init = True
 
     # default setting
-    c.surface_input_path = "./input/weather data/CARRA_at_AWS.nc"
+    c.surface_input_path = f"./input/weather data/CARRA_at_AWS/{station}.nc"
     c.surface_input_driver = "CARRA"
-    c.output_path = './output/'  #'C:/Users/bav/data_save/output firn model/'
-    c.multi_file_run = False
-
-    if 'pixel' in station:
-        # c.output_path = '../output firn model/grid_'  \
-        #     +station.split('_')[-2]+'_'+station.split('_')[-1]+'/'
-        c.pixel = station.split('_')[1]
-        c.year = station.split('_')[2]
-        c.month = station.split('_')[3]
-        c.output_path = '/media/bav/ice/Baptiste/CARRA SMB/grid_'  \
-            +c.year+'_'+c.month+'/'
-
-        try:
-            os.mkdir(c.output_path)
-        except Exception as e:
-            if not silent: print(e)
-            pass
-        c.surface_input_path = "/media/bav/ice/CARRA/bav/model_input/CARRA_model_input_"+c.year+'_'+c.month+".nc"
-        c.surface_input_driver = "CARRA_grid"
-        c.multi_file_run = True
+    c.output_path = './output/new/'
 
     freq = '3H'
     if c.surface_input_driver=='CARRA' and freq == 'H':
@@ -72,7 +53,7 @@ def run_SEB_firn(station='FA-13', silent=False, pert=None):
     df_in, c = io.load_surface_input_data(c, resample=resample)
 
     if pert:
-        df_in['AirTemperature2C'] = df_in['AirTemperature2C']+pert
+        df_in['AirTemperatureC'] = df_in['AirTemperatureC']+pert
         c.RunName = c.RunName + f"_{pert:+}_deg"
 
 
@@ -87,7 +68,7 @@ def run_SEB_firn(station='FA-13', silent=False, pert=None):
         #     print(e)
         if os.path.isfile(c.output_path+c.RunName+'/'+c.station+'_rhofirn.nc'):
             print(c.RunName, 'already exists')
-            return
+            # return
             #     if abs(os.path.getmtime(c.output_path+c.RunName+'/constants.csv') - time.time())/60/60 <24:
         #         if not silent: print('recently done. skeeping')
         #         return
@@ -128,10 +109,10 @@ def run_SEB_firn(station='FA-13', silent=False, pert=None):
                            df_in.loc['1991':'2001',:]), ignore_index=True)
         df_in.index=pd.to_datetime('1991-01-01T00:00:00') + pd.to_timedelta(df_in.index.astype(str).to_series() + freq)
 
-    for var in ['AirTemperature2C', 'ShortwaveRadiationDownWm2', 'LongwaveRadiationDownWm2',
-           'AirPressurehPa', 'WindSpeed2ms', 'RelativeHumidity2',
-           'ShortwaveRadiationUpWm2', 'Snowfallmweq', 'Rainfallmweq', 'HeightTemperature2m',
-           'HeightHumidity2m', 'HeightWindSpeed2m']:
+    for var in ['AirTemperatureC', 'ShortwaveRadiationDownWm2', 'LongwaveRadiationDownWm2',
+           'AirPressurehPa', 'WindSpeedms', 'SpecificHumiditykgkg',
+           'ShortwaveRadiationUpWm2', 'Snowfallmweq', 'Rainfallmweq', 'HeightTemperaturem',
+           'HeightHumiditym', 'HeightWindSpeedm']:
          if df_in[var].isnull().any():
              print('!!!!!!!!!!!!!!!!!!')
              print(var, 'at',c.station, 'has NaNs')
@@ -147,6 +128,7 @@ def run_SEB_firn(station='FA-13', silent=False, pert=None):
     if not silent: print('reading inputs took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
     # The surface values are received
+    # try:
     (
         df_out["L"], df_out["LHF"], df_out["SHF"], df_out["theta_2m"],
         df_out["q_2m"], df_out["ws_10m"], df_out["Re"], df_out["melt_mweq"],
@@ -158,6 +140,11 @@ def run_SEB_firn(station='FA-13', silent=False, pert=None):
         grndc, grndd, pgrndcapc, pgrndhflx,
         dH_comp, df_out["snowbkt"], compaction, df_out['snowthick']
     ) = GEUS_model(df_in, c)
+    # except Exception as e:
+    #     with open(c.output_path+"/"+c.RunName+"/error.txt","a+") as text_file:
+    #         text_file.write(c.RunName)
+    #         text_file.write(str(e))
+    #     return
 
     if not silent: print('\nSEB firn model took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
@@ -202,40 +189,23 @@ def run_SEB_firn(station='FA-13', silent=False, pert=None):
         start_time = time.time()
 
         # Plot output
-        if not 'pixel' in c.RunName:
-            try:
-                po.main(c.output_path, c.RunName)
-            except Exception as e:
-                print(e)
-            print('plotting took %0.03f sec'%(time.time() -start_time))
+        try:
+            po.main(c.output_path, c.RunName)
+        except Exception as e:
+            print(e)
+        print('plotting took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
     return
-
-def multi_file_grid_run():
-    for year in range(1990, 2024):
-        print(year)
-        for month in range(1,13):
-            if year == 1990 and month < 9:
-                continue
-            print(month)
-            filename = "CARRA_model_input_"+str(year)+'_'+str(month).zfill(2)+".nc"
-
-            ds_carra = xr.open_dataset('/media/bav/ice/CARRA/bav/model_input/' + filename)
-            with Pool(6) as pool:
-                pool.map(run_SEB_firn,
-                ['pixel_'+str(p.item())+'_'+str(year)+'_'+str(month).zfill(2) for p in ds_carra.pixel])
-
 
 if __name__ == "__main__":
 
     # run_SEB_firn('H2')
     # multi_file_grid_run()
 
-    with xr.open_dataset("./input/weather data/CARRA_at_AWS.nc") as ds:
-        station_list = ds.stid.load().values
-    unwanted= ['NUK_K', 'MIT', 'ZAK_A', 'ZAK_L', 'ZAK_Lv3', 'ZAK_U', 'ZAK_Uv3', # local glaciers
-                'LYN_L', 'LYN_T', 'FRE',  # local glaciers
-                'KAN_B', 'NUK_B','WEG_B', # off-ice AWS
+    station_list = [s.replace('.nc','') for s in os.listdir("./input/weather data/CARRA_at_AWS/")]
+
+    unwanted= ['NUK_K', 'MIT', 'LYN_L', 'LYN_T', 'FRE',  # local glaciers
+                'NUK_P','KAN_B', 'NUK_B','WEG_B', # off-ice AWS
                 'DY2','NSE','SDL','NAU','NAE','SDM','TUN','HUM','SWC', 'JAR', 'NEM',  # redundant
                 'T2_08','S10','Swiss Camp 10m','SW2','SW4','Crawford Point 1', 'G1','EGP', # redundant
                 'CEN1','THU_L2'
@@ -244,6 +214,9 @@ if __name__ == "__main__":
     station_list = [s for s in station_list if 'v3' not in s]
     # # with Pool(4) as pool:
     # #     pool.map(run_SEB_firn, station_list)
-    for station in ['FA-13']:
-        for pert in [-2, -1, 1, 2]:
-            run_SEB_firn(station, pert=pert)
+    # for station in ['FA-13']:
+    for station in station_list:
+        try:
+            run_SEB_firn(station)
+        except Exception as e:
+            print(e)

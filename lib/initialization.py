@@ -50,52 +50,25 @@ def IniVar(time, c):
     snowbkt = np.empty((len(time)), dtype="float64")
     snowthick = np.empty((len(time)), dtype="float64")
 
-    # first time step
-    if c.multi_file_run and not c.station.endswith('1990_09'):
-        previous_year = int(c.year)
-        previous_month = int(c.month)-1
-        if previous_month == 0:
-            previous_month = 12
-            previous_year = int(c.year)-1
-        previous_run_name = 'pixel_'+c.pixel+'_'+str(previous_year)+'_'+ str(previous_month).zfill(2) + '_100_layers_3H'
-        previous_output_folder = c.output_path.replace(c.output_path.split('/')[-2]+'/','') \
-            + 'grid_'+str(previous_year)+'_'+ str(previous_month).zfill(2)
-        'pixel_'+c.pixel+'_'+str(previous_year)+'_'+ str(previous_month).zfill(2)
-        
-        file_path = previous_output_folder + "/" + previous_run_name + "/"  \
-            + 'pixel_' + c.pixel + '_' + str(previous_year) \
-                +'_' + str(previous_month).zfill(2) + '_final.pkl'
-        with open(file_path, 'rb') as f:
-            [snowc[:, -1], snic[:, -1], slwc[:, -1], tsoil[:, -1],  rhofirn[:, -1],
-                dgrain[:, -1], Tsurf[-1], grndc[:, -1], grndd[:, -1], snowbkt[-1], 
-            ] =  pickle.load(f)
-            
-            rho[:, -1] = (snowc[:, -1] + snic[:, -1]) / (
-                snowc[:, -1] / rhofirn[:, -1] + snic[:, -1] / c.rho_ice
-            )
-        return (rhofirn,  rho, snowc, snic, slwc, dgrain, tsoil, grndc, grndd,
-                compaction, zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp, 
-                snowbkt, snowthick)
-
     if c.use_spin_up_init:
         try:
             spin_up_run_name = c.station+'_100_layers_3H'
             previous_output_folder ='./output/spin up 3H/'
-            
+
             file_path = previous_output_folder + "/" + spin_up_run_name + "/"  \
                 + c.station + '_final.pkl'
             with open(file_path, 'rb') as f:
                 [snowc[:, -1], snic[:, -1], slwc[:, -1], tsoil[:, -1],  rhofirn[:, -1],
-                    dgrain[:, -1], Tsurf[-1], grndc[:, -1], grndd[:, -1], snowbkt[-1], 
+                    dgrain[:, -1], Tsurf[-1], grndc[:, -1], grndd[:, -1], snowbkt[-1],
                 ] =  pickle.load(f)
-                
+
                 rho[:, -1] = (snowc[:, -1] + snic[:, -1]) / (
                     snowc[:, -1] / rhofirn[:, -1] + snic[:, -1] / c.rho_ice
                 )
             print('Initializing with',previous_output_folder + "/" + spin_up_run_name + "/"  \
                 + c.station + '_final.pkl')
             return (rhofirn,  rho, snowc, snic, slwc, dgrain, tsoil, grndc, grndd,
-                    compaction, zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp, 
+                    compaction, zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp,
                     snowbkt, snowthick)
         except Exception as e:
             pass
@@ -108,7 +81,7 @@ def IniVar(time, c):
     snowc[:, -1] = df_ini.snowc
     if (df_ini.rhofirn == 900 ).all():
         snic[:, -1] = df_ini.snowc
-        snowc[:, -1] = df_ini.snic        
+        snowc[:, -1] = df_ini.snic
     dgrain[:, -1] = df_ini.grain_size_mm
     tsoil[:, -1] = df_ini.temp_degC
     grndc[:, -1] = tsoil[:, -1]
@@ -116,7 +89,7 @@ def IniVar(time, c):
     snowthick[-1] = c.snowthick_ini
 
     return (rhofirn,  rho, snowc, snic, slwc, dgrain, tsoil, grndc, grndd,
-            compaction, zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp, 
+            compaction, zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp,
             snowbkt, snowthick)
 
 
@@ -140,7 +113,7 @@ def ImportConst(ElevGrad:float=0.1):
                      pd.read_csv(const_subsurf_path, sep=";", header=None)
     )
     df_concat = pd.concat([df1, df2, df3])
-    c = df_concat.transpose()   
+    c = df_concat.transpose()
 
     c.columns = c.iloc[0, :]
     c = c.iloc[1, :]
@@ -193,9 +166,9 @@ def InitializationSubsurface(c):
     depth_mod_weq = np.insert(
         np.arange(1, NumLayer + 1) ** 4 / (NumLayer) ** 4 * c.z_max, 0, 0
     )
-  
+
     # here we make sure the top layers are thick enough
-    # if they are too thin we augment them to c.lim_new_lay and remove the 
+    # if they are too thin we augment them to c.lim_new_lay and remove the
     # added mass from the bottom layer so that the total depth weq is still c.z_max
     thickness_mod_weq = np.diff(depth_mod_weq)
     tmp = np.maximum(0, c.lim_new_lay - thickness_mod_weq)
@@ -270,7 +243,7 @@ def InitializationSubsurface(c):
         else:
             # print('Did not find initial temperature profile. Using "Accumulation_initial_temperature.csv".')
             filename = "./input/initial state/accumulation_initial_temperature.csv"
-            
+
     # print(filename)
     df_ini_temp = pd.read_csv(filename)
     df_ini_temp = df_ini_temp.loc[df_ini_temp.depth >= 0, :]
@@ -289,13 +262,13 @@ def InitializationSubsurface(c):
     filename = c.initial_state_folder_path + c.station + "_initial_dgrain.csv"
     if not os.path.isfile(filename):
         filename = './input/initial state/all_sites_initial_grain_size.csv'
-       
+
     df_ini_gs = pd.read_csv(filename)
     df_ini_gs = df_ini_gs.set_index("depth")
 
     df_mod["grain_size_mm"] = (
         df_ini_gs.groupby(
-            pd.cut(df_ini_gs.index, 
+            pd.cut(df_ini_gs.index,
             np.insert(df_mod.depth_m.values, 0, 0)),
             observed=False,
         )

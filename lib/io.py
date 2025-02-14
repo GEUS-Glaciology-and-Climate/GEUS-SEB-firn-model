@@ -77,7 +77,7 @@ def load_promice_old(path_promice):
 
     # df['RelativeHumidity_w'] = RH_ice2water(df['RelativeHumidity(%)'] ,
     #                                                    df['AirTemperature(C)'])
-    
+
     df = df.loc[df.AirPressurehPa.first_valid_index():,:]
     df = df.loc[df.AirTemperature1C.first_valid_index():,:]
 
@@ -93,7 +93,7 @@ def load_CARRA_data(*args, resample=True):
         station = c.station
     elif len(args) == 2:
         surface_input_path, station = args
-        
+
     # print("- Reading data from CARRA reanalysis set -", surface_input_path)
     with xr.open_dataset(surface_input_path) as ds:
         aws_ds = ds.where(ds.stid==c.station, drop=True).load()
@@ -103,16 +103,17 @@ def load_CARRA_data(*args, resample=True):
     c.longitude= aws_ds.longitude.item()
 
     df_carra = aws_ds.squeeze().to_dataframe()
-    df_carra['HeightTemperature2m'] = 2
-    df_carra['HeightHumidity2m'] = 2
-    df_carra['HeightWindSpeed2m'] = 10
+    df_carra['HeightTemperaturem'] = 2
+    df_carra['HeightHumiditym'] = 2
+    df_carra['HeightWindSpeedm'] = 10
 
     # converting to a pandas dataframe and renaming some of the columns
     df_carra = df_carra.rename(columns={
-                            't2m': 'AirTemperature2C', 
-                            'r2': 'RelativeHumidity2', 
-                            'si10': 'WindSpeed2ms', 
-                            'sp': 'AirPressurehPa', 
+                            't2m': 'AirTemperatureC',
+                            'r2': 'RelativeHumidity',
+                            'sh2': 'SpecificHumiditykgkg',
+                            'si10': 'WindSpeedms',
+                            'sp': 'AirPressurehPa',
                             'ssrd': 'ShortwaveRadiationDownWm2',
                             'ssru': 'ShortwaveRadiationUpWm2',
                             'strd': 'LongwaveRadiationDownWm2',
@@ -125,6 +126,7 @@ def load_CARRA_data(*args, resample=True):
     # Fill null values with 0
     df_carra['ShortwaveRadiationDownWm2'] = df_carra['ShortwaveRadiationDownWm2'].fillna(0)
     df_carra['ShortwaveRadiationUpWm2'] = df_carra['ShortwaveRadiationUpWm2'].fillna(0)
+
     if resample:
         df_carra = df_carra.resample('H').interpolate()
     else:
@@ -133,34 +135,37 @@ def load_CARRA_data(*args, resample=True):
     # df_carra['AirTemperature2C'] = df_carra['AirTemperature2C']+1.69  # bias adjustment
     # df_carra['ShortwaveRadiationDownWm2'] = df_carra['ShortwaveRadiationDownWm2']*1.3  # bias adjustment
     df_carra['ShortwaveRadiationUpWm2'] = df_carra.ShortwaveRadiationDownWm2*df_carra.Albedo
-    
+
     # calcualting snowfall and rainfall
-    # df_carra['Snowfallmweq'] = 0
-    # df_carra['Rainfallmweq'] = 0
-    # cut_off_temp = 0
-    # df_carra.loc[df_carra.AirTemperature2C < cut_off_temp,
-    #              'Snowfallmweq'] = df_carra.loc[
-    #                  df_carra.AirTemperature2C < cut_off_temp,'tp'] / 1000
-    # df_carra.loc[df_carra.AirTemperature2C >= cut_off_temp,
-    #              'Rainfallmweq'] = df_carra.loc[
-    #                  df_carra.AirTemperature2C >= cut_off_temp,'tp'] / 1000
-                     
-    # if (df_carra.index[1] - df_carra.index[0]) == pd.Timedelta('1 hours'):
-    #     df_carra['Snowfallmweq'] = df_carra['Snowfallmweq'] / 3
-    #     df_carra['Rainfallmweq'] = df_carra['Rainfallmweq'] / 3
+    df_carra['Snowfallmweq'] = 0.
+    df_carra['Rainfallmweq'] = 0.
+    cut_off_temp = 0.
+    df_carra.loc[df_carra.AirTemperatureC < cut_off_temp,
+                  'Snowfallmweq'] = df_carra.loc[
+                      df_carra.AirTemperatureC < cut_off_temp,'tp'] / 1000.
+    df_carra.loc[df_carra.AirTemperatureC >= cut_off_temp,
+                  'Rainfallmweq'] = df_carra.loc[
+                      df_carra.AirTemperatureC >= cut_off_temp,'tp'] / 1000.
+
+    if (df_carra.index[1] - df_carra.index[0]) == pd.Timedelta('1 hours'):
+        df_carra['Snowfallmweq'] = df_carra['Snowfallmweq'] / 3
+        df_carra['Rainfallmweq'] = df_carra['Rainfallmweq'] / 3
+
+    df_carra['Rainfallmweq'] = df_carra['Rainfallmweq'].fillna(0)
+    df_carra['Snowfallmweq'] = df_carra['Snowfallmweq'].fillna(0)
     return df_carra
 
 
 def load_CARRA_grid(c):
     surface_input_path = c.surface_input_path
     pixel = int(c.station.split('_')[1])
-            
+
     # print("- Reading data from CARRA reanalysis set -")
     aws_ds = xr.open_dataset(surface_input_path).sel(pixel=pixel)
-    
+
     meta_ds = ( xr.open_dataset('input/weather data/fractions.west.nc')[['orography', 'latitude','longitude']]
                .isel(x=aws_ds.x.item(), y=aws_ds.y.item()))
-    
+
     # c.altitude= aws_ds.altitude.item()
     c.altitude = meta_ds.orography.item()
     c.latitude= aws_ds.latitude.item()
@@ -173,24 +178,24 @@ def load_CARRA_grid(c):
     df_carra['HeightTemperature2m'] = 2
     df_carra['HeightHumidity2m'] = 2
     df_carra['HeightWindSpeed2m'] = 10
-    
+
     df_carra['t2m'] = df_carra['t2m']-273.15
     df_carra['al'] = df_carra['al']/100
     df_carra['sp'] = df_carra['sp']/100
     df_carra['ssrd'] = df_carra['ssrd'] / (3 * 3600)  # from J /3h to W/m-2
     df_carra['strd'] = df_carra['strd'] / (3 * 3600) # from J /3h to W/m-2
-    
-    df_carra['ssru'] = df_carra['ssrd'] * df_carra['al'] 
-    
-    df_carra['sf'] = np.maximum(0, df_carra['tp'] - df_carra['tirf']) / 1000 # conversion to m w.eq. 
-    df_carra['rf'] = df_carra.tirf / 1000 # conversion to m w.eq. 
+
+    df_carra['ssru'] = df_carra['ssrd'] * df_carra['al']
+
+    df_carra['sf'] = np.maximum(0, df_carra['tp'] - df_carra['tirf']) / 1000 # conversion to m w.eq.
+    df_carra['rf'] = df_carra.tirf / 1000 # conversion to m w.eq.
 
     # converting to a pandas dataframe and renaming some of the columns
     df_carra = df_carra.rename(columns={
-                            't2m': 'AirTemperature2C', 
-                            'r2': 'RelativeHumidity2', 
-                            'si10': 'WindSpeed2ms', 
-                            'sp': 'AirPressurehPa', 
+                            't2m': 'AirTemperature2C',
+                            'r2': 'RelativeHumidity2',
+                            'si10': 'WindSpeed2ms',
+                            'sp': 'AirPressurehPa',
                             'ssrd': 'ShortwaveRadiationDownWm2',
                             'ssru': 'ShortwaveRadiationUpWm2',
                             'strd': 'LongwaveRadiationDownWm2',
@@ -203,7 +208,7 @@ def load_CARRA_grid(c):
     # Fill null values with 0
     df_carra['ShortwaveRadiationDownWm2'] = df_carra.ShortwaveRadiationDownWm2.fillna(0)
     df_carra['ShortwaveRadiationUpWm2'] = df_carra.ShortwaveRadiationUpWm2.fillna(0)
-    
+
     return df_carra.drop(columns=['pixel','latitude','longitude','x','y','Albedo','tp','tirf']), c
 
 
@@ -216,11 +221,11 @@ def load_surface_input_data(c, resample=True):
         return load_CARRA_data(c, resample=resample), c
     if c.surface_input_driver  == 'CARRA_grid':
         return load_CARRA_grid(c)
-    
+
     print('Driver', c.surface_input_driver , 'not recognized')
     return None
-    
-    
+
+
 def write_2d_netcdf(data, name_var, depth_act, time, c):
     levels = np.arange(data.shape[0])
     time_days_since = (
@@ -247,13 +252,13 @@ def write_2d_netcdf(data, name_var, depth_act, time, c):
     depth.attrs["long_name"] = "Depth of layer bottom"
     depth.time.attrs["units"] = "days since 1900-01-01"
     depth.level.attrs["units"] = "index of layer (0=top)"
-    
+
     float_encoding = {"dtype": "float32", "zlib": True,"complevel": 9}
     int_encoding = {"dtype": "int32", "zlib": True,"complevel": 9}
 
     ds = xr.merge([foo, depth])
     ds.attrs["title"] = 'Simulated '+long_name[name_var].lower()+' from the GEUS SEB-firn model'
-    ds.attrs["contact"] = 'bav@geus.dk'  
+    ds.attrs["contact"] = 'bav@geus.dk'
     ds.attrs["production_date"] = datetime.date.today().isoformat()
     ds.attrs["run_name"] = c.RunName
     ds.attrs["latitude"] = c.latitude
@@ -303,7 +308,7 @@ def write_1d_netcdf(data, c, var_list=None, time=None, name_file="surface"):
         else:
             ds = xr.merge([ds, foo])
     ds.attrs["title"] = 'Simulated surface variables from the GEUS SEB-firn model'
-    ds.attrs["contact"] = 'bav@geus.dk'  
+    ds.attrs["contact"] = 'bav@geus.dk'
     ds.attrs["production_date"] = datetime.date.today().isoformat()
     ds.attrs["run_name"] = c.RunName
     ds.attrs["latitude"] = c.latitude
@@ -320,4 +325,3 @@ def write_1d_netcdf(data, c, var_list=None, time=None, name_file="surface"):
         c.output_path + "/" + c.RunName + "/" + c.station + "_" + name_file + ".nc"
     )
     ds.close()
-
