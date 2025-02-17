@@ -101,6 +101,8 @@ def load_CARRA_data(*args, resample=True):
     c.altitude= aws_ds.altitude.item()
     c.latitude= aws_ds.latitude.item()
     c.longitude= aws_ds.longitude.item()
+    if c.longitude>180:
+        c.longitude = c.longitude-360
 
     df_carra = aws_ds.squeeze().to_dataframe()
     df_carra['HeightTemperaturem'] = 2
@@ -130,7 +132,7 @@ def load_CARRA_data(*args, resample=True):
     if resample:
         df_carra = df_carra.resample('H').interpolate()
     else:
-        df_carra = df_carra.infer_objects(copy=False).resample(pd.infer_freq(df_carra.index)).interpolate()
+        df_carra = df_carra.apply(pd.to_numeric, errors='coerce').resample(pd.infer_freq(df_carra.index)).interpolate()
     df_carra['LongwaveRadiationDownWm2'] = df_carra['LongwaveRadiationDownWm2']+18  # bias adjustment
     # df_carra['AirTemperature2C'] = df_carra['AirTemperature2C']+1.69  # bias adjustment
     # df_carra['ShortwaveRadiationDownWm2'] = df_carra['ShortwaveRadiationDownWm2']*1.3  # bias adjustment
@@ -213,17 +215,40 @@ def load_CARRA_grid(c):
 
 
 def load_surface_input_data(c, resample=True):
+    df_surf = None
     if c.surface_input_driver  == 'AWS_old':
-        return load_promice_old(c.surface_input_path), c
+        df_surf = load_promice_old(c.surface_input_path)
     # if c.surface_input_driver  == 'AWS':
     #     return load_promice(c.surface_input_path)
     if c.surface_input_driver  == 'CARRA':
-        return load_CARRA_data(c, resample=resample), c
+        df_surf = load_CARRA_data(c, resample=resample)
     if c.surface_input_driver  == 'CARRA_grid':
-        return load_CARRA_grid(c)
+        df_surf = load_CARRA_grid(c)
+        
+    # Spin up option
+    if c.spin_up:
+        df_surf = pd.concat((df_surf.loc['1991':'2001',:],
+                           df_surf.loc['1991':'2001',:],
+                           df_surf.loc['1991':'2001',:],
+                           df_surf.loc['1991':'2001',:],
+                           df_surf.loc['1991':'2001',:]), ignore_index=True)
+        df_surf.index=pd.to_datetime('1991-01-01T00:00:00') + pd.to_timedelta(df_surf.index.astype(str).to_series() + freq)
 
-    print('Driver', c.surface_input_driver , 'not recognized')
-    return None
+    for var in ['AirTemperatureC', 'ShortwaveRadiationDownWm2', 'LongwaveRadiationDownWm2',
+           'AirPressurehPa', 'WindSpeedms', 'SpecificHumiditykgkg',
+           'ShortwaveRadiationUpWm2', 'Snowfallmweq', 'Rainfallmweq', 'HeightTemperaturem',
+           'HeightHumiditym', 'HeightWindSpeedm']:
+         if df_surf[var].isnull().any():
+             print('!!!!!!!!!!!!!!!!!!')
+             print(var, 'at',c.station, 'has NaNs')
+             print('!!!!!!!!!!!!!!!!!!')
+             return
+    if c.pert:
+        df_surf['AirTemperatureC'] = df_surf['AirTemperatureC']+pert
+        c.RunName = c.RunName + f"_{c,pert:+}_deg"
+    if df_surf is None:
+        print('Driver', c.surface_input_driver , 'not recognized')
+    return df_surf, c
 
 
 def write_2d_netcdf(data, name_var, depth_act, time, c):

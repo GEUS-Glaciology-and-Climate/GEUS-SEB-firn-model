@@ -71,8 +71,8 @@ def IniVar(time, c):
                     compaction, zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp,
                     snowbkt, snowthick)
         except Exception as e:
+            print(e)
             pass
-            # print(e)
 
     df_ini = InitializationSubsurface(c)
     rhofirn[:, -1] = df_ini.rhofirn
@@ -91,7 +91,22 @@ def IniVar(time, c):
     return (rhofirn,  rho, snowc, snic, slwc, dgrain, tsoil, grndc, grndd,
             compaction, zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp,
             snowbkt, snowthick)
+            
+def convert_and_log(series):
+    def try_convert(value):
+        if isinstance(value, str):
+            converted = pd.to_numeric(value, errors="coerce")
+            if pd.notna(converted):  # If conversion was successful
+                # print(f"Converted: {value} -> {converted}")
+                return converted
+            else:
+                # print(f"Left as string: {value}")
+                return value
+        else:
+            # print(f"Unchanged: {value}")
+            return value
 
+    return series.apply(try_convert)
 
 def ImportConst(ElevGrad:float=0.1):
     # ImportConst: Reads physical, site-depant, simulation-depant and
@@ -117,7 +132,11 @@ def ImportConst(ElevGrad:float=0.1):
 
     c.columns = c.iloc[0, :]
     c = c.iloc[1, :]
-    c = c.apply(pd.to_numeric, errors="ignore")
+
+
+    c = convert_and_log(c)
+
+
     c[["ch1", "ch2", "ch3", "cq1", "cq2", "cq3"]] = c[
         ["ch1", "ch2", "ch3", "cq1", "cq2", "cq3"]
     ].apply(np.fromstring, dtype=float, sep=",")
@@ -142,10 +161,10 @@ def InitializationSubsurface(c):
     filename = c.initial_state_folder_path + c.station + "_initial_density_bulk.csv"
     if not os.path.isfile(filename):
         if  c.altitude < 1500:
-            # print('Did not find initial density profile. Using "ablation_initial_density.csv".')
+            print('Did not find initial density profile. Using "ablation_initial_density.csv".')
             filename = "./input/initial state/ablation_initial_density.csv"
         else:
-            # print('Did not find initial density profile. Using "Accumulation_initial_density.csv".')
+            print('Did not find initial density profile. Using "Accumulation_initial_density.csv".')
             filename = "./input/initial state/accumulation_initial_density.csv"
     # print(filename)
 

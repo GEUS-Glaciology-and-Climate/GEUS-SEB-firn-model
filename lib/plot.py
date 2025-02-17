@@ -182,7 +182,7 @@ def plot_var_start_end(c, var_name='T_ice', ylim=[], to_file=False):
         ds = snowc[['depth']]
         ds[var_name] = (snowc.snowc + snic.snic) / (snowc.snowc / rhofirn.rhofirn + snic.snic / 900)
 
-    ds = ds.resample(time='6H').nearest()
+    ds = ds.resample(time='6h').nearest()
 
     if var_name == "slwc":
         # change unit to mm / m3
@@ -191,8 +191,7 @@ def plot_var_start_end(c, var_name='T_ice', ylim=[], to_file=False):
         # change unit to mm / m3
         ds[var_name] = ds[var_name] -273.15
 
-        T10m = pd.read_csv('../../Data/Firn temperature/output/10m_temperature_dataset_monthly.csv')
-        ds_T10m = xr.open_dataset('../../Data/Firn temperature/output/T10m_prediction.nc')
+        ds_T10m = xr.open_dataset('input/T10m_prediction.nc')
 
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     # plt.subplots_adjust(left=0.07, right=0.99, top=0.95, bottom=0.1, hspace=0.2)
@@ -210,19 +209,17 @@ def plot_var_start_end(c, var_name='T_ice', ylim=[], to_file=False):
              label=ds.time.isel(time=-1).dt.strftime("%Y-%m-%d").item(),
              )
     if var_name == "T_ice":
-        T10m.loc[T10m.site==c.station, :].plot(x='temperatureObserved',
-                                               y='depthOfTemperatureObservation',
-                                               ax=plt.gca(), label='observed T10m',
-                                               marker='o', ls='None')
         plt.axvline(float(c.Tdeep)-273.15, c='k', label='Tdeep')
         plt.axvline(ds.isel(level=0).median().T_ice, ls='-.',label='median T_ice(level=0)')
-        plt.axvline(    ds_T10m.sel(latitude = T10m.loc[T10m.site==c.station, 'latitude'].mean(),
-                        longitude = T10m.loc[T10m.site==c.station, 'longitude'].mean(),
-                        method='nearest').sel(time=slice('1980','1990')).T10m.mean().item(),
+        plt.axvline(    ds_T10m.sel(latitude = c.latitude,
+                                    longitude = c.longitude,
+                                    method='nearest').sel(time=slice('1980','1990')
+                                    ).T10m.mean().item(),
                     ls='--',label='T10m reconstructed 1980-1990 avg', c='tab:red')
-        plt.axvline(    ds_T10m.sel(latitude = T10m.loc[T10m.site==c.station, 'latitude'].mean(),
-                        longitude = T10m.loc[T10m.site==c.station, 'longitude'].mean(),
-                        method='nearest').sel(time=slice('2000','2020')).T10m.mean().item(),
+        plt.axvline(    ds_T10m.sel(latitude = c.latitude,
+                                    longitude = c.longitude,
+                                    method='nearest').sel(time=slice('2000','2020')
+                                    ).T10m.mean().item(),
                     ls=':',label='T10m reconstructed 2000-2020 avg', c='tab:orange')
 
     plt.legend()
@@ -588,24 +585,17 @@ def plot_summary(df, c, filetag="summary", var_list=None):
     if not var_list:
         var_list = df.columns
         df.columns = df.columns.astype(str)
-
+        
+    # resampling for faster plotting
+    df = df[var_list].resample('D').first()
+    
     fig, ax = new_fig()
     count = 0
     count_fig = 0
 
     for i, var in enumerate(var_list):
         var = str(var)
-        if "_origin" in var.lower():
-            continue
-        if var + "_Origin" in df.columns:
-            df[var].plot(ax=ax[count], color="k", label="_no_legend_")
-            for k in df[var + "_Origin"].unique():
-                tmp = df.copy()
-                tmp.loc[df[var + "_Origin"] != k, var] = np.nan
-                tmp[var].plot(ax=ax[count], label="origin: " + str(int(k)))
-                ax[count].legend()
-        else:
-            df[var].plot(ax=ax[count])
+        df[var].plot(ax=ax[count])
 
         ax[count].set_ylabel(var)
         ax[count].grid()
@@ -660,10 +650,10 @@ def get_distance(point1, point2):
 def load_sumup_temperature():
     # Evaluating temperature with SUMup 2024
     df_sumup = xr.open_dataset(
-        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_temperature_greenland.nc',
+        '../SUMup-2024/SUMup_2024_temperature_greenland.nc',
         group='DATA').to_dataframe()
     ds_meta = xr.open_dataset(
-        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_temperature_greenland.nc',
+        '../SUMup-2024/SUMup_2024_temperature_greenland.nc',
         group='METADATA')
     # decoding strings as utf-8
     for v in ['name','reference','reference_short','method']:
@@ -838,10 +828,10 @@ def evaluate_temperature_scatter(df_out, c, year = None):
 
 def load_sumup_density():
     df_sumup = xr.open_dataset(
-        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_density_greenland.nc',
+        '../SUMup-2024/SUMup_2024_density_greenland.nc',
         group='DATA').to_dataframe()
     ds_meta = xr.open_dataset(
-        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_density_greenland.nc',
+        '../SUMup-2024/SUMup_2024_density_greenland.nc',
         group='METADATA')
     # decoding strings as utf-8
     for v in ['profile','reference','reference_short','method']:
@@ -949,10 +939,10 @@ def evaluate_density_sumup(c):
 def load_sumup_smb():
     # Evaluating smb with SUMup 2024
     df_sumup = xr.open_dataset(
-        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_smb_greenland.nc',
+        '../SUMup-2024/SUMup_2024_SMB_greenland.nc',
         group='DATA').to_dataframe()
     ds_meta = xr.open_dataset(
-        'C:/Users/bav/GitHub/SUMup/SUMup-2024/SUMup 2024 beta/SUMup_2024_smb_greenland.nc',
+        '../SUMup-2024/SUMup_2024_SMB_greenland.nc',
         group='METADATA')
     # decoding strings as utf-8
     for v in ['name','reference','reference_short','method']:

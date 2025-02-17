@@ -19,7 +19,8 @@ import lib.io as io
 def name_alias(stid):
     rename = {'South Dome':'SDM', 'Saddle':'SDL', 'NASA-U': 'NAU',
                 'NASA-E': 'NAE', 'NEEM': 'NEM', 'EastGRIP': 'EGP',
-                'DYE-2': 'DY2', 'Tunu-N':'TUN'
+                'DYE-2': 'DY2', 'Tunu-N':'TUN', 'CEN1':'CEN', 'CEN2':'CEN',
+                'JAR1':'JAR',
                 # ['Summit', 'DMI'],
                 # ['Summit', 'NOAA']
 }
@@ -29,7 +30,7 @@ def name_alias(stid):
         return stid
 # output_path= 'C:/Users/bav/data_save/output firn model/spin up 3H/'
 output_path = './output/new/'
-run_name = 'CP1_100_layers_3H'
+run_name = 'NASA-SE_100_layers_3H'
 #%%
 def main(output_path, run_name):
     # %% Loading data
@@ -41,6 +42,7 @@ def main(output_path, run_name):
     c = Struct(**tmp.to_dict()['value'] )
     c.RunName=run_name
     if c.surface_input_driver=='CARRA' and c.zdtime == 3600:
+        print('resample')
         resample=True
     else:
         resample=False
@@ -59,6 +61,7 @@ def main(output_path, run_name):
 
     # %% plotting surface variables
     try:
+        print('plotting output summary')
         lpl.plot_summary(df_out, c, 'SEB_output')
     except Exception as e:
         print(e)
@@ -75,20 +78,21 @@ def main(output_path, run_name):
             print(var, e)
             pass
 
-    if c.station in ['DY2', 'KAN_U','CP1']:
-            lpl.plot_var(c.station, c.output_path, c.RunName, 'slwc',
-                         zero_surf=True, ylim=(8,0), year = (2012, 2024))
+    # if c.station in ['DY2', 'KAN_U','CP1']:
+        # lpl.plot_var(c.station, c.output_path, c.RunName, 'slwc',
+                     # zero_surf=True, ylim=(8,0), year = (2012, 2024))
 
 
     # %% Surface height evaluation
     # extracting surface height
 
-    path_aws_l4 = 'C:/Users/bav/GitHub/PROMICE data/thredds/level_3_sites/hour/'
+    path_aws_l4 = '../thredds-data/level_3_sites/csv/hour/'
+    # path_aws_l4 = 'C:/Users/bav/GitHub/PROMICE data/thredds/level_3_sites/hour/'
     if os.path.isfile(path_aws_l4+name_alias(c.station)+'_hour.csv'):
         df_obs = pd.read_csv(path_aws_l4+name_alias(c.station)+'_hour.csv')
         obs_avail = True
     else:
-        path_aws_l4 = '../PROMICE/GC-Net-Level-1-data-processing/L1/hour/'
+        path_aws_l4 = '../GC-Net-Level-1-data-processing/L1/hour/'
         if os.path.isfile(path_aws_l4+c.station.replace(' ','')+'.csv'):
             import nead
             df_obs = nead.read(path_aws_l4+c.station.replace(' ','')+'_daily.csv').to_dataframe()
@@ -115,7 +119,8 @@ def main(output_path, run_name):
         df_obs.time= pd.to_datetime(df_obs.time)
         df_obs = df_obs.set_index('time')
         df_obs = df_obs.resample(pd.infer_freq(df_out.index)).mean()
-
+        
+        print('plotting surface height')
         fig = plt.figure()
         tmp = (df_obs.z_surf_combined -df_out.surface_height).mean()
         plt.plot(df_obs.index, df_obs.z_surf_combined-tmp,
@@ -156,12 +161,15 @@ def main(output_path, run_name):
         else:
             df_obs['LRout'] = np.nan
         try:
+            print('plotting',['t_surf','LRout','LHF','SHF','t_i_10m'])
             lpl.plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SHF','t_i_10m'])
         except:
             print('failed to plot observed variables')
             pass
     try:
+        print('plot SMB components')
         lpl.plot_smb_components(df_out, c)
+        print('plot SUMup temperature evaluation')
         lpl.evaluate_temperature_sumup(df_out, c)
         # lpl.evaluate_temperature_scatter(df_out, c, year = None)
         lpl.evaluate_density_sumup(c)
@@ -177,7 +185,7 @@ def main(output_path, run_name):
         lpl.evaluate_compaction(c)
     except Exception as e:
         print(e)
-
+    plt.close('all')
     # try:
     #     lpl.find_summer_surface_depths(c)
     # except Exception as e:

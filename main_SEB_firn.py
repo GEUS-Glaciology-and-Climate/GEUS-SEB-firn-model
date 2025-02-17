@@ -7,8 +7,8 @@ tip list:
     %matplotlib qt
     import pdb; pdb.set_trace()
 """
-# import matplotlib
-# matplotlib.use('Agg')
+import matplotlib
+matplotlib.use('Agg')
 import numpy as np
 import pandas as pd
 import lib.io as io
@@ -21,6 +21,7 @@ import plot_output as po
 import xarray as xr
 from multiprocessing import Pool
 import shutil
+import matplotlib.pyplot as plt
 
 # %%
 def run_SEB_firn(station='FA-13', silent=False, pert=None):
@@ -30,14 +31,15 @@ def run_SEB_firn(station='FA-13', silent=False, pert=None):
     c.station = station
     c.spin_up = False
     c.use_spin_up_init = True
+    c.pert = pert
 
     # default setting
     c.surface_input_path = f"./input/weather data/CARRA_at_AWS/{station}.nc"
     c.surface_input_driver = "CARRA"
     c.output_path = './output/new/'
 
-    freq = '3H'
-    if c.surface_input_driver=='CARRA' and freq == 'H':
+    freq = '3h'
+    if c.surface_input_driver=='CARRA' and freq == 'h':
         resample=True
     else:
         resample=False
@@ -51,11 +53,6 @@ def run_SEB_firn(station='FA-13', silent=False, pert=None):
 
     # loading input data
     df_in, c = io.load_surface_input_data(c, resample=resample)
-
-    if pert:
-        df_in['AirTemperatureC'] = df_in['AirTemperatureC']+pert
-        c.RunName = c.RunName + f"_{pert:+}_deg"
-
 
     try:
         os.mkdir(c.output_path + c.RunName)
@@ -77,7 +74,7 @@ def run_SEB_firn(station='FA-13', silent=False, pert=None):
                 # return
 
     freq = pd.infer_freq(df_in.index)
-    if freq=='H': freq = '1H'
+    if freq=='h': freq = '1h'
     c.delta_time = pd.to_timedelta(freq).total_seconds()
     c.zdtime = c.delta_time
 
@@ -91,33 +88,16 @@ def run_SEB_firn(station='FA-13', silent=False, pert=None):
     c.initial_state_folder_path = './input/initial state/spin up/'
     # assgning deep temperature
     # ds_T10m = xr.open_dataset('../../Data/Firn temperature/output/T10m_prediction.nc')
-    ds_T10m = xr.open_dataset('input/T10m_prediction.nc')
-    c.Tdeep = ds_T10m.sel(latitude = c.latitude,
-                    longitude = c.longitude,
-                    method='nearest').sel(time=slice('1980','1990')
-                  ).T10m.mean().item() + 273.15
+    with xr.open_dataset('input/T10m_prediction.nc') as ds_T10m:
+        c.Tdeep = ds_T10m.sel(latitude = c.latitude,
+                        longitude = c.longitude,
+                        method='nearest').sel(time=slice('1980','1990')
+                      ).T10m.mean().item() + 273.15
+
     if np.isnan(c.Tdeep): c.Tdeep = 273.15
 
     # c.lim_new_lay = c.accum_AWS/c.new_lay_frac;
 
-    # Spin up option
-    if c.spin_up:
-        df_in = pd.concat((df_in.loc['1991':'2001',:],
-                           df_in.loc['1991':'2001',:],
-                           df_in.loc['1991':'2001',:],
-                           df_in.loc['1991':'2001',:],
-                           df_in.loc['1991':'2001',:]), ignore_index=True)
-        df_in.index=pd.to_datetime('1991-01-01T00:00:00') + pd.to_timedelta(df_in.index.astype(str).to_series() + freq)
-
-    for var in ['AirTemperatureC', 'ShortwaveRadiationDownWm2', 'LongwaveRadiationDownWm2',
-           'AirPressurehPa', 'WindSpeedms', 'SpecificHumiditykgkg',
-           'ShortwaveRadiationUpWm2', 'Snowfallmweq', 'Rainfallmweq', 'HeightTemperaturem',
-           'HeightHumiditym', 'HeightWindSpeedm']:
-         if df_in[var].isnull().any():
-             print('!!!!!!!!!!!!!!!!!!')
-             print(var, 'at',c.station, 'has NaNs')
-             print('!!!!!!!!!!!!!!!!!!')
-             return
     print(station, c.Tdeep, 'start/end', df_in.index[0], df_in.index[-1])
     # DataFrame for the surface is created, indexed with time from df_aws
     df_out = pd.DataFrame()
@@ -194,6 +174,7 @@ def run_SEB_firn(station='FA-13', silent=False, pert=None):
         except Exception as e:
             print(e)
         print('plotting took %0.03f sec'%(time.time() -start_time))
+    plt.close('all')
     start_time = time.time()
     return
 
@@ -206,17 +187,18 @@ if __name__ == "__main__":
 
     unwanted= ['NUK_K', 'MIT', 'LYN_L', 'LYN_T', 'FRE',  # local glaciers
                 'NUK_P','KAN_B', 'NUK_B','WEG_B', # off-ice AWS
-                'DY2','NSE','SDL','NAU','NAE','SDM','TUN','HUM','SWC', 'JAR', 'NEM',  # redundant
+                'DY2','NSE','SDL','NAU','NAE','SDM','TUN','HUM','SWC', 'JAR_O','JAR', 'NEM',  # redundant
                 'T2_08','S10','Swiss Camp 10m','SW2','SW4','Crawford Point 1', 'G1','EGP', # redundant
-                'CEN1','THU_L2'
+                'CEN1',
                 ]
     station_list = [s for s in station_list if s not in unwanted]
     station_list = [s for s in station_list if 'v3' not in s]
-    with Pool(7) as pool:
-        pool.map(run_SEB_firn, station_list)
+    # with Pool(7, maxtasksperchild=1) as pool:
+        # pool.map(run_SEB_firn, station_list, chunksize=1)
+
     # for station in ['FA-13']:
-    # for station in station_list:
-    #     try:
-    #         run_SEB_firn(station)
-    #     except Exception as e:
-    #         print(e)
+    for station in station_list:
+        # try:
+            run_SEB_firn(station)
+        # except Exception as e:
+            # print(e)
