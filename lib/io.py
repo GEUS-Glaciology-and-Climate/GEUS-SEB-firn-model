@@ -232,7 +232,7 @@ def load_surface_input_data(c, resample=True):
                            df_surf.loc['1991':'2001',:],
                            df_surf.loc['1991':'2001',:],
                            df_surf.loc['1991':'2001',:]), ignore_index=True)
-        df_surf.index=pd.to_datetime('1991-01-01T00:00:00') + pd.to_timedelta(df_surf.index.astype(str).to_series() + freq)
+        df_surf.index=pd.to_datetime('1991-01-01T00:00:00') + pd.to_timedelta(df_surf.index.astype(str).to_series() + c.freq)
 
     for var in ['AirTemperatureC', 'ShortwaveRadiationDownWm2', 'LongwaveRadiationDownWm2',
            'AirPressurehPa', 'WindSpeedms', 'SpecificHumiditykgkg',
@@ -243,9 +243,7 @@ def load_surface_input_data(c, resample=True):
              print(var, 'at',c.station, 'has NaNs')
              print('!!!!!!!!!!!!!!!!!!')
              return
-    if c.pert:
-        df_surf['AirTemperatureC'] = df_surf['AirTemperatureC']+pert
-        c.RunName = c.RunName + f"_{c,pert:+}_deg"
+             
     if df_surf is None:
         print('Driver', c.surface_input_driver , 'not recognized')
     return df_surf, c

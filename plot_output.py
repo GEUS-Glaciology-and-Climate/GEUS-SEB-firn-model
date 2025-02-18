@@ -30,7 +30,7 @@ def name_alias(stid):
         return stid
 # output_path= 'C:/Users/bav/data_save/output firn model/spin up 3H/'
 output_path = './output/new/'
-run_name = 'NASA-SE_100_layers_3H'
+run_name = 'TAS_U_100_layers_3h'
 #%%
 def main(output_path, run_name):
     # %% Loading data
@@ -57,26 +57,19 @@ def main(output_path, run_name):
         df_out = xr.open_dataset(c.output_path+run_name+'/'+c.station+'_surface.nc').to_dataframe()
         df_in = df_in.loc[df_out.index[0]:df_out.index[-1],:]
     except Exception as e:
-        print(e)
+        print(c.RunName, e)
 
     # %% plotting surface variables
-    try:
-        print('plotting output summary')
-        lpl.plot_summary(df_out, c, 'SEB_output')
-    except Exception as e:
-        print(e)
+    print(c.RunName, 'plotting output summary')
+    lpl.plot_summary(df_out, c, 'SEB_output')
 
     # %% plotting subsurface variables
     for var in ['compaction','T_ice','density_bulk','slwc','dgrain']:
-        try:
-            if len(df_in) <300:
-                ylim =   [10]
-            else:
-                ylim = []
-            lpl.plot_var(c.station, c.output_path, c.RunName, var, ylim=ylim, zero_surf=False)
-        except Exception as e:
-            print(var, e)
-            pass
+        if len(df_in) <300:
+            ylim =   [10]
+        else:
+            ylim = []
+        lpl.plot_var(c.station, c.output_path, c.RunName, var, ylim=ylim, zero_surf=False)
 
     # if c.station in ['DY2', 'KAN_U','CP1']:
         # lpl.plot_var(c.station, c.output_path, c.RunName, 'slwc',
@@ -106,7 +99,7 @@ def main(output_path, run_name):
                                             })
             obs_avail = True
         else:
-            print('No observation for', c.station)
+            print(c.RunName, ': no weather observation was found')
             obs_avail = False
 
             # return []
@@ -120,7 +113,7 @@ def main(output_path, run_name):
         df_obs = df_obs.set_index('time')
         df_obs = df_obs.resample(pd.infer_freq(df_out.index)).mean()
         
-        print('plotting surface height')
+        print(c.RunName, 'plotting surface height')
         fig = plt.figure()
         tmp = (df_obs.z_surf_combined -df_out.surface_height).mean()
         plt.plot(df_obs.index, df_obs.z_surf_combined-tmp,
@@ -160,31 +153,23 @@ def main(output_path, run_name):
             df_obs['LRout'] = df_obs.ulr
         else:
             df_obs['LRout'] = np.nan
-        try:
-            print('plotting',['t_surf','LRout','LHF','SHF','t_i_10m'])
-            lpl.plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SHF','t_i_10m'])
-        except:
-            print('failed to plot observed variables')
-            pass
-    try:
-        print('plot SMB components')
-        lpl.plot_smb_components(df_out, c)
-        print('plot SUMup temperature evaluation')
-        lpl.evaluate_temperature_sumup(df_out, c)
-        # lpl.evaluate_temperature_scatter(df_out, c, year = None)
-        lpl.evaluate_density_sumup(c)
-        lpl.evaluate_smb_sumup(df_out, c)
-    except Exception as e:
-        print(e)
+        print('plotting',['t_surf','LRout','LHF','SHF','t_i_10m'])
+        lpl.plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SHF','t_i_10m'])
+
+    print(c.RunName, 'plot SMB components')
+    lpl.plot_smb_components(df_out, c)
+    print(c.RunName, 'plot SUMup temperature evaluation')
+    lpl.evaluate_temperature_sumup(df_out, c)
+    # lpl.evaluate_temperature_scatter(df_out, c, year = None)
+    lpl.evaluate_density_sumup(c)
+    lpl.evaluate_smb_sumup(df_out, c)
     lpl.evaluate_accumulation_snowfox(df_in, c)
     lpl.plot_var_start_end(c, 'T_ice')
     lpl.plot_var_start_end(c, 'density_bulk')    # Movies
     # lpl.plot_movie(c.station, c.output_path, c.RunName, 'T_ice')
     # lpl.plot_movie(c.station, c.output_path, c.RunName, 'density_bulk')
-    try:
-        lpl.evaluate_compaction(c)
-    except Exception as e:
-        print(e)
+    lpl.evaluate_compaction(c)
+
     plt.close('all')
     # try:
     #     lpl.find_summer_surface_depths(c)

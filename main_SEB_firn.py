@@ -24,22 +24,21 @@ import shutil
 import matplotlib.pyplot as plt
 
 # %%
-def run_SEB_firn(station='FA-13', silent=False, pert=None):
+def run_SEB_firn(station='FA-13', silent=False):
     start_time = time.time()
     # importing standard values for constants
     c = ImportConst()
     c.station = station
-    c.spin_up = False
+    c.spin_up = True
     c.use_spin_up_init = True
-    c.pert = pert
 
     # default setting
     c.surface_input_path = f"./input/weather data/CARRA_at_AWS/{station}.nc"
     c.surface_input_driver = "CARRA"
     c.output_path = './output/new/'
 
-    freq = '3h'
-    if c.surface_input_driver=='CARRA' and freq == 'h':
+    c.freq = '3h'
+    if c.surface_input_driver=='CARRA' and c.freq == 'h':
         resample=True
     else:
         resample=False
@@ -49,28 +48,28 @@ def run_SEB_firn(station='FA-13', silent=False, pert=None):
     if c.spin_up:
         c.output_path = './output/spin up 3H/'
 
-    c.RunName = c.station + "_" + str(c.num_lay) + "_layers_"+freq
+    c.RunName = c.station + "_" + str(c.num_lay) + "_layers_"+c.freq
 
+            
+    print(c.output_path+c.RunName+'/'+c.station+'_final.pkl')
+    if c.spin_up and os.path.isfile(c.output_path+c.RunName+'/'+c.station+'_final.pkl'):
+        print(c.RunName, 'already exists')
+        return None
+        
     # loading input data
     df_in, c = io.load_surface_input_data(c, resample=resample)
 
     try:
         os.mkdir(c.output_path + c.RunName)
     except:
-        # pass
-        # try:
-        #     po.main(c.output_path, c.RunName)
-        #     return
-        # except Exception as e:
-        #     print(e)
         if os.path.isfile(c.output_path+c.RunName+'/'+c.station+'_rhofirn.nc'):
             print(c.RunName, 'already exists')
-            # return
+
             #     if abs(os.path.getmtime(c.output_path+c.RunName+'/constants.csv') - time.time())/60/60 <24:
-        #         if not silent: print('recently done. skeeping')
+        #         if not silent: print(c.RunName,'recently done. skeeping')
         #         return
         #     else:
-        #         if not silent: print('old version found. redoing')
+        #         if not silent: print(c.RunName,'old version found. redoing')
                 # return
 
     freq = pd.infer_freq(df_in.index)
@@ -105,7 +104,7 @@ def run_SEB_firn(station='FA-13', silent=False, pert=None):
     df_out = df_out.set_index("time")
 
     # %% Running model
-    if not silent: print('reading inputs took %0.03f sec'%(time.time() -start_time))
+    if not silent: print(c.RunName,'reading inputs took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
     # The surface values are received
     # try:
@@ -126,7 +125,7 @@ def run_SEB_firn(station='FA-13', silent=False, pert=None):
     #         text_file.write(str(e))
     #     return
 
-    if not silent: print('\nSEB firn model took %0.03f sec'%(time.time() -start_time))
+    if not silent: print(c.RunName,'SEB firn model took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
 
     # %% Writing output
@@ -165,15 +164,15 @@ def run_SEB_firn(station='FA-13', silent=False, pert=None):
         io.write_2d_netcdf(dgrain, 'dgrain', depth_act, df_in.index, c)
         io.write_2d_netcdf(compaction, 'compaction', depth_act, df_in.index, c)
 
-        if not silent: print('writing output files took %0.03f sec'%(time.time() -start_time))
+        if not silent: print(c.RunName,'writing output files took %0.03f sec'%(time.time() -start_time))
         start_time = time.time()
 
         # Plot output
         try:
             po.main(c.output_path, c.RunName)
         except Exception as e:
-            print(e)
-        print('plotting took %0.03f sec'%(time.time() -start_time))
+            print(c.RunName,e)
+        print(c.RunName,'plotting took %0.03f sec'%(time.time() -start_time))
     plt.close('all')
     start_time = time.time()
     return
@@ -193,12 +192,12 @@ if __name__ == "__main__":
                 ]
     station_list = [s for s in station_list if s not in unwanted]
     station_list = [s for s in station_list if 'v3' not in s]
-    # with Pool(7, maxtasksperchild=1) as pool:
-        # pool.map(run_SEB_firn, station_list, chunksize=1)
+    with Pool(7, maxtasksperchild=1) as pool:
+        pool.map(run_SEB_firn, station_list, chunksize=1)
 
-    # for station in ['FA-13']:
-    for station in station_list:
+    # for station in ['KULU']:
+    # for station in station_list:
         # try:
-            run_SEB_firn(station)
+            # run_SEB_firn(station)
         # except Exception as e:
-            # print(e)
+            # print(c.RunName,e)

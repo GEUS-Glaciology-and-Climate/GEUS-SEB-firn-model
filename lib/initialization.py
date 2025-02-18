@@ -52,7 +52,7 @@ def IniVar(time, c):
 
     if c.use_spin_up_init:
         try:
-            spin_up_run_name = c.station+'_100_layers_3H'
+            spin_up_run_name = c.station+'_100_layers_3h'
             previous_output_folder ='./output/spin up 3H/'
 
             file_path = previous_output_folder + "/" + spin_up_run_name + "/"  \
