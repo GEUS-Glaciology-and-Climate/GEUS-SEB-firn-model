@@ -46,12 +46,12 @@ def run_SEB_firn(station='FA-13', silent=False):
     c.num_lay = 100
     # defining run name
     if c.spin_up:
+        print('######### spin-up run ##########')
         c.output_path = './output/spin up 3H/'
 
     c.RunName = c.station + "_" + str(c.num_lay) + "_layers_"+c.freq
 
 
-    print(c.output_path+c.RunName+'/'+c.station+'_final.pkl')
     if c.spin_up and os.path.isfile(c.output_path+c.RunName+'/'+c.station+'_final.pkl'):
         print(c.RunName, 'already exists')
         return None

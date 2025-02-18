@@ -877,7 +877,7 @@ def evaluate_density_sumup(c):
                       + '\n' + df_meta.loc[df_meta.profile_key == p, 'reference_short'].item())
             ax[i-count*6].set_title(title, fontsize=8, fontweight='bold')
             ax[i-count*6].set_xlabel('Density (kg m$^{-3}$)')
-            ax[i-count*6].set_ylim(df_profile.start_depth.max()+1, 0)
+            ax[i-count*6].set_ylim(df_profile[['midpoint','start_depth']].max().max()+1, 0)
             ax[i-count*6].set_xlim(100,1000)
             ax[i-count*6].grid()
 
@@ -898,7 +898,7 @@ def evaluate_density_sumup(c):
 
 def load_sumup(var='SMB', name_var='name', c=None):
     with xr.open_dataset(f'../SUMup-2024/SUMup_2024_{var}_greenland.nc',
-                         group='DATA') as ds:
+                         group='DATA', decode_timedelta=False) as ds:
         df_sumup = ds.to_dataframe()
         if 'timestamp' in df_sumup.columns:
             df_sumup = df_sumup.loc[
@@ -930,7 +930,7 @@ def load_sumup(var='SMB', name_var='name', c=None):
     print(c.RunName, 'found', len(df_sumup),var, 'measurements in SUMup')
     ds_meta = xr.open_dataset(
         f'../SUMup-2024/SUMup_2024_{var}_greenland.nc',
-        group='METADATA')
+        group='METADATA', decode_timedelta=False)
 
     # decoding strings as utf-8
     for v in [name_var,'reference','reference_short','method']:
