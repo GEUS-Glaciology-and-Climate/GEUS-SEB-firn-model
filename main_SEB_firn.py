@@ -50,12 +50,12 @@ def run_SEB_firn(station='FA-13', silent=False):
 
     c.RunName = c.station + "_" + str(c.num_lay) + "_layers_"+c.freq
 
-            
+
     print(c.output_path+c.RunName+'/'+c.station+'_final.pkl')
     if c.spin_up and os.path.isfile(c.output_path+c.RunName+'/'+c.station+'_final.pkl'):
         print(c.RunName, 'already exists')
         return None
-        
+
     # loading input data
     df_in, c = io.load_surface_input_data(c, resample=resample)
 
@@ -192,12 +192,12 @@ if __name__ == "__main__":
                 ]
     station_list = [s for s in station_list if s not in unwanted]
     station_list = [s for s in station_list if 'v3' not in s]
-    with Pool(7, maxtasksperchild=1) as pool:
-        pool.map(run_SEB_firn, station_list, chunksize=1)
+    # with Pool(7, maxtasksperchild=1) as pool:
+    #     pool.map(run_SEB_firn, station_list, chunksize=1)
 
-    # for station in ['KULU']:
+    for station in ['TAS_U']:
     # for station in station_list:
         # try:
-            # run_SEB_firn(station)
+            run_SEB_firn(station)
         # except Exception as e:
             # print(c.RunName,e)

@@ -224,7 +224,7 @@ def load_surface_input_data(c, resample=True):
         df_surf = load_CARRA_data(c, resample=resample)
     if c.surface_input_driver  == 'CARRA_grid':
         df_surf = load_CARRA_grid(c)
-        
+
     # Spin up option
     if c.spin_up:
         df_surf = pd.concat((df_surf.loc['1991':'2001',:],
@@ -232,7 +232,10 @@ def load_surface_input_data(c, resample=True):
                            df_surf.loc['1991':'2001',:],
                            df_surf.loc['1991':'2001',:],
                            df_surf.loc['1991':'2001',:]), ignore_index=True)
-        df_surf.index=pd.to_datetime('1991-01-01T00:00:00') + pd.to_timedelta(df_surf.index.astype(str).to_series() + c.freq)
+        if c.freq == 'h':
+            df_surf.index=pd.to_datetime('1991-01-01T00:00:00') + pd.to_timedelta(df_surf.index.astype(str).to_series() + c.freq)
+        elif c.freq == '3h':
+            df_surf.index=pd.to_datetime('1991-01-01T00:00:00') + pd.to_timedelta((df_surf.index.to_series()*3).astype(str) + 'h')
 
     for var in ['AirTemperatureC', 'ShortwaveRadiationDownWm2', 'LongwaveRadiationDownWm2',
            'AirPressurehPa', 'WindSpeedms', 'SpecificHumiditykgkg',
@@ -243,7 +246,7 @@ def load_surface_input_data(c, resample=True):
              print(var, 'at',c.station, 'has NaNs')
              print('!!!!!!!!!!!!!!!!!!')
              return
-             
+
     if df_surf is None:
         print('Driver', c.surface_input_driver , 'not recognized')
     return df_surf, c
