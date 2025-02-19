@@ -170,7 +170,7 @@ def plot_var_start_end(c, var_name='T_ice', ylim=[], to_file=False):
         site = c.station
         output_path = c.output_path
         run_name = c.RunName
-        print('plotting',var_name, 'from',run_name)
+        # print('plotting',var_name, 'from',run_name)
 
         if var_name != 'density_bulk':
             filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
@@ -246,7 +246,7 @@ def plot_var_start_end(c, var_name='T_ice', ylim=[], to_file=False):
 
 
 def plot_movie(site, output_path,  run_name, var_name, ylim=[]):
-    print('plotting',var_name, 'from',run_name)
+    # print('plotting',var_name, 'from',run_name)
     filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
     ds = xr.open_dataset(filename).transpose()
     ds = ds.resample(time='6H').nearest()
@@ -475,7 +475,7 @@ def evaluate_compaction(c):
             ax2[i].legend()
         fig2.text(0.03, 0.5, "Borehole length (m)", ha="center", va="center", rotation="vertical")
         fig2.savefig(output_path+"/" + run_name + "/" + site + "_compaction_3.png", dpi=240)
-        print(c.RunName, 'plotted compaction')
+        # print(c.RunName, 'plotted compaction')
 
     except Exception as e:
         print(c.RunName, e)
@@ -504,7 +504,7 @@ def find_summer_surface_depths(c):
     list_years = df_ssd.index.year.unique()
     # list_years = np.arange(2010,2024)
     for i, yr in enumerate(list_years):
-        print(yr)
+        # print(yr)
         date_start = np.datetime64(str(yr)+'-06-01')
         df_ssd[str(yr)] = track_horizon(time, H_surf, depth_act, compaction,  date_start, 0, step=48)
     df_ssd = df_ssd.resample('M').first()
