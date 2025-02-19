@@ -244,8 +244,8 @@ def plot_var_start_end(c, var_name='T_ice', ylim=[], to_file=False):
         plt.close(fig)
     except Exception as e:
         print(c.RunName, e)
-        
-        
+
+
 def plot_movie(site, output_path,  run_name, var_name, ylim=[]):
     print('plotting',var_name, 'from',run_name)
     filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
@@ -480,7 +480,7 @@ def evaluate_compaction(c):
 
     except Exception as e:
         print(c.RunName, e)
-        
+
 from scipy.optimize import curve_fit
 import matplotlib
 from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
@@ -597,10 +597,10 @@ def plot_summary(df, c, filetag="summary", var_list=None):
         if not var_list:
             var_list = df.columns
             df.columns = df.columns.astype(str)
-            
+
         # resampling for faster plotting
         df = df[var_list].resample('D').mean()
-        
+
         fig, ax = new_fig()
         count = 0
         count_fig = 0
@@ -750,7 +750,7 @@ def interpolate_temperature_fast(dates, depth_matrix, temp_matrix,  depth=10,
     temp_at_10m = temp_at_closest_depths + weights * (temp_at_next_closest_depths - temp_at_closest_depths)
     return temp_at_10m
 
-        
+
 def evaluate_temperature_scatter(df_out, c, year = None):
     try:
         df_sumup, df_meta = load_sumup(var='temperature', name_var='name',c=c)
@@ -814,8 +814,8 @@ def evaluate_temperature_scatter(df_out, c, year = None):
 
 
 def evaluate_density_sumup(c):
-    # try:
-        # Evaluating density with SUMup 2024
+    try:
+        # Evaluating density with SUMup 2025
         df_sumup, df_meta = load_sumup(var='density',name_var='profile', c=c)
 
         profile_list = df_sumup.profile_key.drop_duplicates()
@@ -840,41 +840,52 @@ def evaluate_density_sumup(c):
 
         def new_figure():
             fig,ax = plt.subplots(1,6, figsize=(16,7))
-            plt.subplots_adjust(left=0.1, right=0.9, top=0.8, wspace=0.2)
+            plt.subplots_adjust(left=0.1, right=0.9, top=0.8, wspace=0.3)
             return fig, ax
         fig,ax = new_figure()
         count = 0
         for i, p in enumerate(profile_list):
-            df_profile = df_sumup.loc[df_sumup.profile_key == p, :].sort_values(by='start_depth')
+            df_profile = df_sumup.loc[df_sumup.profile_key == p, :]
 
-            if df_meta.loc[df_meta.profile_key == p, 'reference_short'].item() == 'Clerx et al. (2022)':
-                df_profile[['start_depth','stop_depth','midpoint']]
             if df_profile[['start_depth','stop_depth','midpoint']].isnull().all().all():
                 print('no data in profile', p,
                       df_meta.loc[df_meta.profile_key == p, 'profile'].item(),
                       df_meta.loc[df_meta.profile_key == p, 'reference_short'].item())
                 continue
 
+            for _, row in df_profile.iterrows():
+                ax[i - count * 6].plot([row['density'], row['density']],
+                                       [row['start_depth'], row['stop_depth']],
+                                       drawstyle="default", label='__nolegend__',
 
-            df_profile.plot(ax=ax[i-count*6], y='start_depth',x='density',
-                            drawstyle="steps-pre",
-                            label='observation')
+                                       lw=2, color='C0')
+            ax[i - count * 6].plot([row['density'], row['density']],
+                                   [np.nan, np.nan],
+                                   drawstyle="default", label='observation', color='C0')
 
-            (ds_mod_dens
-             .sel(time=df_profile.timestamp.values[0], method='nearest')
-             .to_dataframe()
-             .plot(ax=ax[i-count*6],y='depth',x='density_bulk',
+
+            df_mod = (ds_mod_dens
+                      .sel(time=df_profile.timestamp.values[0], method='nearest')
+                      .to_dataframe())
+
+            # Insert a row at the beginning with depth = 0 and the first density value
+            df_mod = pd.concat([pd.DataFrame({'depth': [0],
+                                              'density_bulk': [df_mod.iloc[0]['density_bulk']]}),
+                                df_mod], ignore_index=True)
+
+            df_mod.plot(ax=ax[i-count*6],y='depth',x='density_bulk',
                    drawstyle="steps-pre",
+                   lw=3, alpha=0.8,
                    label='model',
-                   color='tab:red'))
+                   color='tab:red')
             if i-count*6 == 0:
                 ax[i-count*6].legend(loc='upper left', ncol=2, bbox_to_anchor=(2.5,1.2))
                 ax[i-count*6].set_ylabel('Depth (m)')
             else:
                 ax[i-count*6].get_legend().remove()
             title =  (pd.to_datetime(df_profile.timestamp.values[0]).strftime('%Y-%m-%d')
-                      + '\n' + df_meta.loc[df_meta.profile_key == p, 'profile'].item()
-                      + '\n' + df_meta.loc[df_meta.profile_key == p, 'reference_short'].item())
+                      + '\n' + df_meta.loc[df_meta.profile_key == p, 'profile'].unique().item()
+                      + '\n' + df_meta.loc[df_meta.profile_key == p, 'reference_short'].unique().item())
             ax[i-count*6].set_title(title, fontsize=8, fontweight='bold')
             ax[i-count*6].set_xlabel('Density (kg m$^{-3}$)')
             ax[i-count*6].set_ylim(df_profile[['midpoint','start_depth']].max().max()+1, 0)
@@ -893,11 +904,11 @@ def evaluate_density_sumup(c):
                 c.output_path+c.RunName+'/'+'density_evaluation_SUMup_'+str(count)+'.png',
                 dpi=120)
             plt.close(fig)
-    # except Exception as e:
-        # print(c.RunName,e)
+    except Exception as e:
+        print(c.RunName,e)
 
 def load_sumup(var='SMB', name_var='name', c=None):
-    with xr.open_dataset(f'../SUMup-2024/SUMup_2024_{var}_greenland.nc',
+    with xr.open_dataset(f'../SUMup-data/SUMup_2025_{var}_greenland.nc',
                          group='DATA', decode_timedelta=False) as ds:
         df_sumup = ds.to_dataframe()
         if 'timestamp' in df_sumup.columns:
@@ -908,15 +919,15 @@ def load_sumup(var='SMB', name_var='name', c=None):
             # df_sumup['start_date'] = pd.to_datetime(df_sumup['start_date'], errors='coerce')
             # df_sumup['end_date'] = pd.to_datetime(df_sumup['end_date'], errors='coerce')
             df_sumup = df_sumup.loc[df_sumup.end_year > 1989]
-            
+
         df_sumup = df_sumup.loc[df_sumup.latitude>0]
-        
+
         # selecting Greenland metadata measurements
         df_meta = df_sumup.loc[:,
                           ['latitude', 'longitude', name_var+'_key', 'method_key',
                             'reference_key']
                           ].drop_duplicates()
-        
+
         query_point = [[c.latitude, c.longitude]]
         all_points = df_meta[['latitude', 'longitude']].values
         df_meta['distance_from_query_point'] = distance.cdist(all_points, query_point, get_distance)
@@ -929,7 +940,7 @@ def load_sumup(var='SMB', name_var='name', c=None):
 
     print(c.RunName, 'found', len(df_sumup),var, 'measurements in SUMup')
     ds_meta = xr.open_dataset(
-        f'../SUMup-2024/SUMup_2024_{var}_greenland.nc',
+        f'../SUMup-data/SUMup_2025_{var}_greenland.nc',
         group='METADATA', decode_timedelta=False)
 
     # decoding strings as utf-8
@@ -946,7 +957,7 @@ def load_sumup(var='SMB', name_var='name', c=None):
     df_sumup['reference_short'] = (ds_meta.reference_short
                              .drop_duplicates(dim='reference_key')
                              .sel(reference_key=df_sumup.reference_key.values)
-                             .astype(str))   
+                             .astype(str))
 
     df_meta[name_var] = ds_meta[name_var].sel({name_var+'_key': df_meta[name_var+'_key'].values}).astype(str)
     df_meta['reference'] = (ds_meta.reference
@@ -956,7 +967,7 @@ def load_sumup(var='SMB', name_var='name', c=None):
     df_meta['reference_short'] = (ds_meta.reference_short
                              .drop_duplicates(dim='reference_key')
                              .sel(reference_key=df_meta.reference_key.values)
-                             .astype(str))                                
+                             .astype(str))
     return df_sumup, df_meta
 
 def plt_smb(ax, df_sumup):
@@ -966,10 +977,10 @@ def plt_smb(ax, df_sumup):
     for i in df_sumup.index:
         ref = df_sumup.loc[i, 'reference_short']
         color = ref_colors[ref]
-        
+
         ax[0].plot([df_sumup.loc[i, 'start_date'], df_sumup.loc[i, 'end_date']],
                    df_sumup.loc[i, 'smb'] * np.array([1., 1.]),
-                   color=color, marker='x', 
+                   color=color, marker='x',
                    label=ref if i == df_sumup[df_sumup.reference_short == ref].index[0] else "")
         ax[0].plot([df_sumup.loc[i, 'start_date'], df_sumup.loc[i, 'end_date']],
                    df_sumup.loc[i, 'smb_mod'] * np.array([1., 1.]),
@@ -1061,7 +1072,7 @@ def evaluate_accumulation_snowfox(df_in, c):
             plt.close(fig)
         except Exception as e:
             print(c.RunName,e)
-           
+
 
 def plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SHF','t_i_10m']):
     try:
@@ -1118,8 +1129,8 @@ def plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SH
         plt.close(fig)
     except Exception as e:
         print(c.RunName, e)
-        
-        
+
+
 def plot_smb_components(df_out, c):
     try:
         fig, ax = plt.subplots(2,1, sharex=True)
