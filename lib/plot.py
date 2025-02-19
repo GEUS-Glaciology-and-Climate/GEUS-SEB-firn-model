@@ -693,7 +693,7 @@ def evaluate_temperature_sumup(df_out, c):
         ax.set_xlabel('')
         plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1))
         plt.title(c.station)
-        fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup2024.png', dpi=120)
+        fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup2024.png', dpi=120, bbox_inches="tight",)
         plt.close(fig)
     except Exception as e:
         print(c.RunName, e)
@@ -930,7 +930,7 @@ def plot_density_profile(df_sumup, profile_list, df_meta, ds_mod_dens, c):
 
         df_mod.plot(ax=ax[i-count*6],y='depth',x='density_bulk',
                drawstyle="steps-pre",
-               lw=3, alpha=0.8,
+               lw=2, alpha=0.8,
                label='model',
                color='tab:red')
         if i-count*6 == 0:
