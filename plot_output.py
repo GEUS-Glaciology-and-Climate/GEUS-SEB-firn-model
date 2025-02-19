@@ -16,11 +16,13 @@ from lib.initialization import Struct
 import pandas as pd
 import os
 import lib.io as io
+from multiprocessing import Pool
+
 def name_alias(stid):
     rename = {'South Dome':'SDM', 'Saddle':'SDL', 'NASA-U': 'NAU',
                 'NASA-E': 'NAE', 'NEEM': 'NEM', 'EastGRIP': 'EGP',
                 'DYE-2': 'DY2', 'Tunu-N':'TUN', 'CEN1':'CEN', 'CEN2':'CEN',
-                'JAR1':'JAR',
+                'JAR1':'JAR', 'NASA-SE':'NSE','GITS':'CEN','Humboldt':'HUM',
                 # ['Summit', 'DMI'],
                 # ['Summit', 'NOAA']
 }
@@ -147,12 +149,12 @@ def main(output_path, run_name):
     df_out['LRout'] = df_out.LRout_mdl
 
     if obs_avail:
-        df_obs['LHF'] = df_obs.dlhf_u
-        df_obs['SHF'] = df_obs.dshf_u
-        if 'ulr' in df_obs.columns:
-            df_obs['LRout'] = df_obs.ulr
-        else:
-            df_obs['LRout'] = np.nan
+        for var1, var2 in zip(['LHF','SHF','LRout'],
+                                ['dlhf_u', 'dshf_u', 'ulr']):
+            if var2 in df_obs.columns:
+                df_obs[var1] = df_obs[var2]
+            else:
+                df_obs[var1] = np.nan
         print('plotting',['t_surf','LRout','LHF','SHF','t_i_10m'])
         lpl.plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SHF','t_i_10m'])
 
@@ -180,5 +182,14 @@ def main(output_path, run_name):
 # %%
 import os
 if __name__ == "__main__":
-    # for run_name in os.listdir('C:/Users/bav/data_save/output firn model/'):
-    main(output_path=output_path, run_name=run_name)
+    # for run_name in os.listdir('output/new/'):
+        # main(output_path=output_path, run_name=run_name)
+    
+    run_name_list = os.listdir('output/new/')
+
+    def main_wrapper(run_name):
+        main(output_path=output_path, run_name=run_name)
+
+    with Pool(7, maxtasksperchild=1) as pool:
+        pool.map(main_wrapper, run_name_list, chunksize=1)
+
