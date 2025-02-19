@@ -32,7 +32,7 @@ def name_alias(stid):
         return stid
 # output_path= 'C:/Users/bav/data_save/output firn model/spin up 3H/'
 output_path = './output/new/'
-run_name = 'NASA-SE_100_layers_3h'
+run_name = 'CEN2_100_layers_3h'
 #%%
 def main(output_path, run_name):
     # %% Loading data
@@ -62,7 +62,6 @@ def main(output_path, run_name):
         print(c.RunName, e)
 
     # %% plotting surface variables
-    print(c.RunName, 'plotting output summary')
     lpl.plot_summary(df_out, c, 'SEB_output')
 
     # %% plotting subsurface variables
@@ -114,8 +113,7 @@ def main(output_path, run_name):
         df_obs.time= pd.to_datetime(df_obs.time)
         df_obs = df_obs.set_index('time')
         df_obs = df_obs.resample(pd.infer_freq(df_out.index)).mean()
-        
-        print(c.RunName, 'plotting surface height')
+
         fig = plt.figure()
         tmp = (df_obs.z_surf_combined -df_out.surface_height).mean()
         plt.plot(df_obs.index, df_obs.z_surf_combined-tmp,
@@ -155,12 +153,9 @@ def main(output_path, run_name):
                 df_obs[var1] = df_obs[var2]
             else:
                 df_obs[var1] = np.nan
-        print('plotting',['t_surf','LRout','LHF','SHF','t_i_10m'])
         lpl.plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SHF','t_i_10m'])
 
-    print(c.RunName, 'plot SMB components')
     lpl.plot_smb_components(df_out, c)
-    print(c.RunName, 'plot SUMup temperature evaluation')
     lpl.evaluate_temperature_sumup(df_out, c)
     # lpl.evaluate_temperature_scatter(df_out, c, year = None)
     lpl.evaluate_density_sumup(c)
@@ -184,7 +179,7 @@ import os
 if __name__ == "__main__":
     # for run_name in os.listdir('output/new/'):
         # main(output_path=output_path, run_name=run_name)
-    
+
     run_name_list = os.listdir('output/new/')
 
     def main_wrapper(run_name):
@@ -192,4 +187,3 @@ if __name__ == "__main__":
 
     with Pool(7, maxtasksperchild=1) as pool:
         pool.map(main_wrapper, run_name_list, chunksize=1)
-

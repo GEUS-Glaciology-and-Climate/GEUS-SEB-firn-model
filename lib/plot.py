@@ -25,7 +25,6 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
              df_sumup=[], tag='', year=None, weq_depth=False):
     try:
-        print('plotting',var_name, 'from',run_name)
         if var_name != 'density_bulk':
             filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
             ds = xr.open_dataset(filename).transpose()
@@ -660,7 +659,7 @@ def get_distance(point1, point2):
     return distance
 
 def evaluate_temperature_sumup(df_out, c):
-    # try:
+    try:
         df_sumup, df_meta = load_sumup(var='temperature', name_var='name', c=c)
 
         if len(df_sumup)==0:
@@ -696,8 +695,8 @@ def evaluate_temperature_sumup(df_out, c):
         plt.title(c.station)
         fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup2024.png', dpi=120)
         plt.close(fig)
-    # except Exception as e:
-        # print(c.RunName, e)
+    except Exception as e:
+        print(c.RunName, e)
 
 # from scipy.interpolate import interp1d
 # from tqdm import tqdm  # Import tqdm for the progress bar
@@ -822,13 +821,6 @@ def evaluate_density_sumup(c):
         if len(profile_list) == 0:
             print('no density profile in SUMup for',c.station)
             return None
-
-
-        plot_var(c.station, c.output_path, c.RunName, 'density_bulk', zero_surf=True,
-                     df_sumup=df_sumup, tag='_SUMup2024')
-
-        # plot each profile
-
         filename = c.output_path+"/" + c.RunName + "/" + c.station + "_snowc.nc"
         snowc = xr.open_dataset(filename).transpose()
         filename = c.output_path+"/" + c.RunName + "/" + c.station + "_snic.nc"
@@ -837,75 +829,137 @@ def evaluate_density_sumup(c):
         rhofirn = xr.open_dataset(filename).transpose()
         ds_mod_dens = snowc[['depth']]
         ds_mod_dens['density_bulk'] = (snowc.snowc + snic.snic) / (snowc.snowc / rhofirn.rhofirn + snic.snic / 900)
+        plot_density_profile(df_sumup, profile_list, df_meta, ds_mod_dens, c)
+        plot_density_scatter(df_sumup, profile_list, df_meta, ds_mod_dens, c)
+    except Exception as e:
+        print(c.RunName,e)
 
-        def new_figure():
-            fig,ax = plt.subplots(1,6, figsize=(16,7))
-            plt.subplots_adjust(left=0.1, right=0.9, top=0.8, wspace=0.3)
-            return fig, ax
-        fig,ax = new_figure()
-        count = 0
-        for i, p in enumerate(profile_list):
-            df_profile = df_sumup.loc[df_sumup.profile_key == p, :]
+def plot_density_scatter(df_sumup, profile_list, df_meta, ds_mod_dens, c):
+    fig = plt.figure(figsize=(8,8))
 
-            if df_profile[['start_depth','stop_depth','midpoint']].isnull().all().all():
-                print('no data in profile', p,
-                      df_meta.loc[df_meta.profile_key == p, 'profile'].item(),
-                      df_meta.loc[df_meta.profile_key == p, 'reference_short'].item())
-                continue
+    for _, p in enumerate(profile_list):
+        df_profile = df_sumup.loc[df_sumup.profile_key == p, :]
 
-            for _, row in df_profile.iterrows():
-                ax[i - count * 6].plot([row['density'], row['density']],
-                                       [row['start_depth'], row['stop_depth']],
-                                       drawstyle="default", label='__nolegend__',
+        if df_profile[['start_depth','stop_depth','midpoint']].isnull().all().all():
+            print('no data in profile', p,
+                  df_meta.loc[df_meta.profile_key == p, 'profile'].item(),
+                  df_meta.loc[df_meta.profile_key == p, 'reference_short'].item())
+            continue
 
-                                       lw=2, color='C0')
+        df_mod = (ds_mod_dens
+                  .sel(time=df_profile.timestamp.values[0], method='nearest')
+                  .to_dataframe())
+
+        # Insert a row at the beginning with depth = 0 and the first density value
+        df_mod = pd.concat([pd.DataFrame({'depth': [0],
+                                          'density_bulk': [df_mod.iloc[0]['density_bulk']]}),
+                            df_mod], ignore_index=True)
+
+        depth_bins = df_mod['depth'].values
+        df_mod['density_obs'] = np.nan  # Initialize new column for averaged observed density
+
+        for i in range(len(df_mod) - 1):
+            d1, d2 = depth_bins[i], depth_bins[i + 1]
+
+            # Find overlapping bins in df_profile
+            overlapping_rows = df_profile[(df_profile['start_depth'] < d2) \
+                                           & (df_profile['stop_depth'] > d1) \
+                                               & df_profile['density'].notnull()]
+
+            if not overlapping_rows.empty:
+                bin_heights = np.minimum(d2, overlapping_rows['stop_depth']) - np.maximum(d1, overlapping_rows['start_depth'])
+                bin_densities = overlapping_rows['density'].values
+
+                # Compute weighted density average for df_mod depth bin
+                df_mod.loc[i, 'density_obs'] = np.sum(bin_densities * bin_heights) / np.sum(bin_heights)
+
+        # Scatter plot
+        label=  df_meta.loc[df_meta.profile_key == p, 'profile'].unique().item() + ' ' + pd.to_datetime(df_profile.timestamp.values[0]).strftime('%Y')
+        plt.scatter(df_mod['density_obs'], df_mod['density_bulk'], alpha=0.7, label=label)
+
+    plt.plot([200, 900],
+             [200, 900],
+             c='k')
+
+    plt.ylabel("Density modelled (kg/m³)")
+    plt.xlabel("Density observed (kg/m³)")
+    plt.grid()
+    plt.legend(loc='lower center', bbox_to_anchor=(0.5, 1.05), ncol=2, frameon=True)
+    fig.savefig(
+        c.output_path+c.RunName+'/'+'density_evaluation_SUMup_scatter.png',
+        dpi=300, bbox_inches='tight')
+    plt.close(fig)
+
+
+
+def plot_density_profile(df_sumup, profile_list, df_meta, ds_mod_dens, c):
+    def new_figure():
+        fig,ax = plt.subplots(1,6, figsize=(16,7))
+        plt.subplots_adjust(left=0.1, right=0.9, top=0.8, wspace=0.3)
+        return fig, ax
+    fig,ax = new_figure()
+    count = 0
+    for i, p in enumerate(profile_list):
+        df_profile = df_sumup.loc[df_sumup.profile_key == p, :]
+
+        if df_profile[['start_depth','stop_depth','midpoint']].isnull().all().all():
+            print('no data in profile', p,
+                  df_meta.loc[df_meta.profile_key == p, 'profile'].item(),
+                  df_meta.loc[df_meta.profile_key == p, 'reference_short'].item())
+            continue
+
+        for _, row in df_profile.iterrows():
             ax[i - count * 6].plot([row['density'], row['density']],
-                                   [np.nan, np.nan],
-                                   drawstyle="default", label='observation', color='C0')
+                                   [row['start_depth'], row['stop_depth']],
+                                   drawstyle="default", label='__nolegend__',
+
+                                   lw=2, color='C0')
+        ax[i - count * 6].plot([row['density'], row['density']],
+                               [np.nan, np.nan],
+                               drawstyle="default", label='observation', color='C0')
 
 
-            df_mod = (ds_mod_dens
-                      .sel(time=df_profile.timestamp.values[0], method='nearest')
-                      .to_dataframe())
+        df_mod = (ds_mod_dens
+                  .sel(time=df_profile.timestamp.values[0], method='nearest')
+                  .to_dataframe())
 
-            # Insert a row at the beginning with depth = 0 and the first density value
-            df_mod = pd.concat([pd.DataFrame({'depth': [0],
-                                              'density_bulk': [df_mod.iloc[0]['density_bulk']]}),
-                                df_mod], ignore_index=True)
+        # Insert a row at the beginning with depth = 0 and the first density value
+        df_mod = pd.concat([pd.DataFrame({'depth': [0],
+                                          'density_bulk': [df_mod.iloc[0]['density_bulk']]}),
+                            df_mod], ignore_index=True)
 
-            df_mod.plot(ax=ax[i-count*6],y='depth',x='density_bulk',
-                   drawstyle="steps-pre",
-                   lw=3, alpha=0.8,
-                   label='model',
-                   color='tab:red')
-            if i-count*6 == 0:
-                ax[i-count*6].legend(loc='upper left', ncol=2, bbox_to_anchor=(2.5,1.2))
-                ax[i-count*6].set_ylabel('Depth (m)')
-            else:
-                ax[i-count*6].get_legend().remove()
-            title =  (pd.to_datetime(df_profile.timestamp.values[0]).strftime('%Y-%m-%d')
-                      + '\n' + df_meta.loc[df_meta.profile_key == p, 'profile'].unique().item()
-                      + '\n' + df_meta.loc[df_meta.profile_key == p, 'reference_short'].unique().item())
-            ax[i-count*6].set_title(title, fontsize=8, fontweight='bold')
-            ax[i-count*6].set_xlabel('Density (kg m$^{-3}$)')
-            ax[i-count*6].set_ylim(df_profile[['midpoint','start_depth']].max().max()+1, 0)
-            ax[i-count*6].set_xlim(100,1000)
-            ax[i-count*6].grid()
+        df_mod.plot(ax=ax[i-count*6],y='depth',x='density_bulk',
+               drawstyle="steps-pre",
+               lw=3, alpha=0.8,
+               label='model',
+               color='tab:red')
+        if i-count*6 == 0:
+            ax[i-count*6].legend(loc='upper left', ncol=2, bbox_to_anchor=(2.5,1.2))
+            ax[i-count*6].set_ylabel('Depth (m)')
+        else:
+            ax[i-count*6].get_legend().remove()
+        title =  (pd.to_datetime(df_profile.timestamp.values[0]).strftime('%Y-%m-%d')
+                  + '\n' + df_meta.loc[df_meta.profile_key == p, 'profile'].unique().item()
+                  + '\n' + df_meta.loc[df_meta.profile_key == p, 'reference_short'].unique().item())
+        ax[i-count*6].set_title(title, fontsize=8, fontweight='bold')
+        ax[i-count*6].set_xlabel('Density (kg m$^{-3}$)')
+        ax[i-count*6].set_ylim(df_profile[['midpoint','start_depth']].max().max()+1, 0)
+        ax[i-count*6].set_xlim(100,1000)
+        ax[i-count*6].grid()
 
-            if (i-count*6) == 5:
-                fig.savefig(
-                    c.output_path+c.RunName+'/'+'density_evaluation_SUMup_'+str(count)+'.png',
-                    dpi=120)
-                plt.close(fig)
-                count = count +1
-                fig,ax = new_figure()
-        if (i-count*6) != 5:
+        if (i-count*6) == 5:
             fig.savefig(
                 c.output_path+c.RunName+'/'+'density_evaluation_SUMup_'+str(count)+'.png',
                 dpi=120)
             plt.close(fig)
-    except Exception as e:
-        print(c.RunName,e)
+            count = count +1
+            fig,ax = new_figure()
+    if (i-count*6) != 5:
+        fig.savefig(
+            c.output_path+c.RunName+'/'+'density_evaluation_SUMup_'+str(count)+'.png',
+            dpi=120)
+        plt.close(fig)
+
 
 def load_sumup(var='SMB', name_var='name', c=None):
     with xr.open_dataset(f'../SUMup-data/SUMup_2025_{var}_greenland.nc',
@@ -1008,7 +1062,7 @@ def plt_smb(ax, df_sumup):
 
 
 def evaluate_smb_sumup(df_out, c):
-    # try:
+    try:
         df_sumup, df_meta = load_sumup(var='SMB',name_var='name', c=c)
 
         msk = df_sumup.start_date.isnull()
@@ -1046,8 +1100,8 @@ def evaluate_smb_sumup(df_out, c):
         fig.suptitle(c.station)
         fig.savefig(c.output_path+c.RunName+'/'+c.station+'_SMB_evaluation_SUMup2024.png', dpi=120)
         plt.close(fig)
-    # except Exception as e:
-        # print(c.RunName,e)
+    except Exception as e:
+        print(c.RunName,e)
 
 def evaluate_accumulation_snowfox(df_in, c):
     # SnowFox
