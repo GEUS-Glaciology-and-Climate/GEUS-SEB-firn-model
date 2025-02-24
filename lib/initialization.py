@@ -53,9 +53,8 @@ def IniVar(time, c):
     if c.use_spin_up_init:
         try:
             spin_up_run_name = c.station+'_100_layers_3h'
-            previous_output_folder ='./output/spin up 3H/'
 
-            file_path = previous_output_folder + "/" + spin_up_run_name + "/"  \
+            file_path = c.spin_up_path + "/" + spin_up_run_name + "/"  \
                 + c.station + '_final.pkl'
             with open(file_path, 'rb') as f:
                 [snowc[:, -1], snic[:, -1], slwc[:, -1], tsoil[:, -1],  rhofirn[:, -1],
@@ -65,7 +64,7 @@ def IniVar(time, c):
                 rho[:, -1] = (snowc[:, -1] + snic[:, -1]) / (
                     snowc[:, -1] / rhofirn[:, -1] + snic[:, -1] / c.rho_ice
                 )
-            print('Initializing with',previous_output_folder + "/" + spin_up_run_name + "/"  \
+            print('Initializing with',c.spin_up_path + "/" + spin_up_run_name + "/"  \
                 + c.station + '_final.pkl')
             return (rhofirn,  rho, snowc, snic, slwc, dgrain, tsoil, grndc, grndd,
                     compaction, zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp,

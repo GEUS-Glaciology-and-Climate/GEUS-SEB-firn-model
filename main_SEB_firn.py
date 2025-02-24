@@ -33,9 +33,10 @@ def run_SEB_firn(station='FA-13', silent=False):
     c.use_spin_up_init = True
 
     # default setting
-    c.surface_input_path = f"./input/weather data/CARRA_at_AWS/{station}.nc"
+    c.surface_input_path = f"/data/CARRA/extracted/list_pixels_minimal_grid/{station}.nc"
     c.surface_input_driver = "CARRA"
-    c.output_path = './output/new/'
+    c.output_path = '/data/CARRA-SMB/list_pixels_minimal_grid/'
+    c.spin_up_path = '/data/CARRA-SMB/spin up 3H/'
 
     c.freq = '3h'
     if c.surface_input_driver=='CARRA' and c.freq == 'h':
@@ -47,23 +48,23 @@ def run_SEB_firn(station='FA-13', silent=False):
     # defining run name
     if c.spin_up:
         print('######### spin-up run ##########')
-        c.output_path = './output/spin up 3H/'
+        c.output_path = '/data/CARRA-SMB/spin up 3H/'
 
     c.RunName = c.station + "_" + str(c.num_lay) + "_layers_"+c.freq
 
 
     if c.spin_up and os.path.isfile(c.output_path+c.RunName+'/'+c.station+'_final.pkl'):
-        print(c.RunName, 'already exists')
-        return None
+        print(c.RunName, 'already exists, skipping')
+        return
 
     # loading input data
     df_in, c = io.load_surface_input_data(c, resample=resample)
 
     try:
         os.mkdir(c.output_path + c.RunName)
-    except:
+    except Exception as e:
         if os.path.isfile(c.output_path+c.RunName+'/'+c.station+'_rhofirn.nc'):
-            print(c.RunName, 'already exists')
+            print(c.RunName, 'already exists', e)
 
             #     if abs(os.path.getmtime(c.output_path+c.RunName+'/constants.csv') - time.time())/60/60 <24:
         #         if not silent: print(c.RunName,'recently done. skeeping')
@@ -84,7 +85,7 @@ def run_SEB_firn(station='FA-13', silent=False):
     c.z_max = 70
     c.num_lay = 100
     c.lim_new_lay = 0.05
-    c.initial_state_folder_path = './input/initial state/spin up/'
+    c.initial_state_folder_path = '/data/CARRA-SMB/spin up 3H/'
     # assgning deep temperature
     # ds_T10m = xr.open_dataset('../../Data/Firn temperature/output/T10m_prediction.nc')
     with xr.open_dataset('input/T10m_prediction.nc') as ds_T10m:
@@ -107,23 +108,24 @@ def run_SEB_firn(station='FA-13', silent=False):
     if not silent: print(c.RunName,'reading inputs took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
     # The surface values are received
-    # try:
-    (
-        df_out["L"], df_out["LHF"], df_out["SHF"], df_out["theta_2m"],
-        df_out["q_2m"], df_out["ws_10m"], df_out["Re"], df_out["melt_mweq"],
-        df_out["sublimation_mweq"], df_out["SRin"], df_out["SRout"],
-        df_out["LRin"], df_out["LRout_mdl"],
-        snowc, snic, slwc, T_ice,
-        zrfrz, rhofirn, zsupimp, dgrain,
-        df_out['zrogl'], Tsurf,
-        grndc, grndd, pgrndcapc, pgrndhflx,
-        dH_comp, df_out["snowbkt"], compaction, df_out['snowthick']
-    ) = GEUS_model(df_in, c)
-    # except Exception as e:
-    #     with open(c.output_path+"/"+c.RunName+"/error.txt","a+") as text_file:
-    #         text_file.write(c.RunName)
-    #         text_file.write(str(e))
-    #     return
+    try:
+        (
+            df_out["L"], df_out["LHF"], df_out["SHF"], df_out["theta_2m"],
+            df_out["q_2m"], df_out["ws_10m"], df_out["Re"], df_out["melt_mweq"],
+            df_out["sublimation_mweq"], df_out["SRin"], df_out["SRout"],
+            df_out["LRin"], df_out["LRout_mdl"],
+            snowc, snic, slwc, T_ice,
+            zrfrz, rhofirn, zsupimp, dgrain,
+            df_out['zrogl'], Tsurf,
+            grndc, grndd, pgrndcapc, pgrndhflx,
+            dH_comp, df_out["snowbkt"], compaction, df_out['snowthick']
+        ) = GEUS_model(df_in, c)
+    except Exception as e:
+        print(c.station, e)
+        with open(c.output_path+"/"+c.RunName+"/error.txt","a+") as text_file:
+            text_file.write(c.RunName)
+            text_file.write(str(e))
+        return
 
     if not silent: print(c.RunName,'SEB firn model took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
@@ -168,36 +170,75 @@ def run_SEB_firn(station='FA-13', silent=False):
         start_time = time.time()
 
         # Plot output
-        try:
-            po.main(c.output_path, c.RunName)
-        except Exception as e:
-            print(c.RunName,e)
-        print(c.RunName,'plotting took %0.03f sec'%(time.time() -start_time))
+        # try:
+            # po.main(c.output_path, c.RunName)
+        # except Exception as e:
+            # print(c.RunName,e)
+        # print(c.RunName,'plotting took %0.03f sec'%(time.time() -start_time))
     plt.close('all')
     start_time = time.time()
     return
 
+import os
+import multiprocessing
+
+def run_on_core(station, core):
+    """Set CPU affinity and run run_SEB_firn for the given station."""
+    print(f"Core {core} processing station: {station}")
+    os.system(
+        f"taskset -c {core} python3 -c 'import main_SEB_firn; "
+        f"main_SEB_firn.run_SEB_firn(\"{station}\")'"
+    )
+    print(f"Core {core} finished station: {station}")
+
+def worker(task_queue):
+    """Worker process that executes tasks sequentially on its assigned core."""
+    core = task_queue.get()  # Get the assigned core
+    while True:
+        station = task_queue.get()  # Get the next station to process
+        if station is None:
+            break  # Stop worker when None is received
+        run_on_core(station, core)
+
+def standard_run_parallel(station_list):
+    # max_core_usage =  multiprocessing.cpu_count()-1 # all cores except one
+    max_core_usage = 11  # Limit to 6 cores
+    num_cores = min(len(station_list), max_core_usage)
+    task_queues = [multiprocessing.Queue() for _ in range(num_cores)]
+    processes = []
+
+    # Start workers with dedicated cores
+    for core, task_queue in enumerate(task_queues):
+        task_queue.put(core)  # Assign core number to worker
+        p = multiprocessing.Process(target=worker, args=(task_queue,))
+        p.start()
+        processes.append((p, task_queue))
+
+    # Distribute tasks in a round-robin fashion
+    for i, station in enumerate(station_list):
+        task_queues[i % num_cores].put(station)
+
+    # Send termination signal (None) to workers
+    for _, task_queue in processes:
+        task_queue.put(None)
+
+    # Wait for all workers to finish
+    for p, _ in processes:
+        p.join()
+
 if __name__ == "__main__":
+    station_list = [s.replace('.nc', '') for s in os.listdir("/data/CARRA/extracted/list_pixels_minimal_grid/")]
+    station_list.sort()
+    
+    standard_run_parallel(station_list)
 
-    # run_SEB_firn('H2')
-    # multi_file_grid_run()
 
-    station_list = [s.replace('.nc','') for s in os.listdir("./input/weather data/CARRA_at_AWS/")]
+    # with Pool(10, maxtasksperchild=1) as pool:
+        # pool.map(run_SEB_firn, station_list, chunksize=1)
 
-    unwanted= ['NUK_K', 'MIT', 'LYN_L', 'LYN_T', 'FRE',  # local glaciers
-                'NUK_P','KAN_B', 'NUK_B','WEG_B', # off-ice AWS
-                'DY2','NSE','SDL','NAU','NAE','SDM','TUN','HUM','SWC', 'JAR_O','JAR', 'NEM',  # redundant
-                'T2_08','S10','Swiss Camp 10m','SW2','SW4','Crawford Point 1', 'G1','EGP', # redundant
-                'CEN1',
-                ]
-    station_list = [s for s in station_list if s not in unwanted]
-    station_list = [s for s in station_list if 'v3' not in s]
-    # with Pool(7, maxtasksperchild=1) as pool:
-    #     pool.map(run_SEB_firn, station_list, chunksize=1)
-
-    for station in ['TAS_U']:
+    # for station in ['TAS_U']:
     # for station in station_list:
         # try:
-            run_SEB_firn(station)
+            # run_SEB_firn(station)
         # except Exception as e:
             # print(c.RunName,e)

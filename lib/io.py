@@ -97,8 +97,11 @@ def load_CARRA_data(*args, resample=True):
     # print("- Reading data from CARRA reanalysis set -", surface_input_path)
     with xr.open_dataset(surface_input_path) as ds:
         aws_ds = ds.where(ds.stid==c.station, drop=True).load()
-
-    c.altitude= aws_ds.altitude.item()
+    
+    if 'altitude' in aws_ds.data_vars:
+        c.altitude= aws_ds.altitude.item()
+    else:
+        c.altitude= aws_ds.altitude_mod.item()
     c.latitude= aws_ds.latitude.item()
     c.longitude= aws_ds.longitude.item()
     if c.longitude>180:
