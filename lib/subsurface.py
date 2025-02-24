@@ -2,7 +2,7 @@ import numpy as np
 import lib.percolation as lp
 from numba import jit, njit
 
-def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn, 
+def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
                    ptsoil, pdgrain, zsn, zraind, zsnmel, pTdeep, psnowbkt, c):
     # HIRHAM subsurface scheme - version 2016
     # Developped by Peter Langen (DMI), Robert Fausto (GEUS)
@@ -25,23 +25,23 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
     # and the total water equivalent thickness of layer n is
     # thickness_weq(n) = snowc(n)+snic(n)+slwc(n)
     # This thickness is allowed to vary within certain rules.
-    
+
     ptsoil = tsoil_diffusion(pts, pgrndc, pgrndd, ptsoil)
-    
+
     prhofirn, dH_comp, compaction = densification(pslwc, psnowc, psnic, prhofirn, ptsoil, c)
 
     pdgrain = graingrowth(pslwc, psnowc, pdgrain, c)
 
     psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt = add_snow(
          zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts, psnowbkt, c)
-        
+
     psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt = sublimation(
         zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt, c
     )
 
     if ((zsnmel > c.smallno)|(zraind > c.smallno)) & (psnowbkt > c.smallno):
         ptsoil[0], psnowc[0], pslwc[0], psnowbkt, prhofirn[0], pdgrain[0] = \
-            switch_snowbucket_to_first_layer(ptsoil[0], psnic[0], psnowc[0], 
+            switch_snowbucket_to_first_layer(ptsoil[0], psnic[0], psnowc[0],
              pslwc[0],pts,psnowbkt, prhofirn[0], pdgrain[0], c.T_0, c.dgrainNew, c.rho_fresh_snow)
 
     pslwc = add_rain(zraind, pslwc, c)
@@ -54,10 +54,16 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
 
     # if c.hetero_percol
     #     [pslwc] = hetero_percol (prhofirn, psnowc, psnic, pslwc, pdgrain, c)
-
-    prhofirn, psnowc, psnic, pslwc, pdgrain, zrogl = lp.perc_runoff_new(
-        prhofirn, psnowc, psnic, pslwc, pdgrain, c.zdtime
-    )
+    if ((psnowc+psnic)==0).any():
+        psnowc, psnic, pdgrain, prhofirn, ptsoil, pgrndc, pgrndd, pslwc = shift_layers(
+            psnowc, psnic, pdgrain, prhofirn, ptsoil, pgrndc, pgrndd, pslwc
+            )
+    try:
+        prhofirn, psnowc, psnic, pslwc, pdgrain, zrogl = lp.perc_runoff_new(
+            prhofirn, psnowc, psnic, pslwc, pdgrain, c.zdtime
+        )
+    except:
+        import pdb; pdb.set_trace()
 
     psnic, pslwc, ptsoil, zrfrz = refreeze(psnowc, psnic, pslwc, ptsoil, c)
 
@@ -72,9 +78,67 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
     pgrndc, pgrndd, pgrndcapc, pgrndhflx = update_tempdiff_params_opt(
         prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_cond, zso_capa, c.zdtime
     )
-    return (psnowc, psnic, pslwc, ptsoil, zrfrz, prhofirn, zsupimp, pdgrain, 
-            zrogl, ptsoil[0], pgrndc, pgrndd, pgrndcapc, pgrndhflx, dH_comp, 
+    return (psnowc, psnic, pslwc, ptsoil, zrfrz, prhofirn, zsupimp, pdgrain,
+            zrogl, ptsoil[0], pgrndc, pgrndd, pgrndcapc, pgrndhflx, dH_comp,
             psnowbkt, compaction)
+
+
+
+@jit(nopython=True)
+def shift_variable(var, num_melted, add_zero=False):
+    """Shift a variable upward and duplicate the last valid layer using Numba."""
+    n = var.shape[0]
+    if num_melted > 0:
+        for i in range(n - num_melted):
+            var[i] = var[i + num_melted]
+        for i in range(n - num_melted, n):
+            var[i] = 0 if add_zero else var[n - num_melted - 1]  # Duplicate last valid layer or set to zero
+    return var
+
+def shift_layers(psnowc, psnic, pdgrain, prhofirn, ptsoil, pgrndc, pgrndd, pslwc):
+    """Shift layers upward when fully melted, keeping the number of layers constant."""
+
+    # Identify melted layers (where both psnowc and psnic are 0)
+    ind_melted = (psnowc + psnic) == 0
+    assert is_valid_melting(ind_melted)
+    num_melted = np.sum(ind_melted)
+
+    if num_melted > 0:
+        pslwc_sum = np.sum(pslwc[ind_melted])  # Sum LWC of melted layers
+
+        # Apply the optimized Numba function for shifting
+        psnowc = shift_variable(psnowc, num_melted)
+        psnic = shift_variable(psnic, num_melted)
+        pdgrain = shift_variable(pdgrain, num_melted)
+        prhofirn = shift_variable(prhofirn, num_melted)
+        ptsoil = shift_variable(ptsoil, num_melted)
+        pgrndc = shift_variable(pgrndc, num_melted)
+        pgrndd = shift_variable(pgrndd, num_melted)
+
+        # Special case for pslwc: remove melted layers and shift up
+        pslwc = shift_variable(pslwc, num_melted, add_zero=True)
+        pslwc[0] += pslwc_sum  # Add melted water to the first non-melted layer
+
+    return psnowc, psnic, pdgrain, prhofirn, ptsoil, pgrndc, pgrndd, pslwc
+
+
+
+def is_valid_melting(ind_melted):
+    """Check if melted layers are contiguous from the top and no isolated subsurface layers exist."""
+    if not np.any(ind_melted):  # No melting, always valid
+        return True
+
+    # Find the first non-melted layer
+    first_non_melted = np.argmax(~ind_melted)  # Index of first non-melted layer
+    if first_non_melted == 0:  # All layers are melted, valid case
+        return True
+
+    # Ensure all melted layers are contiguous from the top
+    if not np.all(ind_melted[:first_non_melted]):  # Check if all layers above first_non_melted are melted
+        return False  # Invalid if there's a non-melted layer breaking continuity
+
+    return True  # If passed, the melting pattern is valid
+
 
 @jit(nopython=True)
 def switch_snowbucket_to_first_layer(ptsoil, psnic, psnowc, pslwc,pts,psnowbkt,
@@ -100,7 +164,7 @@ def switch_snowbucket_to_first_layer(ptsoil, psnic, psnowc, pslwc,pts,psnowbkt,
     psnowc = psnowc + psnowbkt
     psnowbkt = 0
     return ptsoil, psnowc, pslwc,psnowbkt,prhofirn, pdgrain
-        
+
 @jit(nopython=True)
 def tsoil_diffusion(pts, pgrndc, pgrndd, ptsoil):
     #   tsoil_diffusion: Update subsurface temperatures ptsoil based on previous
@@ -343,7 +407,7 @@ def melting(psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn):
 
     # First we handle melting. Make sure all melt energy is used. Start by melting in
     # top layer. If necessary go to deeper layers.
-        
+
     for jk in range(len(pslwc)):
         # Exit when melt is depleted
         if zsnmel < 1e-12:
@@ -395,7 +459,7 @@ def melting(psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn):
 
     if np.sum((psnowc + psnic) == 0) > 1:
         print("MELTING MORE THAN ONE LAYER")
-        print(zsnmel)
+
 
     return psnowc, psnic, pslwc, ptsoil, psnowbkt
 
@@ -620,7 +684,7 @@ def add_rain(zraind, pslwc, c):
     # allowed to change.
     #   input:
     #         zraind - amount (m weq) of input rain.
-    #         pslwc - vectors of respectivel liquid water part for each 
+    #         pslwc - vectors of respectivel liquid water part for each
     #         subsurface layer (m weq).
     #         c - Structure containing all the physical, site-depant or user
     #         defined variables.
@@ -697,7 +761,7 @@ def refreeze(psnowc, psnic, pslwc, ptsoil, c):
     return psnic, pslwc, ptsoil, zrfrz
 
 
-def add_snow(zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts, 
+def add_snow(zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts,
                  psnowbkt, c):
     # add_snow: Routine that adds new fallen snow (net from
     # sublimation)on top of the subsurface column. It is first accumulated in
@@ -1003,7 +1067,7 @@ def superimposedice(prhofirn, ptsoil, psnowc, psnic, pslwc: np.ndarray, zso_cond
     # The potential superimposed ice (SI) formation (Only interested in positive SIF):
     potSIform = np.maximum(0, ki * dTdz / (c.rho_water * c.L_fus) * c.zdtime)
 
-    # Make as much SI as there is water available in the layer above the ice [jk]    
+    # Make as much SI as there is water available in the layer above the ice [jk]
     SIform = np.minimum(pslwc[nextisfrozen == 1], potSIform)
     zsupimp = np.zeros_like(pslwc)
     zsupimp[nextisfrozen == 1] = SIform
@@ -1196,7 +1260,7 @@ def compute_pgrndc_pgrndd(ptsoil, zcapa_abs, zkappa_abs, pgrndd, pgrndc):
             zcapa_abs[jk] + zkappa_abs[jk - 1] + zkappa_abs[jk] * (1 - pgrndd[jk])
         )
         pgrndc[jk - 1] = (ptsoil[jk] * zcapa_abs[jk] + zkappa_abs[jk] * pgrndc[jk]) * z1
-        pgrndd[jk - 1] = zkappa_abs[jk - 1] * z1 
+        pgrndd[jk - 1] = zkappa_abs[jk - 1] * z1
     return pgrndc, pgrndd
 
 # Function added for a faster execution
