@@ -165,7 +165,7 @@ def main(output_path, run_name):
     lpl.evaluate_smb_sumup(df_out, c)
     lpl.evaluate_accumulation_snowfox(df_in, c)
     lpl.plot_var_start_end(c, 'T_ice')
-    lpl.plot_var_start_end(c, 'density_bulk')    # Movies
+    lpl.plot_var_start_end(c, 'density_bulk')
     # lpl.plot_movie(c.station, c.output_path, c.RunName, 'T_ice')
     # lpl.plot_movie(c.station, c.output_path, c.RunName, 'density_bulk')
     lpl.evaluate_compaction(c)
@@ -178,7 +178,6 @@ def main(output_path, run_name):
     #     pass
 
 # %%
-import os
 if __name__ == "__main__":
     # for run_name in os.listdir('output/new/'):
     #     main(output_path=output_path, run_name=run_name)
