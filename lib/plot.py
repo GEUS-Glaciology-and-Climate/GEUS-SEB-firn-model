@@ -1109,7 +1109,7 @@ def evaluate_accumulation_snowfox(df_in, c):
         try:
             file = '../../Data/SUMup/data/SMB data/to add/SnowFox_GEUS/SF_'+c.station+'.txt'
 
-            df_sf = pd.read_csv(file,delim_whitespace=True)
+            df_sf = pd.read_csv(file, sep='\s+')
             df_sf[df_sf==-999] = np.nan
             df_sf['time'] = pd.to_datetime(df_sf[['Year','Month','Day']])
             df_sf = df_sf.set_index('time')
@@ -1117,11 +1117,16 @@ def evaluate_accumulation_snowfox(df_in, c):
 
             fig = plt.figure()
             ax=plt.gca()
-            df_sf.SWE_mweq.plot(ax=ax, marker='o')
-            (df_in.loc['2018-08-12':'2019-05-01'].Snowfallmweq).cumsum().plot(ax=ax, label='Snowfall')
-            (df_in.loc['2019-09-01':'2020-05-01'].Snowfallmweq).cumsum().plot(ax=ax, label='Snowfall')
+            df_sf.SWE_mweq.plot(ax=ax, marker='o', label='SnowFox measurements')
+            (df_in.loc['2018-08-12':'2019-05-01'].Snowfallmweq).cumsum().plot(ax=ax, c='tab:red',
+                                                                              label='CARRA-forced snow model')
+            (df_in.loc['2019-10-10':'2020-05-01'].Snowfallmweq).cumsum().plot(ax=ax,  c='tab:red',
+                                                                              label='__nolegend__')
             plt.title(c.station)
             plt.ylabel('Snow accumulation (m w.e.)')
+            plt.grid()
+            plt.xlim(df_sf.index[[0,-1]])
+            plt.legend(loc='upper left')
             fig.savefig(c.output_path+c.RunName+'/snowfox_eval.png', dpi=120)
             plt.close(fig)
         except Exception as e:
