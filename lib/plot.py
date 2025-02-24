@@ -1111,7 +1111,7 @@ def evaluate_accumulation_snowfox(df_in, c):
         try:
             file = '../../Data/SUMup/data/SMB data/to add/SnowFox_GEUS/SF_'+c.station+'.txt'
 
-            df_sf = pd.read_csv(file, sep='\s+')
+            df_sf = pd.read_csv(file, sep=r'\s+')
             df_sf[df_sf==-999] = np.nan
             df_sf['time'] = pd.to_datetime(df_sf[['Year','Month','Day']])
             df_sf = df_sf.set_index('time')

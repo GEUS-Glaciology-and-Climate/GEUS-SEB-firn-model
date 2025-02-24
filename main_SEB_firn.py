@@ -61,8 +61,10 @@ def run_SEB_firn(station='FA-13', silent=False):
         return
 
     # loading input data
-    df_in, c = io.load_surface_input_data(c, resample=resample)
-
+    try:
+        df_in, c = io.load_surface_input_data(c, resample=resample)
+    except Exception as e:
+        print(c.station, e); traceback.print_exc()
     try:
         os.mkdir(c.output_path + c.RunName)
     except Exception as e:
