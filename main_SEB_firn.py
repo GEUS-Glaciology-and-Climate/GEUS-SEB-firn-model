@@ -14,13 +14,10 @@ import pandas as pd
 import lib.io as io
 from lib.initialization import ImportConst
 from lib.seb_smb_model import GEUS_model
-import lib.plot as lpl
 import os
 import time
 import plot_output as po
 import xarray as xr
-from multiprocessing import Pool
-import shutil
 import matplotlib.pyplot as plt
 
 # %%
@@ -30,12 +27,17 @@ def run_SEB_firn(station='FA-13', silent=False):
     c = ImportConst()
     c.station = station
     c.spin_up = True
+    c.verbose = 1
+    if silent or c.spin_up:
+        c.verbose = 0
     c.use_spin_up_init = True
 
     # default setting
     c.surface_input_path = f"/data/CARRA/extracted/list_pixels_minimal_grid/{station}.nc"
+    # c.surface_input_path = f"./input/weather data/CARRA_at_AWS/{station}.nc"
     c.surface_input_driver = "CARRA"
     c.output_path = '/data/CARRA-SMB/list_pixels_minimal_grid/'
+    # c.output_path = './output/new/'
     c.spin_up_path = '/data/CARRA-SMB/spin up 3H/'
 
     c.freq = '3h'
@@ -105,7 +107,7 @@ def run_SEB_firn(station='FA-13', silent=False):
     df_out = df_out.set_index("time")
 
     # %% Running model
-    if not silent: print(c.RunName,'reading inputs took %0.03f sec'%(time.time() -start_time))
+    if c.verbose>0: print(c.RunName,'reading inputs took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
     # The surface values are received
     try:
@@ -127,7 +129,7 @@ def run_SEB_firn(station='FA-13', silent=False):
             text_file.write(str(e))
         return
 
-    if not silent: print(c.RunName,'SEB firn model took %0.03f sec'%(time.time() -start_time))
+    if c.verbose>0: print('\n',c.RunName,'SEB firn model took %0.03f sec'%(time.time() -start_time))
     start_time = time.time()
 
     # %% Writing output
@@ -166,14 +168,14 @@ def run_SEB_firn(station='FA-13', silent=False):
         io.write_2d_netcdf(dgrain, 'dgrain', depth_act, df_in.index, c)
         io.write_2d_netcdf(compaction, 'compaction', depth_act, df_in.index, c)
 
-        if not silent: print(c.RunName,'writing output files took %0.03f sec'%(time.time() -start_time))
+        if c.verbose>0: print(c.RunName,'writing output files took %0.03f sec'%(time.time() -start_time))
         start_time = time.time()
 
         # Plot output
         # try:
-            # po.main(c.output_path, c.RunName)
+        #     po.main(c.output_path, c.RunName)
         # except Exception as e:
-            # print(c.RunName,e)
+        #     print(c.RunName,e)
         # print(c.RunName,'plotting took %0.03f sec'%(time.time() -start_time))
     plt.close('all')
     start_time = time.time()
@@ -229,12 +231,9 @@ def standard_run_parallel(station_list):
 if __name__ == "__main__":
     station_list = [s.replace('.nc', '') for s in os.listdir("/data/CARRA/extracted/list_pixels_minimal_grid/")]
     station_list.sort()
-    
+
     standard_run_parallel(station_list)
 
-
-    # with Pool(10, maxtasksperchild=1) as pool:
-        # pool.map(run_SEB_firn, station_list, chunksize=1)
 
     # for station in ['TAS_U']:
     # for station in station_list:

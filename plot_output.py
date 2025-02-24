@@ -8,7 +8,6 @@ tip list:
     import pdb; pdb.set_trace()
 """
 import matplotlib.pyplot as plt
-import matplotlib
 import numpy as np
 import xarray as xr
 import lib.plot as lpl
@@ -32,17 +31,21 @@ def name_alias(stid):
         return stid
 # output_path= 'C:/Users/bav/data_save/output firn model/spin up 3H/'
 output_path = './output/new/'
-run_name = 'CEN2_100_layers_3h'
+run_name = '10450_100_layers_3h'
 #%%
 def main(output_path, run_name):
     # %% Loading data
     print(run_name)
     tmp =pd.read_csv(output_path+'/'+ run_name+'/constants.csv', dtype={'key':str})
+    # converting all numerical fields to numeric, except station
     tmp['value_num'] = pd.to_numeric(tmp.value, errors='coerce')
-    tmp.loc[tmp.value_num.notnull(),'value'] = tmp.loc[tmp.value_num.notnull(),'value_num']
+    msk = (tmp.value_num.notnull() & (tmp.key!='station'))
+    tmp.loc[msk,'value'] = tmp.loc[msk,'value_num']
     tmp = tmp.set_index('key')[['value']]
+    # making it a structure
     c = Struct(**tmp.to_dict()['value'] )
     c.RunName=run_name
+
     if c.surface_input_driver=='CARRA' and c.zdtime == 3600:
         print('resample')
         resample=True
@@ -178,12 +181,13 @@ def main(output_path, run_name):
 import os
 if __name__ == "__main__":
     # for run_name in os.listdir('output/new/'):
-        # main(output_path=output_path, run_name=run_name)
+    #     main(output_path=output_path, run_name=run_name)
+    main(output_path=output_path, run_name=run_name)
 
-    run_name_list = os.listdir('output/new/')
+    # run_name_list = os.listdir('output/new/')
 
-    def main_wrapper(run_name):
-        main(output_path=output_path, run_name=run_name)
+    # def main_wrapper(run_name):
+    #     main(output_path=output_path, run_name=run_name)
 
-    with Pool(7, maxtasksperchild=1) as pool:
-        pool.map(main_wrapper, run_name_list, chunksize=1)
+    # with Pool(7, maxtasksperchild=1) as pool:
+    #     pool.map(main_wrapper, run_name_list, chunksize=1)

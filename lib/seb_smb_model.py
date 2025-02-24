@@ -93,8 +93,8 @@ def GEUS_model(weather_df: pd.DataFrame, c: Struct):
     theta_v = theta * (1 + ((1 - c.es) / c.es) * q)
 
     # start of the time loop
-    for k in range(len(time)):
-    # for k in tqdm(range(len(time))):
+    loop_range = tqdm(range(len(time))) if c.verbose == 1 else range(len(time))
+    for k in loop_range:
         #if k in np.round(np.linspace(0,len(time),51)):
         #    sys.stdout.write("%.0f %% "%(100*k/len(time)))
         #    sys.stdout.flush()
