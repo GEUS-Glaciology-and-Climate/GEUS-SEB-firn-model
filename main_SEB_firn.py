@@ -19,6 +19,7 @@ import time
 import plot_output as po
 import xarray as xr
 import matplotlib.pyplot as plt
+import traceback
 
 # %%
 def run_SEB_firn(station='FA-13', silent=False):
@@ -66,7 +67,7 @@ def run_SEB_firn(station='FA-13', silent=False):
         os.mkdir(c.output_path + c.RunName)
     except Exception as e:
         if os.path.isfile(c.output_path+c.RunName+'/'+c.station+'_rhofirn.nc'):
-            print(c.RunName, 'already exists', e)
+            print(c.RunName, 'already exists', e); traceback.print_exc()
 
             #     if abs(os.path.getmtime(c.output_path+c.RunName+'/constants.csv') - time.time())/60/60 <24:
         #         if not silent: print(c.RunName,'recently done. skeeping')
@@ -123,10 +124,11 @@ def run_SEB_firn(station='FA-13', silent=False):
             dH_comp, df_out["snowbkt"], compaction, df_out['snowthick']
         ) = GEUS_model(df_in, c)
     except Exception as e:
-        print(c.station, e)
-        with open(c.output_path+"/"+c.RunName+"/error.txt","a+") as text_file:
-            text_file.write(c.RunName)
-            text_file.write(str(e))
+        print(c.station, e); traceback.print_exc()
+        with open(f"{c.output_path}/{c.RunName}/error.txt", "a+") as text_file:
+            text_file.write(f"{c.RunName}\n")  # Write RunName
+            text_file.write(str(e) + "\n")  # Write error message
+            text_file.write(traceback.format_exc() + "\n")  # Write full traceback
         return
 
     if c.verbose>0: print('\n',c.RunName,'SEB firn model took %0.03f sec'%(time.time() -start_time))
@@ -175,7 +177,7 @@ def run_SEB_firn(station='FA-13', silent=False):
         # try:
         #     po.main(c.output_path, c.RunName)
         # except Exception as e:
-        #     print(c.RunName,e)
+        #     print(c.RunName,e); traceback.print_exc()
         # print(c.RunName,'plotting took %0.03f sec'%(time.time() -start_time))
     plt.close('all')
     start_time = time.time()
@@ -240,4 +242,4 @@ if __name__ == "__main__":
         # try:
             # run_SEB_firn(station)
         # except Exception as e:
-            # print(c.RunName,e)
+            # print(c.RunName,e); traceback.print_exc()
