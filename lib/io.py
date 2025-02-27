@@ -41,6 +41,7 @@ encoding = {
     "rhofirn": {"dtype": "int16", "scale_factor": 0.001, "zlib": True, "complevel": 9},
     "T_ice": {"dtype": "int16", "scale_factor": 0.1, "zlib": True, "complevel": 9},
     "level": {"dtype": "int32", "zlib": True,"complevel": 9},
+    "time": {"zlib": True,"complevel": 9},
     "**": {"dtype": "float32", "zlib": True, "complevel": 9},  # Default for all other variables
 }
 
@@ -105,7 +106,7 @@ def load_CARRA_data(*args, resample=True):
     # print("- Reading data from CARRA reanalysis set -", surface_input_path)
     with xr.open_dataset(surface_input_path) as ds:
         aws_ds = ds.where(ds.stid==c.station, drop=True).load()
-    
+
     if 'altitude' in aws_ds.data_vars:
         c.altitude= aws_ds.altitude.item()
     else:
@@ -152,13 +153,16 @@ def load_CARRA_data(*args, resample=True):
     # calcualting snowfall and rainfall
     df_carra['Snowfallmweq'] = 0.
     df_carra['Rainfallmweq'] = 0.
-    cut_off_temp = 0.
-    df_carra.loc[df_carra.AirTemperatureC < cut_off_temp,
-                  'Snowfallmweq'] = df_carra.loc[
-                      df_carra.AirTemperatureC < cut_off_temp,'tp'] / 1000.
-    df_carra.loc[df_carra.AirTemperatureC >= cut_off_temp,
-                  'Rainfallmweq'] = df_carra.loc[
-                      df_carra.AirTemperatureC >= cut_off_temp,'tp'] / 1000.
+
+    T_min = 0.5  # Temperature below which all precipitation is snow
+    T_max = 2.5  # Temperature above which all precipitation is rain
+
+    # Compute snowfall fraction after Hock and Holmgren 2005
+    snow_fraction = np.clip((T_max - df_carra.AirTemperatureC) / (T_max - T_min), 0, 1)
+
+    # Assign snowfall and rainfall
+    df_carra['Snowfallmweq'] = (df_carra['tp'] / 1000.) * snow_fraction
+    df_carra['Rainfallmweq'] = (df_carra['tp'] / 1000.) * (1 - snow_fraction)
 
     if (df_carra.index[1] - df_carra.index[0]) == pd.Timedelta('1 hours'):
         df_carra['Snowfallmweq'] = df_carra['Snowfallmweq'] / 3
@@ -205,13 +209,16 @@ def load_surface_input_data(c, resample=True):
         print('Driver', c.surface_input_driver , 'not recognized')
     return df_surf, c
 
+
 def write_2d_netcdf(data, name_var, depth_act, time, c):
     levels = np.arange(data.shape[0])
-    time_days_since = (time - np.datetime64("1900-01-01")).astype("timedelta64[s]").astype(float) / 86400
+
+    # Convert time to CF-compliant format (datetime64[ns] for NetCDF)
+    time_cf = xr.DataArray(pd.to_datetime(time), dims="time", name="time")
 
     foo = xr.DataArray(
         data,
-        coords={"level": levels, "time": time_days_since},
+        coords={"level": levels, "time": time_cf},
         dims=["level", "time"],
         name=name_var,
     )
@@ -220,7 +227,7 @@ def write_2d_netcdf(data, name_var, depth_act, time, c):
 
     depth = xr.DataArray(
         depth_act,
-        coords={"level": levels, "time": time_days_since},
+        coords={"level": levels, "time": time_cf},
         dims=["level", "time"],
         name="depth",
     )
@@ -228,10 +235,11 @@ def write_2d_netcdf(data, name_var, depth_act, time, c):
     depth.attrs["long_name"] = "Depth of layer bottom"
 
     ds = xr.Dataset({name_var: foo, "depth": depth})
-    
-    ds["time"].attrs["units"] = "days since 1900-01-01"
+
+    # ds["time"].attrs["units"] = "days since 1900-01-01"
+    # ds["time"].attrs["calendar"] = "standard"  # Change to "proleptic_gregorian" if needed
     ds["level"].attrs["units"] = "index of layer (0=top)"
-    
+
     ds.attrs.update({
         "title": f"Simulated {long_name[name_var].lower()} from the GEUS SEB-firn model",
         "contact": "bav@geus.dk",
@@ -249,36 +257,41 @@ def write_2d_netcdf(data, name_var, depth_act, time, c):
 
     output_path = f"{c.output_path}/{c.RunName}/{c.station}_{name_var}.nc"
 
-    ds.to_netcdf(output_path, encoding=encoding)
+    filtered_encoding = {
+        var: encoding.get(var, encoding.get("**", {})) for var in ds.variables
+    }
+
+    ds.to_netcdf(output_path, encoding=filtered_encoding)
     ds.close()
 
 
 def write_1d_netcdf(data, c, var_list=None, time=None, name_file="surface"):
-    var_info = pd.read_csv("input/constants/output_variables_info.csv").set_index(
-        "short_name"
-    )
+    var_info = pd.read_csv("input/constants/output_variables_info.csv").set_index("short_name")
+
     if time is None:
         time = data.index
     if var_list is None:
         var_list = data.columns
-    
-    time_days_since = (time - np.datetime64("1900-01-01")).astype("timedelta64[s]").astype(float) / 86400
 
-    ds = xr.Dataset()
-    
+    # Convert time to CF-compliant format (datetime64[ns] for NetCDF)
+    time_cf = xr.DataArray(pd.to_datetime(time), dims="time", name="time")
+
+    ds = xr.Dataset(coords={"time": time_cf})
+
     for name_var in var_list:
         foo = xr.DataArray(
             data[name_var].values,
-            coords={"time": time_days_since},
+            coords={"time": ds["time"]},
             dims=["time"],
             name=name_var,
         )
         foo.attrs["units"] = var_info.loc[name_var, "units"]
         foo.attrs["long_name"] = var_info.loc[name_var, "long_name"]
         ds[name_var] = foo
-    
-    ds["time"].attrs["units"] = "days since 1900-01-01"
-    
+
+    # ds["time"].attrs["units"] = "days since 1900-01-01"
+    # ds["time"].attrs["calendar"] = "standard"  # Use "proleptic_gregorian" if required
+
     ds.attrs.update({
         "title": "Simulated surface variables from the GEUS SEB-firn model",
         "contact": "bav@geus.dk",
@@ -289,12 +302,17 @@ def write_1d_netcdf(data, c, var_list=None, time=None, name_file="surface"):
         "altitude": c.altitude,
         "station": c.station,
     })
-    
+
     for attr in ["pixel", "year", "month"]:
         if hasattr(c, attr):
             ds.attrs[attr] = getattr(c, attr)
-    
+
     output_path = f"{c.output_path}/{c.RunName}/{c.station}_{name_file}.nc"
-    
-    ds.to_netcdf(output_path, encoding=encoding)
+
+    filtered_encoding = {
+        var: encoding.get(var,
+                          encoding.get("**", {})) for var in ds.variables
+    }
+
+    ds.to_netcdf(output_path, encoding=filtered_encoding)
     ds.close()
