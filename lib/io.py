@@ -35,6 +35,14 @@ long_name = {
     "rfrz": "Amount of water refrozen",
     "dgrain": "Snow grain diameter",
 }
+encoding = {
+    "compaction": {"dtype": "int32", "scale_factor": 1e-8, "zlib": True, "complevel": 9},
+    "dgrain": {"dtype": "int16", "scale_factor": 0.001, "zlib": True, "complevel": 9},
+    "rhofirn": {"dtype": "int16", "scale_factor": 0.001, "zlib": True, "complevel": 9},
+    "T_ice": {"dtype": "int16", "scale_factor": 0.1, "zlib": True, "complevel": 9},
+    "level": {"dtype": "int32", "zlib": True,"complevel": 9},
+    "**": {"dtype": "float32", "zlib": True, "complevel": 9},  # Default for all other variables
+}
 
 
 def load_promice_old(path_promice):
@@ -160,63 +168,6 @@ def load_CARRA_data(*args, resample=True):
     df_carra['Snowfallmweq'] = df_carra['Snowfallmweq'].fillna(0)
     return df_carra
 
-
-def load_CARRA_grid(c):
-    surface_input_path = c.surface_input_path
-    pixel = int(c.station.split('_')[1])
-
-    # print("- Reading data from CARRA reanalysis set -")
-    aws_ds = xr.open_dataset(surface_input_path).sel(pixel=pixel)
-
-    meta_ds = ( xr.open_dataset('input/weather data/fractions.west.nc')[['orography', 'latitude','longitude']]
-               .isel(x=aws_ds.x.item(), y=aws_ds.y.item()))
-
-    # c.altitude= aws_ds.altitude.item()
-    c.altitude = meta_ds.orography.item()
-    c.latitude= aws_ds.latitude.item()
-    c.longitude= aws_ds.longitude.item() -360
-
-    c.x= aws_ds.x.item()
-    c.y= aws_ds.y.item()
-
-    df_carra = aws_ds.squeeze().to_dataframe()
-    df_carra['HeightTemperature2m'] = 2
-    df_carra['HeightHumidity2m'] = 2
-    df_carra['HeightWindSpeed2m'] = 10
-
-    df_carra['t2m'] = df_carra['t2m']-273.15
-    df_carra['al'] = df_carra['al']/100
-    df_carra['sp'] = df_carra['sp']/100
-    df_carra['ssrd'] = df_carra['ssrd'] / (3 * 3600)  # from J /3h to W/m-2
-    df_carra['strd'] = df_carra['strd'] / (3 * 3600) # from J /3h to W/m-2
-
-    df_carra['ssru'] = df_carra['ssrd'] * df_carra['al']
-
-    df_carra['sf'] = np.maximum(0, df_carra['tp'] - df_carra['tirf']) / 1000 # conversion to m w.eq.
-    df_carra['rf'] = df_carra.tirf / 1000 # conversion to m w.eq.
-
-    # converting to a pandas dataframe and renaming some of the columns
-    df_carra = df_carra.rename(columns={
-                            't2m': 'AirTemperature2C',
-                            'r2': 'RelativeHumidity2',
-                            'si10': 'WindSpeed2ms',
-                            'sp': 'AirPressurehPa',
-                            'ssrd': 'ShortwaveRadiationDownWm2',
-                            'ssru': 'ShortwaveRadiationUpWm2',
-                            'strd': 'LongwaveRadiationDownWm2',
-                            'stru': 'LongwaveRadiationUpWm2',
-                            'sf': 'Snowfallmweq',
-                            'rf': 'Rainfallmweq',
-                            'al': 'Albedo',
-                        })
-
-    # Fill null values with 0
-    df_carra['ShortwaveRadiationDownWm2'] = df_carra.ShortwaveRadiationDownWm2.fillna(0)
-    df_carra['ShortwaveRadiationUpWm2'] = df_carra.ShortwaveRadiationUpWm2.fillna(0)
-
-    return df_carra.drop(columns=['pixel','latitude','longitude','x','y','Albedo','tp','tirf']), c
-
-
 def load_surface_input_data(c, resample=True):
     df_surf = None
     if c.surface_input_driver  == 'AWS_old':
@@ -254,58 +205,51 @@ def load_surface_input_data(c, resample=True):
         print('Driver', c.surface_input_driver , 'not recognized')
     return df_surf, c
 
-
 def write_2d_netcdf(data, name_var, depth_act, time, c):
     levels = np.arange(data.shape[0])
-    time_days_since = (
-        pd.to_timedelta(time - np.datetime64("1900-01-01", "ns")).total_seconds().values
-        / 3600
-        / 24
-    )
+    time_days_since = (time - np.datetime64("1900-01-01")).astype("timedelta64[s]").astype(float) / 86400
 
     foo = xr.DataArray(
-        data, coords=[levels, time_days_since], dims=["level", "time"], name=name_var
+        data,
+        coords={"level": levels, "time": time_days_since},
+        dims=["level", "time"],
+        name=name_var,
     )
     foo.attrs["units"] = units[name_var]
     foo.attrs["long_name"] = long_name[name_var]
-    foo.time.attrs["units"] = "days since 1900-01-01"
-    foo.level.attrs["units"] = "index of layer (0=top)"
 
     depth = xr.DataArray(
         depth_act,
-        coords=[levels, time_days_since],
+        coords={"level": levels, "time": time_days_since},
         dims=["level", "time"],
         name="depth",
     )
     depth.attrs["units"] = "m below the surface"
     depth.attrs["long_name"] = "Depth of layer bottom"
-    depth.time.attrs["units"] = "days since 1900-01-01"
-    depth.level.attrs["units"] = "index of layer (0=top)"
 
-    float_encoding = {"dtype": "float32", "zlib": True,"complevel": 9}
-    int_encoding = {"dtype": "int32", "zlib": True,"complevel": 9}
+    ds = xr.Dataset({name_var: foo, "depth": depth})
+    
+    ds["time"].attrs["units"] = "days since 1900-01-01"
+    ds["level"].attrs["units"] = "index of layer (0=top)"
+    
+    ds.attrs.update({
+        "title": f"Simulated {long_name[name_var].lower()} from the GEUS SEB-firn model",
+        "contact": "bav@geus.dk",
+        "production_date": datetime.date.today().isoformat(),
+        "run_name": c.RunName,
+        "latitude": c.latitude,
+        "longitude": c.longitude,
+        "altitude": c.altitude,
+        "station": c.station,
+    })
 
-    ds = xr.merge([foo, depth])
-    ds.attrs["title"] = 'Simulated '+long_name[name_var].lower()+' from the GEUS SEB-firn model'
-    ds.attrs["contact"] = 'bav@geus.dk'
-    ds.attrs["production_date"] = datetime.date.today().isoformat()
-    ds.attrs["run_name"] = c.RunName
-    ds.attrs["latitude"] = c.latitude
-    ds.attrs["longitude"] = c.longitude
-    ds.attrs["altitude"] = c.altitude
-    ds.attrs["station"] = c.station
-    try:
-        ds.attrs["pixel"] = c.pixel
-        ds.attrs["year"] = c.year
-        ds.attrs["month"] = c.month
-    except:
-        pass
-    ds.to_netcdf(
-        c.output_path + "/" + c.RunName + "/" + c.station + "_" + name_var + ".nc",
-        encoding = {'depth': float_encoding,
-                    name_var: float_encoding,
-                    'level':int_encoding}
-    )
+    for attr in ["pixel", "year", "month"]:
+        if hasattr(c, attr):
+            ds.attrs[attr] = getattr(c, attr)
+
+    output_path = f"{c.output_path}/{c.RunName}/{c.station}_{name_var}.nc"
+
+    ds.to_netcdf(output_path, encoding=encoding)
     ds.close()
 
 
@@ -313,44 +257,44 @@ def write_1d_netcdf(data, c, var_list=None, time=None, name_file="surface"):
     var_info = pd.read_csv("input/constants/output_variables_info.csv").set_index(
         "short_name"
     )
-    if not time:
+    if time is None:
         time = data.index
-    if not var_list:
+    if var_list is None:
         var_list = data.columns
-    time_days_since = (pd.to_timedelta(time - np.datetime64("1900-01-01", "ns"))
-                       .total_seconds().values / 3600/ 24)
-    float_encoding = {"dtype": "float32", "zlib": True,"complevel": 9}
+    
+    time_days_since = (time - np.datetime64("1900-01-01")).astype("timedelta64[s]").astype(float) / 86400
 
+    ds = xr.Dataset()
+    
     for name_var in var_list:
         foo = xr.DataArray(
             data[name_var].values,
-            coords=[time_days_since],
+            coords={"time": time_days_since},
             dims=["time"],
             name=name_var,
         )
         foo.attrs["units"] = var_info.loc[name_var, "units"]
         foo.attrs["long_name"] = var_info.loc[name_var, "long_name"]
-        foo.encoding = float_encoding
-        foo.time.attrs["units"] = "days since 1900-01-01"
-        if name_var == var_list[0]:
-            ds = foo
-        else:
-            ds = xr.merge([ds, foo])
-    ds.attrs["title"] = 'Simulated surface variables from the GEUS SEB-firn model'
-    ds.attrs["contact"] = 'bav@geus.dk'
-    ds.attrs["production_date"] = datetime.date.today().isoformat()
-    ds.attrs["run_name"] = c.RunName
-    ds.attrs["latitude"] = c.latitude
-    ds.attrs["longitude"] = c.longitude
-    ds.attrs["altitude"] = c.altitude
-    ds.attrs["station"] = c.station
-    try:
-        ds.attrs["pixel"] = c.pixel
-        ds.attrs["year"] = c.year
-        ds.attrs["month"] = c.month
-    except:
-        pass
-    ds.to_netcdf(
-        c.output_path + "/" + c.RunName + "/" + c.station + "_" + name_file + ".nc"
-    )
+        ds[name_var] = foo
+    
+    ds["time"].attrs["units"] = "days since 1900-01-01"
+    
+    ds.attrs.update({
+        "title": "Simulated surface variables from the GEUS SEB-firn model",
+        "contact": "bav@geus.dk",
+        "production_date": datetime.date.today().isoformat(),
+        "run_name": c.RunName,
+        "latitude": c.latitude,
+        "longitude": c.longitude,
+        "altitude": c.altitude,
+        "station": c.station,
+    })
+    
+    for attr in ["pixel", "year", "month"]:
+        if hasattr(c, attr):
+            ds.attrs[attr] = getattr(c, attr)
+    
+    output_path = f"{c.output_path}/{c.RunName}/{c.station}_{name_file}.nc"
+    
+    ds.to_netcdf(output_path, encoding=encoding)
     ds.close()
