@@ -206,7 +206,8 @@ def GEUS_model(weather_df: pd.DataFrame, c: Struct):
             c.Tdeep, snowbkt[k - 1], c
         )
         if ((snowc[:, k]+snic[:, k]) == 0).any():
-            import pdb; pdb.set_trace()
+            print((snowc[:, k]+snic[:, k]) == 0)
+            print(wtf)
 
         # bulk density
         rho[:, k] = (snowc[:, k] + snic[:, k]) / (

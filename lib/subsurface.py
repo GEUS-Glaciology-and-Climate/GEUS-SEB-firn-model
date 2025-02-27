@@ -58,13 +58,11 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
         psnowc, psnic, pdgrain, prhofirn, ptsoil, pgrndc, pgrndd, pslwc = shift_layers(
             psnowc, psnic, pdgrain, prhofirn, ptsoil, pgrndc, pgrndd, pslwc
             )
-    try:
-        prhofirn, psnowc, psnic, pslwc, pdgrain, zrogl = lp.perc_runoff_new(
-            prhofirn, psnowc, psnic, pslwc, pdgrain, c.zdtime
-        )
-    except:
-        import pdb; pdb.set_trace()
 
+    prhofirn, psnowc, psnic, pslwc, pdgrain, zrogl = lp.perc_runoff_new(
+        prhofirn, psnowc, psnic, pslwc, pdgrain, c.zdtime
+    )
+        
     psnic, pslwc, ptsoil, zrfrz = refreeze(psnowc, psnic, pslwc, ptsoil, c)
 
     ptsoil, psnic, pslwc, zsupimp = superimposedice(
