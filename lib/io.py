@@ -36,13 +36,18 @@ long_name = {
     "dgrain": "Snow grain diameter",
 }
 encoding = {
-    "compaction": {"dtype": "int32", "scale_factor": 1e-8, "zlib": True, "complevel": 9},
-    "dgrain": {"dtype": "int16", "scale_factor": 0.001, "zlib": True, "complevel": 9},
-    "rhofirn": {"dtype": "int16", "scale_factor": 0.001, "zlib": True, "complevel": 9},
-    "T_ice": {"dtype": "int16", "scale_factor": 0.1, "zlib": True, "complevel": 9},
-    "level": {"dtype": "int32", "zlib": True,"complevel": 9},
-    "time": {"zlib": True,"complevel": 9},
-    "**": {"dtype": "float32", "zlib": True, "complevel": 9},  # Default for all other variables
+    # float variables
+    "rhofirn": {"dtype": "float32", "significant_digits":2, "zlib": True, "complevel": 9, '_FillValue': np.float32(-9.96921e36)},
+    "depth": {"dtype": "float32", "significant_digits":3, "zlib": True, "complevel": 9,  '_FillValue': np.float32(-9.96921e36)},
+    "snic": {"dtype": "float32", "significant_digits":3, "zlib": True, "complevel": 9,  '_FillValue': np.float32(-9.96921e36)},
+    "snowc": {"dtype": "float32", "significant_digits":3, "zlib": True, "complevel": 9,  '_FillValue': np.float32(-9.96921e36)},
+    "slwc": {"dtype": "float32", "significant_digits":3, "zlib": True, "complevel": 9,  '_FillValue': np.float32(-9.96921e36)},
+
+    "dgrain": {"dtype": "uint16", "scale_factor": 0.001,"add_offset": 0, "zlib": True, "complevel": 9, "_FillValue": -999},
+    "T_ice": {"dtype": "uint16", "scale_factor": 0.01,"add_offset": 0, "zlib": True, "complevel": 9, "_FillValue": -999},
+    "level": {"dtype": "uint16","add_offset": 0, "zlib": True, "complevel": 9, "_FillValue": -999},
+    "time": {"zlib": True, "complevel": 9},  # Time doesn't typically need a fill value
+    "**": {"dtype": "float32", "zlib": True, "complevel": 9, '_FillValue': np.float32(-9.96921e36)},  # Default for float variables
 }
 
 
@@ -180,8 +185,6 @@ def load_surface_input_data(c, resample=True):
     #     return load_promice(c.surface_input_path)
     if c.surface_input_driver  == 'CARRA':
         df_surf = load_CARRA_data(c, resample=resample)
-    if c.surface_input_driver  == 'CARRA_grid':
-        df_surf = load_CARRA_grid(c)
 
     # Spin up option
     if c.spin_up:
