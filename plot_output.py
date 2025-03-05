@@ -30,8 +30,8 @@ def name_alias(stid):
     else:
         return stid
 # output_path= 'C:/Users/bav/data_save/output firn model/spin up 3H/'
-output_path = './output/new/'
-run_name = '10450_100_layers_3h'
+output_path = './output/200_layers/'
+run_name = 'EastGRIP_100_layers_3h'
 #%%
 def main(output_path, run_name):
     # %% Loading data
@@ -59,7 +59,7 @@ def main(output_path, run_name):
 
     #  loading surface variables
     try:
-        df_out = xr.open_dataset(c.output_path+run_name+'/'+c.station+'_surface.nc').to_dataframe()
+        df_out = xr.open_dataset(c.output_path+run_name+'/'+c.station+'_surface.nc', decode_cf=True).to_dataframe()
         df_in = df_in.loc[df_out.index[0]:df_out.index[-1],:]
     except Exception as e:
         print(c.RunName, e)
@@ -83,8 +83,8 @@ def main(output_path, run_name):
     # %% Surface height evaluation
     # extracting surface height
 
-    path_aws_l4 = '../thredds-data/level_3_sites/csv/hour/'
-    # path_aws_l4 = 'C:/Users/bav/GitHub/PROMICE data/thredds/level_3_sites/hour/'
+    # path_aws_l4 = '../thredds-data/level_3_sites/csv/hour/'
+    path_aws_l4 = 'C:/Users/bav/GitHub/PROMICE data/thredds/level_3_sites/hour/'
     if os.path.isfile(path_aws_l4+name_alias(c.station)+'_hour.csv'):
         df_obs = pd.read_csv(path_aws_l4+name_alias(c.station)+'_hour.csv')
         obs_avail = True
@@ -131,7 +131,7 @@ def main(output_path, run_name):
     # %% calculating modelled t_i_10m
 
     filename = c.output_path + run_name + "/" + c.station + "_T_ice.nc"
-    df = (xr.open_dataset(filename).to_dataframe().unstack('level'))
+    df = (xr.open_dataset(filename, decode_cf=True).to_dataframe().unstack('level'))
     df.columns = df.columns.map('{0[0]}_{0[1]}'.format)
     # df_10m = interpolate_temperature(
     #     df.index, df[[v for v in df.columns if 'depth' in v]].values,
@@ -172,7 +172,7 @@ def main(output_path, run_name):
 
     plt.close('all')
     # try:
-    #     lpl.find_summer_surface_depths(c)
+        # lpl.find_summer_surface_depths(c)
     # except Exception as e:
     #     print(e)
     #     pass

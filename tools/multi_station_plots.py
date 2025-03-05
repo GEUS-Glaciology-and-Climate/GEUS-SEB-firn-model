@@ -18,7 +18,7 @@ import lib.plot as lpl
 from lib.initialization import Struct
 import pandas as pd
 import lib.io as io
-from lib.plot import interpolate_temperature_fast
+from lib.plot import interpolate_temperature_fast,load_sumup
 import matplotlib.dates as mdate
 locator = mdate.YearLocator(10)
 
@@ -42,8 +42,8 @@ plt.subplots_adjust(top=0.98,hspace=0, wspace=0, right=0.98)
 ax_list=ax_list.flatten()
 for station_list, ax in zip(station_list_list, ax_list):
     for stid in station_list:
-        output_path = './output/'
-        run_name = stid+'_100_layers_3H'
+        output_path = './output/HH precipitation/'
+        run_name = stid+'_100_layers_3h'
         
         print(run_name)
         try: 
@@ -117,7 +117,7 @@ for station_list, ax in zip(station_list_list, ax_list):
 
 fig.text(0.5, 0.04, 'Years', ha='center')
 fig.text(0.04, 0.5, 'Surface height (m)', va='center', rotation='vertical')
-fig.savefig('side analysis/surface_height_SMB_vs_obs_ablation.png', dpi=300)
+fig.savefig('side analysis/surface_height_SMB_vs_obs_ablation_HH.png', dpi=300)
 
 #%% Surface height at accumulation sites
 
@@ -133,8 +133,8 @@ fig, ax_list = plt.subplots(3,4, sharex=True, sharey=True, figsize=(10,10))
 plt.subplots_adjust(top=0.98,hspace=0, wspace=0, right=0.98)
 ax_list=ax_list.flatten()
 for stid, ax in zip(station_list, ax_list):
-    output_path = './output/'
-    run_name = stid+'_100_layers_3H'
+    output_path = './output/new/'
+    run_name = stid+'_100_layers_3h'
     
     print(run_name)
     try: 
@@ -207,7 +207,7 @@ for stid, ax in zip(station_list, ax_list):
 
 fig.text(0.5, 0.04, 'Years', ha='center')
 fig.text(0.04, 0.5, 'Surface height (m)', va='center', rotation='vertical')
-fig.savefig('side analysis/surface_height_SMB_vs_obs_accumulation.png', dpi=300)
+fig.savefig('side analysis/surface_height_SMB_vs_obs_accumulation_new.png', dpi=300)
 
 #%% SMB at all sites
 compute_smb_evaluation = True
@@ -228,21 +228,12 @@ if compute_smb_evaluation:
         
     ds_aws=ds_aws.where(~ds_aws.stid.isin(unwanted), drop=True)
     
-    output_path= './output'
-    import lib.plot as lplt
-    df_sumup, df_meta = lplt.load_sumup_smb()
-    
-    msk = df_sumup.start_date.isnull()
-    df_sumup.loc[msk, 'start_date'] = pd.to_datetime(df_sumup.loc[msk, 'start_year'].astype(int).astype(str)+'-01-01')
-    msk = df_sumup.end_date.isnull()
-    df_sumup.loc[msk, 'end_date'] = pd.to_datetime(df_sumup.loc[msk, 'end_year'].astype(int).astype(str)+'-01-01')
-    msk = df_sumup.start_date == df_sumup.end_date
-    df_sumup.loc[msk, 'end_date'] = pd.to_datetime((df_sumup.loc[msk, 'end_year']+1).astype(int).astype(str)+'-01-01')
-    df_sumup['smb_mod'] = np.nan
+    output_path= './output/HH precipitation/'
+
     
     df_all_smb = pd.DataFrame()
     for stid in station_list:
-        run_name = stid + '_100_layers_3H'
+        run_name = stid + '_100_layers_3h'
         if not os.path.isfile(output_path+'/'+ run_name+'/constants.csv'):
             print('!!!!',stid,'run not finsished !!!!')
             continue
@@ -256,8 +247,17 @@ if compute_smb_evaluation:
         df_out = xr.open_dataset(c.output_path+c.RunName+'/'+c.station+'_surface.nc').to_dataframe()
         # evaluate_smb_sumup(df_out, c)
         
-        df_sumup_selec, df_meta_selec = lplt.select_sumup(df_sumup, df_meta, c)
+        df_sumup_selec, df_meta_selec = load_sumup(var='SMB', name_var='name', c=c)
         if len(df_sumup_selec) == 0: continue
+
+        msk = df_sumup_selec.start_date.isnull()
+        df_sumup_selec.loc[msk, 'start_date'] = pd.to_datetime(df_sumup_selec.loc[msk, 'start_year'].astype(int).astype(str)+'-01-01')
+        msk = df_sumup_selec.end_date.isnull()
+        df_sumup_selec.loc[msk, 'end_date'] = pd.to_datetime(df_sumup_selec.loc[msk, 'end_year'].astype(int).astype(str)+'-01-01')
+        msk = df_sumup_selec.start_date == df_sumup_selec.end_date
+        df_sumup_selec.loc[msk, 'end_date'] = pd.to_datetime((df_sumup_selec.loc[msk, 'end_year']+1).astype(int).astype(str)+'-01-01')
+        df_sumup_selec['smb_mod'] = np.nan
+        
         for i in df_sumup_selec.index:
             df_sumup_selec.loc[i, 'smb_mod'] = df_out.loc[
                 df_sumup_selec.loc[i,'start_date']:df_sumup_selec.loc[i,'end_date'],
@@ -295,7 +295,7 @@ ax[0].set_xlabel('Observed SMB (m w.e.)')
 ax[0].set_ylabel('Modelled SMB (m w.e.)')
 ax[1].set_xlabel('Observed SMB (m w.e.)')
 ax[1].set_ylabel('Modelled SMB (m w.e.)')
-fig.savefig('side analysis/SMB_evaluation_SUMup2024.png', dpi=300)
+fig.savefig('side analysis/SMB_evaluation_SUMup2024_HH.png', dpi=300)
 
 #%% 10 m temperature at all sites
 import lib.plot as lplt
