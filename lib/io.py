@@ -43,9 +43,9 @@ encoding = {
     "snowc": {"dtype": "float32", "significant_digits":3, "zlib": True, "complevel": 9,  '_FillValue': np.float32(-9.96921e36)},
     "slwc": {"dtype": "float32", "significant_digits":3, "zlib": True, "complevel": 9,  '_FillValue': np.float32(-9.96921e36)},
 
-    "dgrain": {"dtype": "uint16", "scale_factor": 0.001,"add_offset": 0, "zlib": True, "complevel": 9, "_FillValue": -999},
-    "T_ice": {"dtype": "uint16", "scale_factor": 0.01,"add_offset": 0, "zlib": True, "complevel": 9, "_FillValue": -999},
-    "level": {"dtype": "uint16","add_offset": 0, "zlib": True, "complevel": 9, "_FillValue": -999},
+    "dgrain": {"dtype": "uint16", "scale_factor": 0.001,"add_offset": 0, "zlib": True, "complevel": 9, "_FillValue": 65535},
+    "T_ice": {"dtype": "uint16", "scale_factor": 0.01,"add_offset": 0, "zlib": True, "complevel": 9, "_FillValue": 65535},
+    "level": {"dtype": "uint16","add_offset": 0, "zlib": True, "complevel": 9, "_FillValue": 65535},
     "time": {"zlib": True, "complevel": 9},  # Time doesn't typically need a fill value
     "**": {"dtype": "float32", "zlib": True, "complevel": 9, '_FillValue': np.float32(-9.96921e36)},  # Default for float variables
 }

@@ -27,7 +27,7 @@ def run_SEB_firn(station='FA-13', silent=False):
     # importing standard values for constants
     c = ImportConst()
     c.station = station
-    c.spin_up = True
+    c.spin_up = False
     c.verbose = 1
     if silent or c.spin_up:
         c.verbose = 0
@@ -55,21 +55,29 @@ def run_SEB_firn(station='FA-13', silent=False):
 
     c.RunName = c.station + "_" + str(c.num_lay) + "_layers_"+c.freq
 
-
+    # if it is a spin up, then checking whether the pckl file is already available
     if c.spin_up and os.path.isfile(c.output_path+c.RunName+'/'+c.station+'_final.pkl'):
         print(c.RunName, 'already exists, skipping')
         return
-
+    
+    # for all files, we can check if the run folder already exist and skip if necessary
+    try:
+        os.mkdir(c.output_path + c.RunName)
+    except Exception as e:
+        if os.path.isfile(c.output_path+c.RunName+'/'+c.station+'_rhofirn.nc'):
+            print(c.RunName, 'already exists, redoing')
+    
+    # if it is not a spin up and there is no spinup run available then skipping
+    if not c.spin_up and not os.path.isfile(c.spin_up_path+c.RunName+'/'+c.station+'_final.pkl'):
+        print(c.RunName, 'does not have a spin up run yet, skipping')
+        return
+        
+        
     # loading input data
     try:
         df_in, c = io.load_surface_input_data(c, resample=resample)
     except Exception as e:
         print(c.station, e); traceback.print_exc()
-    try:
-        os.mkdir(c.output_path + c.RunName)
-    except Exception as e:
-        if os.path.isfile(c.output_path+c.RunName+'/'+c.station+'_rhofirn.nc'):
-            print(c.RunName, 'already exists', e); traceback.print_exc()
 
             #     if abs(os.path.getmtime(c.output_path+c.RunName+'/constants.csv') - time.time())/60/60 <24:
         #         if not silent: print(c.RunName,'recently done. skeeping')
@@ -169,8 +177,8 @@ def run_SEB_firn(station='FA-13', silent=False):
         # io.write_2d_netcdf(density_bulk, 'density_bulk', depth_act, df_in.index, c)
         io.write_2d_netcdf(T_ice, 'T_ice', depth_act, df_in.index, c)
         # io.write_2d_netcdf(rfrz, 'rfrz', depth_act, df_in.index, RunName)
-        io.write_2d_netcdf(dgrain, 'dgrain', depth_act, df_in.index, c)
-        io.write_2d_netcdf(compaction, 'compaction', depth_act, df_in.index, c)
+        # io.write_2d_netcdf(dgrain, 'dgrain', depth_act, df_in.index, c)
+        # io.write_2d_netcdf(compaction, 'compaction', depth_act, df_in.index, c)
 
         if c.verbose>0: print(c.RunName,'writing output files took %0.03f sec'%(time.time() -start_time))
         start_time = time.time()
@@ -208,7 +216,7 @@ def worker(task_queue):
 
 def standard_run_parallel(station_list):
     # max_core_usage =  multiprocessing.cpu_count()-1 # all cores except one
-    max_core_usage = 11  # Limit to 6 cores
+    max_core_usage = 21  # Limit to 6 cores
     num_cores = min(len(station_list), max_core_usage)
     task_queues = [multiprocessing.Queue() for _ in range(num_cores)]
     processes = []
