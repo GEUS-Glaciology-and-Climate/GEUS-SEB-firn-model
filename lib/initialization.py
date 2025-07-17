@@ -52,7 +52,7 @@ def IniVar(time, c):
 
     if c.use_spin_up_init:
         try:
-            spin_up_run_name = c.station+'_100_layers_3h'
+            spin_up_run_name = c.RunName
 
             file_path = c.spin_up_path + "/" + spin_up_run_name + "/"  \
                 + c.station + '_final.pkl'
