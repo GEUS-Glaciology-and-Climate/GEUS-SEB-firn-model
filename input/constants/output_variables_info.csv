@@ -1,0 +1,44 @@
+short_name,long_name,units
+snowc,Layer snow content,m water equivalent
+snic,Layer ice content,m water equivalent
+slwc,Layer liquid water content,m water equivalent
+rhofirn,Density of snow only,kg m^-3
+density_bulk,Bulk density,kg m^-3
+T_ice,Subsurface temperature,K
+compaction,Layer compaction,m per time step
+rfrz,Amount of water refrozen,m water equivalent per time step
+refreezing_mweq,Amount of water refrozen, m w.e. per time step
+dgrain,Snow grain diameter,mm
+Year,Year,yr
+Month,Month,m
+Day,Day of the year,d
+Hour,HourUTC,h
+LRin,Downward longwave radiation flux,Wm-2
+LRout_mdl,Calculated upward longwave radiation flux,Wm-2
+SHF,Sensible heat flux,Wm-2
+LHF,Latent heat flux,Wm-2
+L,Monin-Obukhov length,m
+GF,Heat flux from the subsurface to the surface,Wm-2
+rainHF,Heat flux from rain,Wm-2
+meltflux,Melt energy,Wm-2
+H_surf,Surface height above model lower boundary at start in meters,m
+smb_mweq,Surface mass balance water equivalent,m w.e.
+melt_mweq,Melt per time step in water equivalent,m w.e.
+zrogl,Runoff per time step in water equivalent,m w.e.
+sublimation_mweq,Sublimation per time step,m w.e.
+H_comp,Cumulated compaction in meters,m
+runoff_mweq,Runoff per time step,m w.e.
+snowthick,Snow thickness,m
+snowfall_mweq,Snowfall per time step,m w.e.
+rainfall_mweq,Rainfall per time step,m w.e.
+SRin,Incoming shortwave radiation,Wm-2
+SRout,Outgoing shortwave radiation,Wm-2
+Tsurf,Calculated surface temperature,K
+H_T,Height of temperature sensor,m
+snowbkt,Content of the snow bucket,m w.e.
+theta_2m,2m temperature,K
+RH_2m_wrtw,2m relative humidity with regards to water,%
+ws_10m,10 m wind speed,m s^-1
+q_2m,2m specific humidity,g m^-3
+Re,Reynolds number,-
+surface_height,Surface height,m
