@@ -8,7 +8,6 @@ tip list:
     import pdb; pdb.set_trace()
 """
 import matplotlib.pyplot as plt
-import matplotlib
 import numpy as np
 import xarray as xr
 import lib.plot as lpl
@@ -31,18 +30,22 @@ def name_alias(stid):
     else:
         return stid
 # output_path= 'C:/Users/bav/data_save/output firn model/spin up 3H/'
-output_path = './output/new/'
-run_name = 'CEN2_100_layers_3h'
+output_path = './output/200_layers/'
+run_name = 'EastGRIP_100_layers_3h'
 #%%
 def main(output_path, run_name):
     # %% Loading data
     print(run_name)
     tmp =pd.read_csv(output_path+'/'+ run_name+'/constants.csv', dtype={'key':str})
+    # converting all numerical fields to numeric, except station
     tmp['value_num'] = pd.to_numeric(tmp.value, errors='coerce')
-    tmp.loc[tmp.value_num.notnull(),'value'] = tmp.loc[tmp.value_num.notnull(),'value_num']
+    msk = (tmp.value_num.notnull() & (tmp.key!='station'))
+    tmp.loc[msk,'value'] = tmp.loc[msk,'value_num']
     tmp = tmp.set_index('key')[['value']]
+    # making it a structure
     c = Struct(**tmp.to_dict()['value'] )
     c.RunName=run_name
+
     if c.surface_input_driver=='CARRA' and c.zdtime == 3600:
         print('resample')
         resample=True
@@ -56,7 +59,7 @@ def main(output_path, run_name):
 
     #  loading surface variables
     try:
-        df_out = xr.open_dataset(c.output_path+run_name+'/'+c.station+'_surface.nc').to_dataframe()
+        df_out = xr.open_dataset(c.output_path+run_name+'/'+c.station+'_surface.nc', decode_cf=True).to_dataframe()
         df_in = df_in.loc[df_out.index[0]:df_out.index[-1],:]
     except Exception as e:
         print(c.RunName, e)
@@ -80,8 +83,8 @@ def main(output_path, run_name):
     # %% Surface height evaluation
     # extracting surface height
 
-    path_aws_l4 = '../thredds-data/level_3_sites/csv/hour/'
-    # path_aws_l4 = 'C:/Users/bav/GitHub/PROMICE data/thredds/level_3_sites/hour/'
+    # path_aws_l4 = '../thredds-data/level_3_sites/csv/hour/'
+    path_aws_l4 = 'C:/Users/bav/GitHub/PROMICE data/thredds/level_3_sites/hour/'
     if os.path.isfile(path_aws_l4+name_alias(c.station)+'_hour.csv'):
         df_obs = pd.read_csv(path_aws_l4+name_alias(c.station)+'_hour.csv')
         obs_avail = True
@@ -128,7 +131,7 @@ def main(output_path, run_name):
     # %% calculating modelled t_i_10m
 
     filename = c.output_path + run_name + "/" + c.station + "_T_ice.nc"
-    df = (xr.open_dataset(filename).to_dataframe().unstack('level'))
+    df = (xr.open_dataset(filename, decode_cf=True).to_dataframe().unstack('level'))
     df.columns = df.columns.map('{0[0]}_{0[1]}'.format)
     # df_10m = interpolate_temperature(
     #     df.index, df[[v for v in df.columns if 'depth' in v]].values,
@@ -162,28 +165,28 @@ def main(output_path, run_name):
     lpl.evaluate_smb_sumup(df_out, c)
     lpl.evaluate_accumulation_snowfox(df_in, c)
     lpl.plot_var_start_end(c, 'T_ice')
-    lpl.plot_var_start_end(c, 'density_bulk')    # Movies
+    lpl.plot_var_start_end(c, 'density_bulk')
     # lpl.plot_movie(c.station, c.output_path, c.RunName, 'T_ice')
     # lpl.plot_movie(c.station, c.output_path, c.RunName, 'density_bulk')
     lpl.evaluate_compaction(c)
 
     plt.close('all')
     # try:
-    #     lpl.find_summer_surface_depths(c)
+        # lpl.find_summer_surface_depths(c)
     # except Exception as e:
     #     print(e)
     #     pass
 
 # %%
-import os
 if __name__ == "__main__":
     # for run_name in os.listdir('output/new/'):
-        # main(output_path=output_path, run_name=run_name)
+    #     main(output_path=output_path, run_name=run_name)
+    main(output_path=output_path, run_name=run_name)
 
-    run_name_list = os.listdir('output/new/')
+    # run_name_list = os.listdir('output/new/')
 
-    def main_wrapper(run_name):
-        main(output_path=output_path, run_name=run_name)
+    # def main_wrapper(run_name):
+    #     main(output_path=output_path, run_name=run_name)
 
-    with Pool(7, maxtasksperchild=1) as pool:
-        pool.map(main_wrapper, run_name_list, chunksize=1)
+    # with Pool(7, maxtasksperchild=1) as pool:
+    #     pool.map(main_wrapper, run_name_list, chunksize=1)

@@ -16,6 +16,7 @@ from scipy.interpolate import interp1d
 import matplotlib
 import warnings
 import matplotlib as mpl
+import traceback
 
 from matplotlib import gridspec
 from scipy.stats import linregress
@@ -24,27 +25,28 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
              df_sumup=[], tag='', year=None, weq_depth=False):
+
     try:
         if var_name != 'density_bulk':
             filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
-            ds = xr.open_dataset(filename).transpose()
+            ds = xr.open_dataset(filename, decode_cf=True).transpose()
         else:
             filename = output_path+"/" + run_name + "/" + site + "_snowc.nc"
-            snowc = xr.open_dataset(filename).transpose()
+            snowc = xr.open_dataset(filename, decode_cf=True).transpose()
             filename = output_path+"/" + run_name + "/" + site + "_snic.nc"
-            snic = xr.open_dataset(filename).transpose()
+            snic = xr.open_dataset(filename, decode_cf=True).transpose()
             filename = output_path+"/" + run_name + "/" + site + "_rhofirn.nc"
-            rhofirn = xr.open_dataset(filename).transpose()
-            ds = snowc[['depth']]
+            rhofirn = xr.open_dataset(filename, decode_cf=True).transpose()
+            ds = rhofirn[['depth']]
             ds[var_name] = (snowc.snowc + snic.snic) / (snowc.snowc / rhofirn.rhofirn + snic.snic / 900)
 
         if weq_depth:
             filename = output_path+"/" + run_name + "/" + site + "_snowc.nc"
-            snowc = xr.open_dataset(filename).transpose()
+            snowc = xr.open_dataset(filename, decode_cf=True).transpose()
             filename = output_path+"/" + run_name + "/" + site + "_snic.nc"
-            snic = xr.open_dataset(filename).transpose()
+            snic = xr.open_dataset(filename, decode_cf=True).transpose()
             filename = output_path+"/" + run_name + "/" + site + "_slwc.nc"
-            slwc = xr.open_dataset(filename).transpose()
+            slwc = xr.open_dataset(filename, decode_cf=True).transpose()
             ds['depth'] = (snowc.snowc + snic.snic ).cumsum(axis=1)
 
         if year:
@@ -163,7 +165,7 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
         fig.savefig(output_path+"/" + run_name + "/" + site + "_" + var_name +tag+ ".png")
         plt.close(fig)
     except Exception as e:
-        print(c.RunName, e)
+        print(c.RunName, e); traceback.print_exc()
 
 def plot_var_start_end(c, var_name='T_ice', ylim=[], to_file=False):
     try:
@@ -174,14 +176,14 @@ def plot_var_start_end(c, var_name='T_ice', ylim=[], to_file=False):
 
         if var_name != 'density_bulk':
             filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
-            ds = xr.open_dataset(filename).transpose()
+            ds = xr.open_dataset(filename, decode_cf=True).transpose()
         else:
             filename = output_path+"/" + run_name + "/" + site + "_snowc.nc"
-            snowc = xr.open_dataset(filename).transpose()
+            snowc = xr.open_dataset(filename, decode_cf=True).transpose()
             filename = output_path+"/" + run_name + "/" + site + "_snic.nc"
-            snic = xr.open_dataset(filename).transpose()
+            snic = xr.open_dataset(filename, decode_cf=True).transpose()
             filename = output_path+"/" + run_name + "/" + site + "_rhofirn.nc"
-            rhofirn = xr.open_dataset(filename).transpose()
+            rhofirn = xr.open_dataset(filename, decode_cf=True).transpose()
             ds = snowc[['depth']]
             ds[var_name] = (snowc.snowc + snic.snic) / (snowc.snowc / rhofirn.rhofirn + snic.snic / 900)
 
@@ -242,13 +244,13 @@ def plot_var_start_end(c, var_name='T_ice', ylim=[], to_file=False):
         fig.savefig(output_path+"/" + run_name + "/" + site + "_" + var_name + "_start_end.png")
         plt.close(fig)
     except Exception as e:
-        print(c.RunName, e)
+        print(c.RunName, e); traceback.print_exc()
 
 
 def plot_movie(site, output_path,  run_name, var_name, ylim=[]):
     # print('plotting',var_name, 'from',run_name)
     filename = output_path+"/" + run_name + "/" + site + "_" + var_name + ".nc"
-    ds = xr.open_dataset(filename).transpose()
+    ds = xr.open_dataset(filename, decode_cf=True).transpose()
     ds = ds.resample(time='6H').nearest()
 
     if var_name == "slwc":
@@ -478,7 +480,7 @@ def evaluate_compaction(c):
         # print(c.RunName, 'plotted compaction')
 
     except Exception as e:
-        print(c.RunName, e)
+        print(c.RunName, e); traceback.print_exc()
 
 from scipy.optimize import curve_fit
 import matplotlib
@@ -488,7 +490,7 @@ def find_summer_surface_depths(c):
     output_path = c.output_path
     run_name = c.RunName
     filename = output_path+"/" + run_name + "/" + site + "_compaction.nc"
-    ds = xr.open_dataset(filename)
+    ds = xr.open_dataset(filename, decode_cf=True)
     compaction = ds["compaction"].data
     time = ds["time"].data
     depth_act = ds["depth"].data
@@ -638,7 +640,7 @@ def plot_summary(df, c, filetag="summary", var_list=None):
             bbox_inches="tight",
         )
     except Exception as e:
-        print(c.RunName, e)
+        print(c.RunName, e); traceback.print_exc()
 
 from scipy.spatial import distance
 from math import sin, cos, sqrt, atan2, radians
@@ -696,7 +698,7 @@ def evaluate_temperature_sumup(df_out, c):
         fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup2024.png', dpi=120, bbox_inches="tight",)
         plt.close(fig)
     except Exception as e:
-        print(c.RunName, e)
+        print(c.RunName, e); traceback.print_exc()
 
 # from scipy.interpolate import interp1d
 # from tqdm import tqdm  # Import tqdm for the progress bar
@@ -755,7 +757,7 @@ def evaluate_temperature_scatter(df_out, c, year = None):
         df_sumup, df_meta = load_sumup(var='temperature', name_var='name',c=c)
 
         filename = c.output_path+"/" + c.RunName + "/" + c.station + "_T_ice.nc"
-        ds = xr.open_dataset(filename).transpose()
+        ds = xr.open_dataset(filename, decode_cf=True).transpose()
         ds['T_ice'] = ds.T_ice -273.15
 
         if year:
@@ -809,7 +811,7 @@ def evaluate_temperature_scatter(df_out, c, year = None):
         fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup2024_scatter.png', dpi=120)
         plt.close(fig)
     except Exception as e:
-        print(c.RunName,e)
+        print(c.RunName, e); traceback.print_exc()
 
 
 def evaluate_density_sumup(c):
@@ -822,17 +824,17 @@ def evaluate_density_sumup(c):
             print('no density profile in SUMup for',c.station)
             return None
         filename = c.output_path+"/" + c.RunName + "/" + c.station + "_snowc.nc"
-        snowc = xr.open_dataset(filename).transpose()
+        snowc = xr.open_dataset(filename, decode_cf=True).transpose()
         filename = c.output_path+"/" + c.RunName + "/" + c.station + "_snic.nc"
-        snic = xr.open_dataset(filename).transpose()
+        snic = xr.open_dataset(filename, decode_cf=True).transpose()
         filename = c.output_path+"/" + c.RunName + "/" + c.station + "_rhofirn.nc"
-        rhofirn = xr.open_dataset(filename).transpose()
+        rhofirn = xr.open_dataset(filename, decode_cf=True).transpose()
         ds_mod_dens = snowc[['depth']]
         ds_mod_dens['density_bulk'] = (snowc.snowc + snic.snic) / (snowc.snowc / rhofirn.rhofirn + snic.snic / 900)
         plot_density_profile(df_sumup, profile_list, df_meta, ds_mod_dens, c)
         plot_density_scatter(df_sumup, profile_list, df_meta, ds_mod_dens, c)
     except Exception as e:
-        print(c.RunName,e)
+        print(c.RunName, e); traceback.print_exc()
 
 def plot_density_scatter(df_sumup, profile_list, df_meta, ds_mod_dens, c):
     fig = plt.figure(figsize=(8,8))
@@ -1071,7 +1073,8 @@ def evaluate_smb_sumup(df_out, c):
         df_sumup.loc[msk, 'end_date'] = pd.to_datetime(df_sumup.loc[msk, 'end_year'].astype(int).astype(str)+'-01-01')
         msk = df_sumup.start_date == df_sumup.end_date
         df_sumup.loc[msk, 'end_date'] = pd.to_datetime((df_sumup.loc[msk, 'end_year']+1).astype(int).astype(str)+'-01-01')
-
+        if len(df_sumup)==0:
+            return None
         df_sumup['smb_mod'] = np.nan
         for i in df_sumup.index:
             df_sumup.loc[i, 'smb_mod'] = df_out.loc[
@@ -1101,7 +1104,7 @@ def evaluate_smb_sumup(df_out, c):
         fig.savefig(c.output_path+c.RunName+'/'+c.station+'_SMB_evaluation_SUMup2024.png', dpi=120)
         plt.close(fig)
     except Exception as e:
-        print(c.RunName,e)
+        print(c.RunName, e); traceback.print_exc()
 
 def evaluate_accumulation_snowfox(df_in, c):
     # SnowFox
@@ -1109,7 +1112,7 @@ def evaluate_accumulation_snowfox(df_in, c):
         try:
             file = '../../Data/SUMup/data/SMB data/to add/SnowFox_GEUS/SF_'+c.station+'.txt'
 
-            df_sf = pd.read_csv(file,delim_whitespace=True)
+            df_sf = pd.read_csv(file, sep=r'\s+')
             df_sf[df_sf==-999] = np.nan
             df_sf['time'] = pd.to_datetime(df_sf[['Year','Month','Day']])
             df_sf = df_sf.set_index('time')
@@ -1117,15 +1120,20 @@ def evaluate_accumulation_snowfox(df_in, c):
 
             fig = plt.figure()
             ax=plt.gca()
-            df_sf.SWE_mweq.plot(ax=ax, marker='o')
-            (df_in.loc['2018-08-12':'2019-05-01'].Snowfallmweq).cumsum().plot(ax=ax, label='Snowfall')
-            (df_in.loc['2019-09-01':'2020-05-01'].Snowfallmweq).cumsum().plot(ax=ax, label='Snowfall')
+            df_sf.SWE_mweq.plot(ax=ax, marker='o', label='SnowFox measurements')
+            (df_in.loc['2018-08-12':'2019-05-01'].Snowfallmweq).cumsum().plot(ax=ax, c='tab:red',
+                                                                              label='CARRA-forced snow model')
+            (df_in.loc['2019-10-10':'2020-05-01'].Snowfallmweq).cumsum().plot(ax=ax,  c='tab:red',
+                                                                              label='__nolegend__')
             plt.title(c.station)
             plt.ylabel('Snow accumulation (m w.e.)')
+            plt.grid()
+            plt.xlim(df_sf.index[[0,-1]])
+            plt.legend(loc='upper left')
             fig.savefig(c.output_path+c.RunName+'/snowfox_eval.png', dpi=120)
             plt.close(fig)
         except Exception as e:
-            print(c.RunName,e)
+            print(c.RunName, e); traceback.print_exc()
 
 
 def plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SHF','t_i_10m']):
@@ -1182,7 +1190,7 @@ def plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SH
         fig.savefig(c.output_path+c.RunName+'/SEB_evaluation_vs_AWS.png', dpi=120)
         plt.close(fig)
     except Exception as e:
-        print(c.RunName, e)
+        print(c.RunName, e); traceback.print_exc()
 
 
 def plot_smb_components(df_out, c):
@@ -1209,4 +1217,4 @@ def plot_smb_components(df_out, c):
         fig.savefig(c.output_path+c.RunName+'/'+c.station+'_SMB.png', dpi=120)
         plt.close(fig)
     except Exception as e:
-        print(c.RunName, e)
+        print(c.RunName, e); traceback.print_exc()
