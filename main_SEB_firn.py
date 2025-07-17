@@ -27,19 +27,22 @@ def run_SEB_firn(station='FA-13', silent=False):
     # importing standard values for constants
     c = ImportConst()
     c.station = station
-    c.spin_up = True
+    c.spin_up = False
     c.verbose = 1
     if silent or c.spin_up:
         c.verbose = 0
     c.use_spin_up_init = True
 
     # default setting
-    c.surface_input_path = f"/data/CARRA/extracted/list_pixels_minimal_grid/{station}.nc"
-    # c.surface_input_path = f"./input/weather data/CARRA_at_AWS/{station}.nc"
+    # c.surface_input_path = f"/data/CARRA/extracted/list_pixels_minimal_grid/{station}.nc"
+    c.surface_input_path = f"./input/weather data/CARRA_at_AWS/{station}.nc"
     c.surface_input_driver = "CARRA"
-    c.output_path = '/data/CARRA-SMB/list_pixels_minimal_grid/'
-    # c.output_path = './output/new/'
-    c.spin_up_path = '/data/CARRA-SMB/spin up 3H/'
+    # c.output_path = '/data/CARRA-SMB/list_pixels_minimal_grid/'
+    c.output_path = './output/new/'
+    # c.spin_up_path = '/data/CARRA-SMB/spin up 3H/'
+    c.spin_up_path = './output/spin up 3H/'
+    # c.initial_state_folder_path = '/data/CARRA-SMB/spin up 3H/'
+    c.initial_state_folder_path = './output/spin up 3H/'
 
     c.freq = '3h'
     if c.surface_input_driver=='CARRA' and c.freq == 'h':
@@ -48,6 +51,8 @@ def run_SEB_firn(station='FA-13', silent=False):
         resample=False
 
     c.num_lay = 100
+    c.lim_new_lay = 0.05
+
     # defining run name
     if c.spin_up:
         print('######### spin-up run ##########')
@@ -88,9 +93,7 @@ def run_SEB_firn(station='FA-13', silent=False):
     # assigning constants specific to this simulation
     c.snowthick_ini = 0.1
     c.z_max = 70
-    c.num_lay = 100
-    c.lim_new_lay = 0.05
-    c.initial_state_folder_path = '/data/CARRA-SMB/spin up 3H/'
+
     # assgning deep temperature
     # ds_T10m = xr.open_dataset('../../Data/Firn temperature/output/T10m_prediction.nc')
     with xr.open_dataset('input/T10m_prediction.nc') as ds_T10m:
@@ -177,7 +180,7 @@ def run_SEB_firn(station='FA-13', silent=False):
 
         # Plot output
         # try:
-        #     po.main(c.output_path, c.RunName)
+        po.main(c.output_path, c.RunName)
         # except Exception as e:
         #     print(c.RunName,e); traceback.print_exc()
         # print(c.RunName,'plotting took %0.03f sec'%(time.time() -start_time))
@@ -233,15 +236,16 @@ def standard_run_parallel(station_list):
         p.join()
 
 if __name__ == "__main__":
-    station_list = [s.replace('.nc', '') for s in os.listdir("/data/CARRA/extracted/list_pixels_minimal_grid/")]
+    # station_list = [s.replace('.nc', '') for s in os.listdir("/data/CARRA/extracted/list_pixels_minimal_grid/")]
+    station_list = [s.replace('.nc', '') for s in os.listdir("./input/weather data/CARRA_at_AWS")]
     station_list.sort()
 
     standard_run_parallel(station_list)
 
-
+    # for single station or debugging runs
     # for station in ['TAS_U']:
     # for station in station_list:
         # try:
-            # run_SEB_firn(station)
+        #     run_SEB_firn(station)
         # except Exception as e:
-            # print(c.RunName,e); traceback.print_exc()
+        #     print(station,e); traceback.print_exc()
