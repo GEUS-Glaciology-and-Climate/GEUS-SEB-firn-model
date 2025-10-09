@@ -38,7 +38,7 @@ def run_SEB_firn(station='FA-13', silent=False):
     c.surface_input_path = f"./input/weather data/CARRA_at_AWS/{station}.nc"
     c.surface_input_driver = "CARRA"
     # c.output_path = '/data/CARRA-SMB/list_pixels_minimal_grid/'
-    c.output_path = './output/new/'
+    c.output_path = './output/'
     # c.spin_up_path = '/data/CARRA-SMB/spin up 3H/'
     c.spin_up_path = './output/spin up 3H/'
     # c.initial_state_folder_path = '/data/CARRA-SMB/spin up 3H/'
@@ -237,15 +237,15 @@ def standard_run_parallel(station_list):
 
 if __name__ == "__main__":
     # station_list = [s.replace('.nc', '') for s in os.listdir("/data/CARRA/extracted/list_pixels_minimal_grid/")]
-    station_list = [s.replace('.nc', '') for s in os.listdir("./input/weather data/CARRA_at_AWS")]
-    station_list.sort()
+    # station_list = [s.replace('.nc', '') for s in os.listdir("./input/weather data/CARRA_at_AWS")]
+    # station_list.sort()
 
-    standard_run_parallel(station_list)
+    # standard_run_parallel(station_list)
 
     # for single station or debugging runs
-    # for station in ['TAS_U']:
+    for station in ['DY2']:
     # for station in station_list:
-        # try:
-        #     run_SEB_firn(station)
-        # except Exception as e:
-        #     print(station,e); traceback.print_exc()
+        try:
+            run_SEB_firn('DY2')
+        except Exception as e:
+            print(station,e); traceback.print_exc()
