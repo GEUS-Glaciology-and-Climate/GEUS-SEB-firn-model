@@ -30,8 +30,8 @@ def name_alias(stid):
     else:
         return stid
 # output_path= 'C:/Users/bav/data_save/output firn model/spin up 3H/'
-output_path = './output/200_layers/'
-run_name = 'EastGRIP_100_layers_3h'
+output_path = './output/'
+run_name = 'DY2_100_layers_3h'
 #%%
 def main(output_path, run_name):
     # %% Loading data
@@ -68,12 +68,12 @@ def main(output_path, run_name):
     lpl.plot_summary(df_out, c, 'SEB_output')
 
     # %% plotting subsurface variables
-    for var in ['compaction','T_ice','density_bulk','slwc','dgrain']:
+    for var in ['T_ice','density_bulk','slwc','rfrz']:
         if len(df_in) <300:
             ylim =   [10]
         else:
             ylim = []
-        lpl.plot_var(c.station, c.output_path, c.RunName, var, ylim=ylim, zero_surf=False)
+        lpl.plot_var(c.station, c.output_path, c.RunName, var, ylim=[10], zero_surf=False)
 
     # if c.station in ['DY2', 'KAN_U','CP1']:
         # lpl.plot_var(c.station, c.output_path, c.RunName, 'slwc',

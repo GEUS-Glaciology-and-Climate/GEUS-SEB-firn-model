@@ -149,7 +149,7 @@ def load_CARRA_data(*args, resample=True):
         df_carra = df_carra.resample('H').interpolate()
     else:
         df_carra = df_carra.apply(pd.to_numeric, errors='coerce').resample(pd.infer_freq(df_carra.index)).interpolate()
-    df_carra['LongwaveRadiationDownWm2'] = df_carra['LongwaveRadiationDownWm2']+18  # bias adjustment
+    # df_carra['LongwaveRadiationDownWm2'] = df_carra['LongwaveRadiationDownWm2']+18  # bias adjustment
     # df_carra['AirTemperature2C'] = df_carra['AirTemperature2C']+1.69  # bias adjustment
     # df_carra['ShortwaveRadiationDownWm2'] = df_carra['ShortwaveRadiationDownWm2']*1.3  # bias adjustment
     df_carra['ShortwaveRadiationUpWm2'] = df_carra.ShortwaveRadiationDownWm2*df_carra.Albedo

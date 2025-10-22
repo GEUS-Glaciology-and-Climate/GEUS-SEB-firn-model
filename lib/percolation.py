@@ -366,7 +366,7 @@ def qlimF(pl1, pl2, ps1, ps2, pi1, pi2, rhos1, rhos2, d1, d2):
 
         Nmax = 11  # Number of iterations (sufficient for ~1e-3 precision)
         for i in range(Nmax):
-            plt.plot([i], [qlim], marker='o', color='k')  # Optional: track convergence
+            # plt.plot([i], [qlim], marker='o', color='k')  # Optional: track convergence
 
             pl1test = pl1 - qlim
             pl2test = pl2 + qlim
@@ -455,7 +455,7 @@ def perc_runoff_new(prhofirn, psnowc, psnic, pslwc, pdgrain, zdtime):
             - pslwc: liquid water content (m w.e.)
             - pdgrain: grain size (mm)
             - zdtime: time step duration (s)
-    
+
     Notes:
         - This version does not conserve total mass per layer; water redistributes
           and changes total layer mass.

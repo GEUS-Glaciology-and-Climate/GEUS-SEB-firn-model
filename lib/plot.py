@@ -77,7 +77,7 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
             # change unit to mm / m3
             ds[var_name] = ds[var_name] * 1000 / ds.depth
         if var_name == "T_ice":
-            # change unit to mm / m3
+            # change unit to degC
             ds[var_name] = ds[var_name] -273.15
 
         # default plot infos

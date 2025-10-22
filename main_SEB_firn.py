@@ -22,7 +22,8 @@ import matplotlib.pyplot as plt
 import traceback
 
 # %%
-def run_SEB_firn(station='FA-13', silent=False):
+def run_SEB_firn(station='DYE-2', silent=False):
+    #%%
     start_time = time.time()
     # importing standard values for constants
     c = ImportConst()
@@ -31,7 +32,7 @@ def run_SEB_firn(station='FA-13', silent=False):
     c.verbose = 1
     if silent or c.spin_up:
         c.verbose = 0
-    c.use_spin_up_init = True
+    c.use_spin_up_init = False
 
     # default setting
     # c.surface_input_path = f"/data/CARRA/extracted/list_pixels_minimal_grid/{station}.nc"
@@ -43,6 +44,7 @@ def run_SEB_firn(station='FA-13', silent=False):
     c.spin_up_path = './output/spin up 3H/'
     # c.initial_state_folder_path = '/data/CARRA-SMB/spin up 3H/'
     c.initial_state_folder_path = './output/spin up 3H/'
+    c.initial_state_folder_path = './input/initial state/'
 
     c.freq = '3h'
     if c.surface_input_driver=='CARRA' and c.freq == 'h':
@@ -51,7 +53,7 @@ def run_SEB_firn(station='FA-13', silent=False):
         resample=False
 
     c.num_lay = 100
-    c.lim_new_lay = 0.05
+    c.lim_new_lay = 0.05 # m w.e.
 
     # defining run name
     if c.spin_up:
@@ -105,6 +107,7 @@ def run_SEB_firn(station='FA-13', silent=False):
     if np.isnan(c.Tdeep): c.Tdeep = 273.15
 
     # c.lim_new_lay = c.accum_AWS/c.new_lay_frac;
+    df_in=df_in.loc['2023':'2025',:]
 
     print(station, c.Tdeep, 'start/end', df_in.index[0], df_in.index[-1])
     # DataFrame for the surface is created, indexed with time from df_aws
@@ -171,7 +174,7 @@ def run_SEB_firn(station='FA-13', silent=False):
         io.write_2d_netcdf(rhofirn, 'rhofirn', depth_act, df_in.index, c)
         # io.write_2d_netcdf(density_bulk, 'density_bulk', depth_act, df_in.index, c)
         io.write_2d_netcdf(T_ice, 'T_ice', depth_act, df_in.index, c)
-        # io.write_2d_netcdf(rfrz, 'rfrz', depth_act, df_in.index, RunName)
+        io.write_2d_netcdf(zrfrz, 'rfrz', depth_act, df_in.index, c)
         # io.write_2d_netcdf(dgrain, 'dgrain', depth_act, df_in.index, c)
         # io.write_2d_netcdf(compaction, 'compaction', depth_act, df_in.index, c)
 

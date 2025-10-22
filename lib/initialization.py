@@ -90,7 +90,7 @@ def IniVar(time, c):
     return (rhofirn,  rho, snowc, snic, slwc, dgrain, tsoil, grndc, grndd,
             compaction, zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp,
             snowbkt, snowthick)
-            
+
 def convert_and_log(series):
     def try_convert(value):
         if isinstance(value, str):
@@ -158,6 +158,7 @@ def InitializationSubsurface(c):
     # Initial density profile
 
     filename = c.initial_state_folder_path + c.station + "_initial_density_bulk.csv"
+    print(filename)
     if not os.path.isfile(filename):
         if  c.altitude < 1500:
             print('Did not find initial density profile. Using "ablation_initial_density.csv".')
@@ -165,7 +166,6 @@ def InitializationSubsurface(c):
         else:
             print('Did not find initial density profile. Using "Accumulation_initial_density.csv".')
             filename = "./input/initial state/accumulation_initial_density.csv"
-    # print(filename)
 
     df_ini_dens = pd.read_csv(filename)
     df_ini_dens.loc[df_ini_dens.density_bulk.isnull(), "density_bulk"] = 350
