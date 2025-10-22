@@ -1,3 +1,4 @@
+# %%
 # -*- coding: utf-8 -*-
 """
 @author: bav@geus.dk
@@ -43,7 +44,7 @@ def run_SEB_firn(station='DYE-2', silent=False):
     # c.spin_up_path = '/data/CARRA-SMB/spin up 3H/'
     c.spin_up_path = './output/spin up 3H/'
     # c.initial_state_folder_path = '/data/CARRA-SMB/spin up 3H/'
-    c.initial_state_folder_path = './output/spin up 3H/'
+    # c.initial_state_folder_path = './output/spin up 3H/'
     c.initial_state_folder_path = './input/initial state/'
 
     c.freq = '3h'
@@ -107,7 +108,7 @@ def run_SEB_firn(station='DYE-2', silent=False):
     if np.isnan(c.Tdeep): c.Tdeep = 273.15
 
     # c.lim_new_lay = c.accum_AWS/c.new_lay_frac;
-    df_in=df_in.loc['2023':'2025',:]
+    df_in = df_in.loc['2023':'2025',:] # Falk: Modified
 
     print(station, c.Tdeep, 'start/end', df_in.index[0], df_in.index[-1])
     # DataFrame for the surface is created, indexed with time from df_aws
@@ -237,7 +238,7 @@ def standard_run_parallel(station_list):
     # Wait for all workers to finish
     for p, _ in processes:
         p.join()
-
+# %%
 if __name__ == "__main__":
     # station_list = [s.replace('.nc', '') for s in os.listdir("/data/CARRA/extracted/list_pixels_minimal_grid/")]
     # station_list = [s.replace('.nc', '') for s in os.listdir("./input/weather data/CARRA_at_AWS")]
@@ -252,3 +253,5 @@ if __name__ == "__main__":
             run_SEB_firn('DY2')
         except Exception as e:
             print(station,e); traceback.print_exc()
+
+# %%
