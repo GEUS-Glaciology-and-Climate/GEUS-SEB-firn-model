@@ -16,12 +16,14 @@ def run_on_core(station, core):
     output_path = '/data/CARRA-SMB/list_pixels_minimal_grid/'
     spin_up_path = '/data/CARRA-SMB/spin up 3H/'
 
-
-    os.system(
-        f"taskset -c {core} python3 -c 'import main_SEB_firn; "
-        f"main_SEB_firn.run_SEB_firn(\"{station}\, "
-        f"\"{surface_input_path}\", \"{output_path}\", \"{spin_up_path}\")'"
+    cmd = (
+        f"taskset -c {core} "
+        f"python3 -c \"import main_SEB_firn; "
+        f"main_SEB_firn.run_SEB_firn('{station}', "
+        f"'{surface_input_path}', '{output_path}', '{spin_up_path}')\""
     )
+
+    os.system(cmd)
     print(f"Core {core} finished station: {station}")
 
 def worker(task_queue):

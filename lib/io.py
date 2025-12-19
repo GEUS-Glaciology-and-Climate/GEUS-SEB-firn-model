@@ -115,8 +115,8 @@ def load_CARRA_data(*args, resample=True):
         c.altitude= aws_ds.altitude.item()
     else:
         c.altitude= aws_ds.altitude_mod.item()
-    c.latitude= aws_ds.latitude.item()
-    c.longitude= aws_ds.longitude.item()
+    c.latitude= aws_ds.latitude.mean().item()
+    c.longitude= aws_ds.longitude.mean().item()
     if c.longitude>180:
         c.longitude = c.longitude-360
 
