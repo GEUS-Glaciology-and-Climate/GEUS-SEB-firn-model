@@ -168,6 +168,10 @@ def load_CARRA_data(*args, resample=True):
     df_carra['Snowfallmweq'] = (df_carra['tp'] / 1000.) * snow_fraction
     df_carra['Rainfallmweq'] = (df_carra['tp'] / 1000.) * (1 - snow_fraction)
 
+
+    # df_carra['Snowfallmweq'] = (df_carra['tp'] - df_carra['tirf']).clip(lower=0)
+    # df_carra['Rainfallmweq'] = df_carra['tirf']
+
     if (df_carra.index[1] - df_carra.index[0]) == pd.Timedelta('1 hours'):
         df_carra['Snowfallmweq'] = df_carra['Snowfallmweq'] / 3
         df_carra['Rainfallmweq'] = df_carra['Rainfallmweq'] / 3
