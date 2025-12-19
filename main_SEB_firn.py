@@ -27,6 +27,7 @@ def run_SEB_firn(
     surface_input_path: str,
     output_path: str,
     spin_up_path: str,
+    lim_new_lay = 0.05,
     output_var: str = "all",
     plot: bool = True,
     silent: bool = False,
@@ -85,7 +86,7 @@ def run_SEB_firn(
         resample=False
 
     c.num_lay = 100
-    c.lim_new_lay = 0.05 # m w.e.
+    c.lim_new_lay = lim_new_lay# 0.05 # m w.e.
 
     # defining run name
     if c.spin_up:
@@ -228,16 +229,22 @@ if __name__ == "__main__":
     station_list.sort()
 
     # for single station or debugging runs
-    for station in ['DY2']:
+    for station in ['JAR','SWC','KAN_L','KAN_M','KAN_U','DY2',
+                    'QAS_L','QAS_M','QAS_U',
+                    'KPC_L','KPC_U','TAS_A','TAS_L','NUK_L','NUK_U',
+                    'THU_U','THU_L','Summit','South Dome',
+                    'TUN','NSE']:
 
-    # for station in station_list:
-        try:
-            run_SEB_firn(
-                         station=station,
-                         surface_input_path = f"./input/weather data/CARRA_at_AWS/{station}.nc",
-                         output_path = './output/',
-                         spin_up_path = './output/spin up 3H/',
-                         output_var = 'all',
-                         plot=True)
-        except Exception as e:
-            print(station,e); traceback.print_exc()
+        for lim_new_lay in [0.05, 0.02, 0.01, 0.001]:
+            try:
+                os.makedirs(f'./output/lim_new_lay_{lim_new_lay}', exist_ok=True)
+                run_SEB_firn(
+                             station=station,
+                             surface_input_path = f"./input/weather data/CARRA_at_AWS/{station}.nc",
+                             output_path = f'./output/lim_new_lay_{lim_new_lay}/',
+                             spin_up_path = './output/spin up 3H/',
+                             lim_new_lay = lim_new_lay,
+                             output_var = 'snic snowc slwc density_bulk T_ice',
+                             plot=True)
+            except Exception as e:
+                print(station,e); traceback.print_exc()
