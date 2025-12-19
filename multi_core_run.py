@@ -13,7 +13,7 @@ def run_on_core(station, core):
     """Set CPU affinity and run run_SEB_firn for the given station."""
     print(f"Core {core} processing station: {station}")
     surface_input_path = f"/data/CARRA/extracted/list_pixels_minimal_grid/{station}.nc"
-    output_path = '/data/CARRA-SMB/list_pixels_minimal_grid/'
+    output_path = '/data/CARRA-SMB/list_pixels_minimal_grid_202512/'
     spin_up_path = '/data/CARRA-SMB/spin up 3H/'
 
     cmd = (
@@ -37,7 +37,7 @@ def worker(task_queue):
 
 def standard_run_parallel(station_list):
     # max_core_usage =  multiprocessing.cpu_count()-1 # all cores except one
-    max_core_usage = 21  # Limit to 6 cores
+    max_core_usage = 21 
     num_cores = min(len(station_list), max_core_usage)
     task_queues = [multiprocessing.Queue() for _ in range(num_cores)]
     processes = []
@@ -63,8 +63,5 @@ def standard_run_parallel(station_list):
 
 if __name__ == "__main__":
     station_list = [s.replace('.nc', '') for s in os.listdir("/data/CARRA/extracted/list_pixels_minimal_grid/")]
-    # station_list = [s.replace('.nc', '') for s in os.listdir("./input/weather data/CARRA_at_AWS")]
-    # station_list.sort()
-
 
     standard_run_parallel(station_list)
