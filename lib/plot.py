@@ -17,11 +17,16 @@ import matplotlib
 import warnings
 import matplotlib as mpl
 import traceback
+from lib.initialization import Struct
+import lib.io as io
 
 from matplotlib import gridspec
 from scipy.stats import linregress
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+PATH_TO_PROMICE_GCNET_DATA = 'C:/Users/bav/GitHub/PROMICE data/thredds-data/level_3_sites/csv/hour/'
+PATH_TO_HISTORICAL_GCNET_DATA = 'C:/Users/bav/GitHub/PROMICE data/GC-Net-Level-1-data-processing/L1/hour/'
 
 def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
              df_sumup=[], tag='', year=None, weq_depth=False):
@@ -165,7 +170,7 @@ def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
         fig.savefig(output_path+"/" + run_name + "/" + site + "_" + var_name +tag+ ".png")
         plt.close(fig)
     except Exception as e:
-        print(c.RunName, e); traceback.print_exc()
+        print(run_name, e); traceback.print_exc()
 
 def plot_var_start_end(c, var_name='T_ice', ylim=[], to_file=False):
     try:
@@ -660,21 +665,18 @@ def get_distance(point1, point2):
     distance = R * c
     return distance
 
-def evaluate_temperature_sumup(df_out, c):
+def evaluate_temperature_sumup(df_out, c,path_to_SUMup='../../Data/SUMup/2025', out_csv=False):
     try:
-        df_sumup, df_meta = load_sumup(var='temperature', name_var='name', c=c)
+        df_sumup, df_meta = load_sumup(var='temperature', path_to_SUMup=path_to_SUMup, c=c)
 
-        if len(df_sumup)==0:
-            print('no temperature in SUMup for ',c.station)
-            return
         # T_ice evaluation
         plot_var(c.station, c.output_path, c.RunName, 'T_ice', zero_surf=True,
-                     df_sumup=df_sumup, tag='_SUMup2024')
+                     df_sumup=df_sumup, tag='_SUMup')
         # infiltration evaluation
         plot_var(c.station, c.output_path, c.RunName, 'slwc', zero_surf=True,
-                     df_sumup=df_sumup, ylim=[10], tag='_SUMup2024_slwc')
+                     df_sumup=df_sumup, ylim=[10], tag='_SUMup_slwc')
 
-        # T10m evaluation
+        #  T10m evaluation
         fig,ax = plt.subplots(1,1,figsize=(7,7))
         plt.subplots_adjust(bottom=0.4)
         cmap = matplotlib.cm.get_cmap('tab10')
@@ -691,11 +693,16 @@ def evaluate_temperature_sumup(df_out, c):
                                   )
 
         df_out.t_i_10m.plot(ax=ax,color='tab:red', label='GEUS model')
+        if len(df_sumup)==0:
+            plt.plot([],[],'w',label='no temperature measurement found in SUMup')
         ax.set_ylabel('10 m temperature (°C)')
         ax.set_xlabel('')
+        plt.grid()
         plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1))
         plt.title(c.station)
-        fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup2024.png', dpi=120, bbox_inches="tight",)
+        fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup.png', dpi=120, bbox_inches="tight",)
+        if out_csv:
+            df_out.t_i_10m.to_csv(f'{c.station}_10m_temperature.csv')
         plt.close(fig)
     except Exception as e:
         print(c.RunName, e); traceback.print_exc()
@@ -754,7 +761,7 @@ def interpolate_temperature_fast(dates, depth_matrix, temp_matrix,  depth=10,
 
 def evaluate_temperature_scatter(df_out, c, year = None):
     try:
-        df_sumup, df_meta = load_sumup(var='temperature', name_var='name',c=c)
+        df_sumup, df_meta = load_sumup(var='temperature', c=c)
 
         filename = c.output_path+"/" + c.RunName + "/" + c.station + "_T_ice.nc"
         ds = xr.open_dataset(filename, decode_cf=True).transpose()
@@ -814,38 +821,135 @@ def evaluate_temperature_scatter(df_out, c, year = None):
         print(c.RunName, e); traceback.print_exc()
 
 
-def evaluate_density_sumup(c):
-    try:
-        # Evaluating density with SUMup 2025
-        df_sumup, df_meta = load_sumup(var='density',name_var='profile', c=c)
+def evaluate_density_sumup(c, path_to_SUMup='../../Data/SUMup/2025'):
+    # Evaluating density with SUMup 2025
+    df_sumup, df_meta = load_sumup(var='density',path_to_SUMup=path_to_SUMup, c=c)
 
-        profile_list = df_sumup.profile_key.drop_duplicates()
-        if len(profile_list) == 0:
-            print('no density profile in SUMup for',c.station)
-            return None
-        filename = c.output_path+"/" + c.RunName + "/" + c.station + "_snowc.nc"
-        snowc = xr.open_dataset(filename, decode_cf=True).transpose()
-        filename = c.output_path+"/" + c.RunName + "/" + c.station + "_snic.nc"
-        snic = xr.open_dataset(filename, decode_cf=True).transpose()
-        filename = c.output_path+"/" + c.RunName + "/" + c.station + "_rhofirn.nc"
-        rhofirn = xr.open_dataset(filename, decode_cf=True).transpose()
-        ds_mod_dens = snowc[['depth']]
-        ds_mod_dens['density_bulk'] = (snowc.snowc + snic.snic) / (snowc.snowc / rhofirn.rhofirn + snic.snic / 900)
-        plot_density_profile(df_sumup, profile_list, df_meta, ds_mod_dens, c)
-        plot_density_scatter(df_sumup, profile_list, df_meta, ds_mod_dens, c)
-    except Exception as e:
-        print(c.RunName, e); traceback.print_exc()
+    name_list = df_sumup.name_key.drop_duplicates()
+    if len(name_list) == 0:
+        print('no density profile in SUMup for',c.station)
+        return None
+    filename = c.output_path+"/" + c.RunName + "/" + c.station + "_snowc.nc"
+    snowc = xr.open_dataset(filename, decode_cf=True).transpose()
+    filename = c.output_path+"/" + c.RunName + "/" + c.station + "_snic.nc"
+    snic = xr.open_dataset(filename, decode_cf=True).transpose()
+    filename = c.output_path+"/" + c.RunName + "/" + c.station + "_rhofirn.nc"
+    rhofirn = xr.open_dataset(filename, decode_cf=True).transpose()
+    ds_mod_dens = snowc[['depth']]
+    ds_mod_dens['density_bulk'] = (snowc.snowc + snic.snic) / (snowc.snowc / rhofirn.rhofirn + snic.snic / 900)
+
+    plot_density_time_series(df_sumup, name_list, df_meta, ds_mod_dens, c)
+    plot_density_profile(df_sumup, name_list, df_meta, ds_mod_dens, c)
+    plot_density_scatter(df_sumup, name_list, df_meta, ds_mod_dens, c)
+
+
+
+def plot_density_time_series(df_sumup, name_list, df_meta, ds_mod_dens, c, out_csv=False):
+    # modelled density time series
+    d = ds_mod_dens["depth"]
+    rho = ds_mod_dens["density_bulk"]
+
+    thick = d.diff("level", label="upper")
+    thick = thick.reindex(level=rho.level, method="bfill")
+
+    layer_top = (d - thick).clip(min=0.0)
+
+    bot_in = xr.apply_ufunc(np.minimum, d, 10.0)
+    top_in = xr.apply_ufunc(np.minimum, layer_top, 10.0)
+
+    w = (bot_in - top_in).clip(min=0.0)
+    rho_top10 = (rho * w).sum("level") / w.sum("level")  # (time,)
+    df_list = []
+    for n in name_list:
+        df_selec = df_sumup.loc[df_sumup["name_key"] == n].copy()
+        if df_selec.empty: continue
+
+        x = pd.to_numeric(df_selec["midpoint"], errors="coerce").to_numpy()
+        y = pd.to_numeric(df_selec["density"], errors="coerce").to_numpy()
+        m = np.isfinite(x) & np.isfinite(y)
+        x = x[m]; y = y[m]
+        if x.size < 3: continue
+        if x[-1]<8: continue
+        if x[0]>2: continue
+        thick = np.diff(np.r_[0, x])
+        if (thick<0).any():
+            idx = np.argmax(thick<0)
+            x_list = [x[:idx],x[idx:]]
+            y_list = [y[:idx],y[idx:]]
+        else:
+            x_list = [x]
+            y_list = [y]
+        for x,y in zip(x_list,y_list):
+            p = np.poly1d(np.polyfit(x, y, 2))
+            if x[-1] > 10:
+                idx = np.argmax(x > 10)
+                x=x[:idx]
+                y=y[:idx]
+
+            if x[0] != 0:
+                y = np.r_[np.mean(p([0, x[0]])), y]
+                x = np.r_[0.0, x]
+
+            if x[-1] < 10:
+                y = np.r_[y, np.mean(p([x[-1], 10]))]
+                x = np.r_[x, 10.0]
+            # thickness weighted average
+            thick = np.diff(np.r_[0, x])
+            rho_top10_obs = np.sum(y * thick) / np.sum(thick)
+
+            # xx = np.linspace(np.nanmin(x), np.nanmax(x), 200)
+            # ax = df_selec.plot(x="midpoint", y="density", style=".", legend=False)
+            # ax.plot(xx, p(xx))
+            # ax.set_title(df_selec.name.unique()[0]+' '+df_selec.reference_short.unique()[0])
+            # ax.plot([0, 10], [rho_top10_obs,rho_top10_obs])
+            # plt.show()
+
+            df_list.append(pd.DataFrame([{
+                "name_key": n,
+                "reference_short": df_selec["reference_short"].dropna().unique()[0] if "reference_short" in df_selec else np.nan,
+                "timestamp": pd.to_datetime(df_selec["timestamp"], errors="coerce").dropna().unique()[0] if "timestamp" in df_selec else pd.NaT,
+                "rho_top10_obs": rho_top10_obs,
+            }]))
+
+    df_obs = pd.concat(df_list, ignore_index=True) if df_list else pd.DataFrame(
+        columns=["name_key", "reference_short", "timestamp", "rho_top10_obs"]
+    )
+
+    fig = plt.figure(figsize=(7,7))
+    ax=plt.gca()
+    rho_top10.plot(ax=ax)
+    for r in df_obs["reference_short"].dropna().unique():
+        g = df_obs.loc[df_obs["reference_short"] == r].copy()
+        g = g.dropna(subset=["timestamp"]).set_index("timestamp").sort_index()
+        if not g.empty:
+            g["rho_top10_obs"].plot(ax=ax, style="o", label=r)
+    ax.legend()
+    ax.grid()
+    ax.set_title(c.station)
+    ax.set_ylabel('Average density 0-10 m (kg m-3)')
+    ax.set_xlabel('Time')
+    plt.show()
+    fig.savefig(
+        c.output_path+c.RunName+'/'+'density_evaluation_SUMup_time_series.png',
+        dpi=300, bbox_inches='tight')
+    plt.close(fig)
+
+    if out_csv:
+        rho_top10.to_dataframe(name='rho_top10m_mod').to_csv('28897_rho_10m_mod.csv', )
+        df_obs.to_csv('28897_rho_10m_obs.csv', index=None)
+    return rho_top10, df_obs
+
 
 def plot_density_scatter(df_sumup, profile_list, df_meta, ds_mod_dens, c):
     fig = plt.figure(figsize=(8,8))
 
     for _, p in enumerate(profile_list):
-        df_profile = df_sumup.loc[df_sumup.profile_key == p, :]
+        df_profile = df_sumup.loc[df_sumup.name_key == p, :]
 
         if df_profile[['start_depth','stop_depth','midpoint']].isnull().all().all():
             print('no data in profile', p,
-                  df_meta.loc[df_meta.profile_key == p, 'profile'].item(),
-                  df_meta.loc[df_meta.profile_key == p, 'reference_short'].item())
+                  df_meta.loc[df_meta.name_key == p, 'name'].item(),
+                  df_meta.loc[df_meta.name_key == p, 'reference_short'].item())
             continue
 
         df_mod = (ds_mod_dens
@@ -876,7 +980,7 @@ def plot_density_scatter(df_sumup, profile_list, df_meta, ds_mod_dens, c):
                 df_mod.loc[i, 'density_obs'] = np.sum(bin_densities * bin_heights) / np.sum(bin_heights)
 
         # Scatter plot
-        label=  df_meta.loc[df_meta.profile_key == p, 'profile'].unique().item() + ' ' + pd.to_datetime(df_profile.timestamp.values[0]).strftime('%Y')
+        label=  df_meta.loc[df_meta.name_key == p, 'name'].unique().item() + ' ' + pd.to_datetime(df_profile.timestamp.values[0]).strftime('%Y')
         plt.scatter(df_mod['density_obs'], df_mod['density_bulk'], alpha=0.7, label=label)
 
     plt.plot([200, 900],
@@ -902,12 +1006,12 @@ def plot_density_profile(df_sumup, profile_list, df_meta, ds_mod_dens, c):
     fig,ax = new_figure()
     count = 0
     for i, p in enumerate(profile_list):
-        df_profile = df_sumup.loc[df_sumup.profile_key == p, :]
+        df_profile = df_sumup.loc[df_sumup.name_key == p, :]
 
         if df_profile[['start_depth','stop_depth','midpoint']].isnull().all().all():
             print('no data in profile', p,
-                  df_meta.loc[df_meta.profile_key == p, 'profile'].item(),
-                  df_meta.loc[df_meta.profile_key == p, 'reference_short'].item())
+                  df_meta.loc[df_meta.name_key == p, 'name'].item(),
+                  df_meta.loc[df_meta.name_key == p, 'reference_short'].item())
             continue
 
         for _, row in df_profile.iterrows():
@@ -941,8 +1045,8 @@ def plot_density_profile(df_sumup, profile_list, df_meta, ds_mod_dens, c):
         else:
             ax[i-count*6].get_legend().remove()
         title =  (pd.to_datetime(df_profile.timestamp.values[0]).strftime('%Y-%m-%d')
-                  + '\n' + df_meta.loc[df_meta.profile_key == p, 'profile'].unique().item()
-                  + '\n' + df_meta.loc[df_meta.profile_key == p, 'reference_short'].unique().item())
+                  + '\n' + df_meta.loc[df_meta.name_key == p, 'name'].unique().item()
+                  + '\n' + df_meta.loc[df_meta.name_key == p, 'reference_short'].unique().item())
         ax[i-count*6].set_title(title, fontsize=8, fontweight='bold')
         ax[i-count*6].set_xlabel('Density (kg m$^{-3}$)')
         ax[i-count*6].set_ylim(df_profile[['midpoint','start_depth']].max().max()+1, 0)
@@ -963,8 +1067,8 @@ def plot_density_profile(df_sumup, profile_list, df_meta, ds_mod_dens, c):
         plt.close(fig)
 
 
-def load_sumup(var='SMB', name_var='name', c=None):
-    with xr.open_dataset(f'../SUMup-data/SUMup_2025_{var}_greenland.nc',
+def load_sumup(var='SMB',path_to_SUMup='../../Data/SUMup/2025', c=None):
+    with xr.open_dataset(f'{path_to_SUMup}/SUMup_2025_{var}_greenland.nc',
                          group='DATA', decode_timedelta=False) as ds:
         df_sumup = ds.to_dataframe()
         if 'timestamp' in df_sumup.columns:
@@ -980,7 +1084,7 @@ def load_sumup(var='SMB', name_var='name', c=None):
 
         # selecting Greenland metadata measurements
         df_meta = df_sumup.loc[:,
-                          ['latitude', 'longitude', name_var+'_key', 'method_key',
+                          ['latitude', 'longitude', 'name_key', 'method_key',
                             'reference_key']
                           ].drop_duplicates()
 
@@ -996,16 +1100,16 @@ def load_sumup(var='SMB', name_var='name', c=None):
 
     print(c.RunName, 'found', len(df_sumup),var, 'measurements in SUMup')
     ds_meta = xr.open_dataset(
-        f'../SUMup-data/SUMup_2025_{var}_greenland.nc',
+        f'{path_to_SUMup}/SUMup_2025_{var}_greenland.nc',
         group='METADATA', decode_timedelta=False)
 
     # decoding strings as utf-8
-    for v in [name_var,'reference','reference_short','method']:
+    for v in ['name','reference','reference_short','method']:
         ds_meta[v] = ds_meta[v].str.decode('utf-8')
 
     df_sumup.method_key = df_sumup.method_key.replace(np.nan,-9999)
     # df_sumup['method'] = ds_meta.method.sel(method_key = df_sumup.method_key.values).astype(str)
-    df_sumup[name_var] = ds_meta[name_var].sel({name_var+'_key': df_sumup[name_var+'_key'].values}).astype(str)
+    df_sumup['name'] = ds_meta['name'].sel({'name_key': df_sumup['name_key'].values}).astype(str)
     df_sumup['reference'] = (ds_meta.reference
                              .drop_duplicates(dim='reference_key')
                              .sel(reference_key=df_sumup.reference_key.values)
@@ -1015,7 +1119,7 @@ def load_sumup(var='SMB', name_var='name', c=None):
                              .sel(reference_key=df_sumup.reference_key.values)
                              .astype(str))
 
-    df_meta[name_var] = ds_meta[name_var].sel({name_var+'_key': df_meta[name_var+'_key'].values}).astype(str)
+    df_meta['name'] = ds_meta['name'].sel({'name_key': df_meta['name_key'].values}).astype(str)
     df_meta['reference'] = (ds_meta.reference
                              .drop_duplicates(dim='reference_key')
                              .sel(reference_key=df_meta.reference_key.values)
@@ -1063,9 +1167,9 @@ def plt_smb(ax, df_sumup):
 
 
 
-def evaluate_smb_sumup(df_out, c):
+def evaluate_smb_sumup(df_out, c, path_to_SUMup):
     try:
-        df_sumup, df_meta = load_sumup(var='SMB',name_var='name', c=c)
+        df_sumup, df_meta = load_sumup(var='SMB', c=c,path_to_SUMup=path_to_SUMup)
 
         msk = df_sumup.start_date.isnull()
         df_sumup.loc[msk, 'start_date'] = pd.to_datetime(df_sumup.loc[msk, 'start_year'].astype(int).astype(str)+'-01-01')
@@ -1218,3 +1322,110 @@ def plot_smb_components(df_out, c):
         plt.close(fig)
     except Exception as e:
         print(c.RunName, e); traceback.print_exc()
+
+import os
+
+def name_alias(stid):
+    rename = {'South Dome':'SDM', 'Saddle':'SDL', 'NASA-U': 'NAU',
+                'NASA-E': 'NAE', 'NEEM': 'NEM', 'EastGRIP': 'EGP',
+                'DYE-2': 'DY2', 'Tunu-N':'TUN', 'CEN1':'CEN', 'CEN2':'CEN',
+                'JAR1':'JAR', 'NASA-SE':'NSE','GITS':'CEN','Humboldt':'HUM',
+}
+    if stid in rename.keys():
+        return rename[stid]
+    else:
+        return stid
+
+
+def plot_surface_height_evaluation(df_out, c):
+    if os.path.isfile(PATH_TO_PROMICE_GCNET_DATA+name_alias(c.station)+'_hour.csv'):
+        df_obs = pd.read_csv(PATH_TO_PROMICE_GCNET_DATA+name_alias(c.station)+'_hour.csv')
+        obs_avail = True
+    else:
+        if os.path.isfile(PATH_TO_HISTORICAL_GCNET_DATA+c.station.replace(' ','')+'.csv'):
+            import nead
+            df_obs = nead.read(PATH_TO_HISTORICAL_GCNET_DATA+c.station.replace(' ','')+'_daily.csv').to_dataframe()
+            df_obs = df_obs.rename(columns={'timestamp':'time',
+                                            'HS_combined':'z_surf_combined',
+                                            'T10m': 't_i_10m',
+                                            'LHF':'dlhf_u',
+                                            'SHF': 'dshf_u',
+                                            'OLWR':'LRout',
+                                            'Tsurf':'t_surf',
+                                            })
+            obs_avail = True
+        else:
+            print(c.RunName, ': no weather observation was found')
+            df_obs = []
+            obs_avail = False
+
+    if obs_avail:
+        # renaming some variables
+        for var1, var2 in zip(['LHF','SHF','LRout'],
+                                ['dlhf_u', 'dshf_u', 'ulr']):
+            if var2 in df_obs.columns:
+                df_obs[var1] = df_obs[var2]
+            else:
+                df_obs[var1] = np.nan
+
+        df_obs.time= pd.to_datetime(df_obs.time)
+        df_obs = df_obs.set_index('time')
+        df_obs = df_obs.resample(pd.infer_freq(df_out.index)).mean()
+
+        fig = plt.figure()
+        tmp = (df_obs.z_surf_combined -df_out.surface_height).mean()
+        plt.plot(df_obs.index, df_obs.z_surf_combined-tmp,
+                  marker='.',ls='None', label='AWS')
+        plt.plot(df_out.index, df_out.surface_height,color='tab:red',
+                 label='model')
+        plt.legend()
+        plt.ylabel('Surface height (m)')
+        plt.title(c.station)
+        plt.grid()
+        fig.savefig(c.output_path+c.RunName+'/'+c.station+'_surface_height.png', dpi=120)
+    return df_obs, obs_avail
+
+def load_model_input_output(output_path, run_name):
+    # loading constants
+    tmp =pd.read_csv(output_path+'/'+ run_name+'/constants.csv', dtype={'key':str})
+    # converting all numerical fields to numeric, except station
+    tmp['value_num'] = pd.to_numeric(tmp.value, errors='coerce')
+    msk = (tmp.value_num.notnull() & (tmp.key!='station'))
+    tmp.loc[msk,'value'] = tmp.loc[msk,'value_num']
+    tmp = tmp.set_index('key')[['value']]
+    # making it a structure
+    c = Struct(**tmp.to_dict()['value'] )
+    c.RunName=run_name
+
+    # loading surface input
+    df_in, c = io.load_surface_input_data(c,
+                          resample=(c.surface_input_driver=='CARRA' and c.zdtime == 3600))
+
+    #  loading surface output variables
+    if output_path != c.output_path:
+        print('Warning: Output has been moved from',c.output_path,'to',output_path)
+        c.output_path = output_path
+    df_out = xr.open_dataset(c.output_path+run_name+'/'+c.station+'_surface.nc',
+                             decode_cf=True).to_dataframe()
+    df_in = df_in.loc[df_out.index[0]:df_out.index[-1],:]
+
+    # interpolating 10 m temperature
+    filename = c.output_path + run_name + "/" + c.station + "_T_ice.nc"
+    df = (xr.open_dataset(filename, decode_cf=True).to_dataframe().unstack('level'))
+    df.columns = df.columns.map('{0[0]}_{0[1]}'.format)
+    # df_10m = interpolate_temperature(
+    #     df.index, df[[v for v in df.columns if 'depth' in v]].values,
+    #     df[[v for v in df.columns if 'T_ice' in v]].values-273.15,
+    # )
+    # df_out['t_i_10m'] = df_10m.temperatureObserved.values
+    from lib.plot import interpolate_temperature_fast
+    df_out['t_i_10m'] = interpolate_temperature_fast(
+        df.index, df[[v for v in df.columns if 'depth' in v]].values,
+        df[[v for v in df.columns if 'T_ice' in v]].values-273.15,
+    )
+
+    # other derived variables
+    df_out['t_surf']  =  ((df_out.LRout_mdl - (1 -  c.em) * df_out.LRin) / c.em / 5.67e-8)**0.25 - 273.15
+    df_out['LRout'] = df_out.LRout_mdl
+
+    return df_out, df_in, c
