@@ -16,15 +16,14 @@ import xarray as xr
 import pandas as pd
 station= 'QAS_U'
 
-if __name__ == "__main__":
-    os.chdir('..')
-
+# if __name__ == "__main__":
+#     os.chdir('..')
 
 station_list =  [s.replace('.nc', '') for s in os.listdir("./input/weather data/CARRA_at_AWS/")]
-for station in station_list:
+for station in ['DY2']: #station_list:
     print(station)
-    path_1 = f'output/HH precipitation/{station}_100_layers_3h'
-    path_2 = f'output/new/{station}_100_layers_3h'
+    path_1 = f'output/{station}_100_layers_3h_old'
+    path_2 = f'output/{station}_100_layers_3h'
     name_1 = 'HH snow/rain transition'
     name_2 = 'snow/rain transition at 0 degC'
     if not os.path.isfile(path_1+'/'+station+'_surface.nc'):
@@ -65,7 +64,7 @@ for station in station_list:
     #%%
 
 
-    var_list = ['snowfall_mweq', 'smb_mweq']
+    var_list = ['melt_cumul']
 
     fig, axes = plt.subplots(len(var_list),2,  figsize=(12, 4 * len(var_list)))
 
@@ -107,4 +106,4 @@ for station in station_list:
     plt.suptitle(station)
     plt.tight_layout()
     plt.show()
-    fig.savefig(f'{station}_snowfall_scheme.png',dpi=200)
+    # fig.savefig(f'{station}_snowfall_scheme.png',dpi=200)
