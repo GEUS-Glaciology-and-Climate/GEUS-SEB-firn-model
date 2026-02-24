@@ -80,10 +80,7 @@ def run_SEB_firn(station='DYE-2', silent=False):
         return
 
     # loading input data
-    try:
-        df_in, c = io.load_surface_input_data(c, resample=resample)
-    except Exception as e:
-        print(c.station, e); traceback.print_exc()
+    df_in, c = io.load_surface_input_data(c, resample=resample)
 
     freq = pd.infer_freq(df_in.index)
     if freq=='h': freq = '1h'

@@ -174,8 +174,8 @@ def GEUS_model(weather_df: pd.DataFrame, c: Struct):
             (
                 meltflux[k], Tsurf[k], dTsurf, EB_prev, stop, LRout[k]
              ) = SurfEnergyBudget(
-                SRnet, LRin[k], Tsurf[k], k_eff, thick_first_lay, T_ice[:, k],
-                T_rain[k], dTsurf, EB_prev, SHF[k], LHF[k], rainfall[k], c,
+                SRnet, LRin[k].copy(), Tsurf[k].copy(), k_eff, thick_first_lay, T_ice[:, k].copy(),
+                T_rain[k].copy(), dTsurf, EB_prev, SHF[k].copy(), LHF[k].copy(), rainfall[k].copy(), c,
             )
             if stop: break
 
@@ -197,13 +197,13 @@ def GEUS_model(weather_df: pd.DataFrame, c: Struct):
             pgrndcapc[k], pgrndhflx[k], dH_comp[k],
             snowbkt[k], compaction[:, k],
         ) = subsurface_opt(
-            Tsurf[k], grndc[:, k - 1], grndd[:, k - 1],
-            slwc[:, k - 1], snic[:, k - 1], snowc[:, k - 1],
-            rhofirn[:, k - 1], T_ice[:, k], dgrain[:, k - 1],
-            snowfall[k] + sublimation_mweq[k],  # net accumulation
-            rainfall[k],  # rain
-            melt_mweq[k],  # melt
-            c.Tdeep, snowbkt[k - 1], c
+            Tsurf[k].copy(), grndc[:, k - 1].copy(), grndd[:, k - 1].copy(),
+            slwc[:, k - 1].copy(), snic[:, k - 1].copy(), snowc[:, k - 1].copy(),
+            rhofirn[:, k - 1].copy(), T_ice[:, k].copy(), dgrain[:, k - 1].copy(),
+            snowfall[k] + sublimation_mweq[k].copy(),  # net accumulation
+            rainfall[k].copy(),  # rain
+            melt_mweq[k].copy(),  # melt
+            c.Tdeep, snowbkt[k - 1].copy(), c
         )
         if ((snowc[:, k]+snic[:, k]) == 0).any():
             print((snowc[:, k]+snic[:, k]) == 0)
