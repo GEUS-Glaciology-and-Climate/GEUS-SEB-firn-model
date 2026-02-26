@@ -68,7 +68,8 @@ plt.close('all')
 # possible to overwrite the default value by defining them again in the
 # "param{kk}" struct hereunder.
 
-def GEUS_model(weather_df: pd.DataFrame, c: Struct):
+def GEUS_model(df_in: pd.DataFrame, c: Struct):
+    weather_df = df_in.copy(deep=True)
     (
      time,  T, z_T, WS, z_WS, RH, z_RH, pres, SRin, SRout, LRin, LRout,
      snowfall, rainfall, T_rain, theta, theta_v, q, Tsurf, rho_snow, rho_atm,
@@ -165,17 +166,19 @@ def GEUS_model(weather_df: pd.DataFrame, c: Struct):
                 L[k], LHF[k], SHF[k], theta_2m[k], q_2m[k],
                 ws_10m[k], Re[k],
             ) = SensLatFluxes_bulk_opt(
-                WS[k], nu[k], q[k], snowthick[k], Tsurf[k], theta[k],
-                theta_v[k], pres[k], rho_atm[k], z_WS[k], z_T[k], z_RH[k],
-                z_0, c, k
+                WS[k].copy(), nu[k].copy(), q[k].copy(), snowthick[k].copy(),
+                Tsurf[k].copy(), theta[k].copy(),
+                theta_v[k].copy(), pres[k].copy(), rho_atm[k].copy(), z_WS[k].copy(),
+                z_T[k].copy(), z_RH[k].copy(), z_0, c, k
             )
 
             # SURFACE ENERGY BUDGET
             (
                 meltflux[k], Tsurf[k], dTsurf, EB_prev, stop, LRout[k]
              ) = SurfEnergyBudget(
-                SRnet, LRin[k].copy(), Tsurf[k].copy(), k_eff, thick_first_lay, T_ice[:, k].copy(),
-                T_rain[k].copy(), dTsurf, EB_prev, SHF[k].copy(), LHF[k].copy(), rainfall[k].copy(), c,
+                SRnet, LRin[k].copy(), Tsurf[k].copy(), k_eff, thick_first_lay,
+                T_ice[:, k].copy(), T_rain[k].copy(), dTsurf, EB_prev,
+                SHF[k].copy(), LHF[k].copy(), rainfall[k].copy(), c,
             )
             if stop: break
 
