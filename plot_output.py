@@ -38,10 +38,11 @@ def main(output_path, run_name):
     print(run_name)
     tmp =pd.read_csv(output_path+'/'+ run_name+'/constants.csv', dtype={'key':str})
     # converting all numerical fields to numeric, except station
-    tmp['value_num'] = pd.to_numeric(tmp.value, errors='coerce')
-    msk = (tmp.value_num.notnull() & (tmp.key!='station'))
-    tmp.loc[msk,'value'] = tmp.loc[msk,'value_num']
-    tmp = tmp.set_index('key')[['value']]
+    tmp["value"] = tmp["value"].astype(object)
+    val_num = pd.to_numeric(tmp["value"], errors="coerce")
+    msk = val_num.notna() & (tmp["key"] != "station")
+    tmp.loc[msk, "value"] = val_num.loc[msk]
+    tmp = tmp.set_index("key")[["value"]]
     # making it a structure
     c = Struct(**tmp.to_dict()['value'] )
     c.RunName=run_name
@@ -84,7 +85,7 @@ def main(output_path, run_name):
     # extracting surface height
 
     # path_aws_l4 = '../thredds-data/level_3_sites/csv/hour/'
-    path_aws_l4 = 'C:/Users/bav/GitHub/PROMICE data/thredds/level_3_sites/hour/'
+    path_aws_l4 = 'C:/Users/bav/GitHub/PROMICE data/thredds-data/level_3_sites/csv/hour/'
     if os.path.isfile(path_aws_l4+name_alias(c.station)+'_hour.csv'):
         df_obs = pd.read_csv(path_aws_l4+name_alias(c.station)+'_hour.csv')
         obs_avail = True

@@ -964,7 +964,7 @@ def plot_density_profile(df_sumup, profile_list, df_meta, ds_mod_dens, c):
 
 
 def load_sumup(var='SMB', name_var='name', c=None):
-    with xr.open_dataset(f'../SUMup-data/SUMup_2025_{var}_greenland.nc',
+    with xr.open_dataset(f'../../Data/SUMup/2025/SUMup_2025_{var}_greenland.nc',
                          group='DATA', decode_timedelta=False) as ds:
         df_sumup = ds.to_dataframe()
         if 'timestamp' in df_sumup.columns:

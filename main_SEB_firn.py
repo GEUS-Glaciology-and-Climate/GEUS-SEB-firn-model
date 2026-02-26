@@ -107,7 +107,7 @@ def run_SEB_firn(station='DYE-2', silent=False):
     if np.isnan(c.Tdeep): c.Tdeep = 273.15
 
     # c.lim_new_lay = c.accum_AWS/c.new_lay_frac;
-    df_in=df_in.loc['2023':'2025',:]
+    # df_in=df_in.loc['2023':'2025',:]
 
     print(station, c.Tdeep, 'start/end', df_in.index[0], df_in.index[-1])
     # DataFrame for the surface is created, indexed with time from df_aws
@@ -246,9 +246,9 @@ if __name__ == "__main__":
     # standard_run_parallel(station_list)
 
     # for single station or debugging runs
-    for station in ['DY2']:
+    for station in ['KAN_U']:
     # for station in station_list:
         try:
-            run_SEB_firn('DY2')
+            run_SEB_firn(station)
         except Exception as e:
             print(station,e); traceback.print_exc()
