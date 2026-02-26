@@ -31,7 +31,7 @@ def name_alias(stid):
         return stid
 # output_path= 'C:/Users/bav/data_save/output firn model/spin up 3H/'
 output_path = './output/'
-run_name = 'DY2_100_layers_3h'
+run_name = 'KAN_U_100_layers_3h'
 #%%
 def main(output_path, run_name):
     # %% Loading data
