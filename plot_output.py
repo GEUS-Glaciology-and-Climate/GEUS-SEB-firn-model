@@ -37,13 +37,10 @@ def main(output_path, run_name):
     # %% Loading data
     print(run_name)
     tmp = pd.read_csv(output_path+'/'+run_name+'/constants.csv', dtype={'key': str})
-
     # keep mixed types safely by forcing object dtype
     tmp["value"] = tmp["value"].astype(object)
-
     num = pd.to_numeric(tmp["value"], errors="coerce")
     msk = num.notna() & tmp["key"].ne("station")
-
     tmp.loc[msk, "value"] = num[msk]
 
     tmp = tmp.set_index("key")[["value"]]

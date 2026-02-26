@@ -30,6 +30,7 @@ def load_data(path, station):
     df_output['total_snowc'] = total_snowc.sum(dim='level').snowc.to_series()
     df_output['snowc_1'] = total_snowc.isel(level=0).snowc.to_series()
     df_output['total_snic'] = total_snic.sum(dim='level').snic.to_series()
+
     # df_in_aws = load_promice_old("QAS_U_CARRA.txt")
     # df_output_1 [ df_in_aws.columns] = df_in_aws.values
     # df_output_1.index = df_output_1.index - pd.Timedelta('1D')
