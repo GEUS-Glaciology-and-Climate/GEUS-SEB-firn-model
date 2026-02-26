@@ -19,25 +19,34 @@ station= 'QAS_U'
 if __name__ == "__main__":
     os.chdir('..')
 
+
 station_list =  [s.replace('.nc', '') for s in os.listdir("./input/weather data/CARRA_at_AWS/")]
-for station in ['DY2']: #station_list:
+# for station in station_list:
+for station in ['DY2']:
     print(station)
-    path_1 = f'output/{station}_100_layers_3h_old'
-    path_2 = f'output/{station}_100_layers_3h'
-    name_1 = 'without numpy array copies'
-    name_2 = 'with numpy array coppies'
+    path_1 = f'output/{station}_100_layers_3h'
+    path_2 = f'output/{station}_100_layers_3h_new'
+    name_1 = 'without copies of arrays'
+    name_2 = 'with copies of arrays'
     if not os.path.isfile(path_1+'/'+station+'_surface.nc'):
         continue
     if not os.path.isfile(path_2+'/'+station+'_surface.nc'):
         continue
     df_output_1 = xr.open_dataset(path_1+'/'+station+'_surface.nc').to_dataframe()
-
+    tlwc_1 = xr.open_dataset(path_1+'/'+station+'_slwc.nc')
+    df_output_1['tlwc'] = tlwc_1.sum(dim='level').slwc.to_series()
+    percolation_depth = tlwc_1.depth.where(tlwc_1.slwc>0).min("level").where((tlwc_1.slwc>0).any("level"))
+    df_output_1['percolation_depth'] = percolation_depth.to_series()
     # df_in_aws = load_promice_old("QAS_U_CARRA.txt")
     # df_output_1 [ df_in_aws.columns] = df_in_aws.values
     # df_output_1.index = df_output_1.index - pd.Timedelta('1D')
     # del df_in_aws
 
     df_output_2 = xr.open_dataset(path_2+'/'+station+'_surface.nc').to_dataframe()
+    tlwc_2 = xr.open_dataset(path_2+'/'+station+'_slwc.nc')
+    df_output_2['tlwc'] = tlwc_2.sum(dim='level').slwc.to_series()
+    percolation_depth = tlwc_2.depth.where(tlwc_2.slwc>0).min("level").where((tlwc_2.slwc>0).any("level"))
+    df_output_2['percolation_depth'] = percolation_depth.to_series()
     # df_output_2.index = df_output_2.index.round('H')
     # df_in_carra = load_CARRA_data("./input/weather data/CARRA_at_AWS.nc", station)
     # df_output_2 [ df_in_carra.columns] = df_in_carra
@@ -64,7 +73,7 @@ for station in ['DY2']: #station_list:
     #%%
 
 
-    var_list = ['refreezing_mweq']
+    var_list = ['smb_mweq', 'refreezing_mweq',  'tlwc', 'runoff_mweq','percolation_depth']
 
     fig, axes = plt.subplots(len(var_list),2,  figsize=(12, 4 * len(var_list)))
 
@@ -106,4 +115,4 @@ for station in ['DY2']: #station_list:
     plt.suptitle(station)
     plt.tight_layout()
     plt.show()
-    # fig.savefig(f'{station}_snowfall_scheme.png',dpi=200)
+    fig.savefig(f'{station}_snowfall_scheme.png',dpi=200)
