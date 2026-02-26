@@ -33,13 +33,20 @@ for station in ['DY2']:
     if not os.path.isfile(path_2+'/'+station+'_surface.nc'):
         continue
     df_output_1 = xr.open_dataset(path_1+'/'+station+'_surface.nc').to_dataframe()
-
+    tlwc_1 = xr.open_dataset(path_1+'/'+station+'_slwc.nc')
+    df_output_1['tlwc'] = tlwc_1.sum(dim='level').slwc.to_series()
+    percolation_depth = tlwc_1.depth.where(tlwc_1.slwc>0).min("level").where((tlwc_1.slwc>0).any("level"))
+    df_output_1['percolation_depth'] = percolation_depth.to_series()
     # df_in_aws = load_promice_old("QAS_U_CARRA.txt")
     # df_output_1 [ df_in_aws.columns] = df_in_aws.values
     # df_output_1.index = df_output_1.index - pd.Timedelta('1D')
     # del df_in_aws
 
     df_output_2 = xr.open_dataset(path_2+'/'+station+'_surface.nc').to_dataframe()
+    tlwc_2 = xr.open_dataset(path_2+'/'+station+'_slwc.nc')
+    df_output_2['tlwc'] = tlwc_2.sum(dim='level').slwc.to_series()
+    percolation_depth = tlwc_2.depth.where(tlwc_2.slwc>0).min("level").where((tlwc_2.slwc>0).any("level"))
+    df_output_2['percolation_depth'] = percolation_depth.to_series()
     # df_output_2.index = df_output_2.index.round('H')
     # df_in_carra = load_CARRA_data("./input/weather data/CARRA_at_AWS.nc", station)
     # df_output_2 [ df_in_carra.columns] = df_in_carra
@@ -66,7 +73,7 @@ for station in ['DY2']:
     #%%
 
 
-    var_list = ['refreezing_mweq', 'smb_mweq']
+    var_list = ['smb_mweq', 'refreezing_mweq',  'tlwc', 'runoff_mweq','percolation_depth']
 
     fig, axes = plt.subplots(len(var_list),2,  figsize=(12, 4 * len(var_list)))
 
