@@ -939,7 +939,6 @@ def plot_density_time_series(df_sumup, name_list, df_meta, ds_mod_dens, c, out_c
         df_obs.to_csv('28897_rho_10m_obs.csv', index=None)
     return rho_top10, df_obs
 
-
 def plot_density_scatter(df_sumup, profile_list, df_meta, ds_mod_dens, c):
     fig = plt.figure(figsize=(8,8))
 
