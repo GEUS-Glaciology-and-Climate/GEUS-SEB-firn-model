@@ -243,9 +243,9 @@ if __name__ == "__main__":
     # standard_run_parallel(station_list)
 
     # for single station or debugging runs
-    for station in ['DY2']:
+    for station in ['KAN_U']:
     # for station in station_list:
         try:
-            run_SEB_firn('DY2')
+            run_SEB_firn(station)
         except Exception as e:
             print(station,e); traceback.print_exc()
