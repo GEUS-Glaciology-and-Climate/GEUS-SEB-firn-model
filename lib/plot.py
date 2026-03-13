@@ -700,9 +700,9 @@ def evaluate_temperature_sumup(df_out, c,path_to_SUMup='../../Data/SUMup/2025', 
         plt.grid()
         plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1))
         plt.title(c.station)
-        fig.savefig(c.output_path+c.RunName+'/T10m_evaluation_SUMup.png', dpi=120, bbox_inches="tight",)
+        fig.savefig(f'{c.output_path}/{c.RunName}/T10m_evaluation_SUMup.png', dpi=120, bbox_inches="tight",)
         if out_csv:
-            df_out.t_i_10m.to_csv(f'{c.station}_10m_temperature.csv')
+            df_out.t_i_10m.to_csv(f'{c.output_path}/{c.RunName}/{c.station}_10m_temperature.csv')
         plt.close(fig)
     except Exception as e:
         print(c.RunName, e); traceback.print_exc()
@@ -935,8 +935,8 @@ def plot_density_time_series(df_sumup, name_list, df_meta, ds_mod_dens, c, out_c
     plt.close(fig)
 
     if out_csv:
-        rho_top10.to_dataframe(name='rho_top10m_mod').to_csv('28897_rho_10m_mod.csv', )
-        df_obs.to_csv('28897_rho_10m_obs.csv', index=None)
+        rho_top10.to_dataframe(name='rho_top_10m').to_csv(f'{c.output_path}/{c.RunName}/{c.station}{c.station}_rho_10m_mod.csv', )
+        df_obs.to_csv(f'{c.output_path}/{c.RunName}/{c.station}_rho_10m_obs.csv', index=None)
     return rho_top10, df_obs
 
 def plot_density_scatter(df_sumup, profile_list, df_meta, ds_mod_dens, c):
