@@ -39,7 +39,6 @@ def load_data(path, station):
     df_output['SR_net'] = df_output.SRin - df_output.SRout
 
     df_output = df_output[~df_output.index.duplicated(keep='first')]
-
     return df_output
 
 station_list =  [s.replace('.nc', '') for s in os.listdir("./input/weather data/CARRA_at_AWS/")]

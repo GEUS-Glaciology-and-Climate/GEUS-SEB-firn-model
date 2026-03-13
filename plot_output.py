@@ -42,7 +42,6 @@ def main(output_path, run_name):
     num = pd.to_numeric(tmp["value"], errors="coerce")
     msk = num.notna() & tmp["key"].ne("station")
     tmp.loc[msk, "value"] = num[msk]
-
     tmp = tmp.set_index("key")[["value"]]
     # making it a structure
     c = Struct(**tmp.to_dict()['value'] )
