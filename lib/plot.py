@@ -817,10 +817,10 @@ def evaluate_temperature_scatter(df_out, c, year = None):
 def evaluate_density_sumup(c):
     try:
         # Evaluating density with SUMup 2025
-        df_sumup, df_meta = load_sumup(var='density',name_var='profile', c=c)
+        df_sumup, df_meta = load_sumup(var='density',name_var='name', c=c)
 
-        profile_list = df_sumup.profile_key.drop_duplicates()
-        if len(profile_list) == 0:
+        name_list = df_sumup.name_key.drop_duplicates()
+        if len(name_list) == 0:
             print('no density profile in SUMup for',c.station)
             return None
         filename = c.output_path+"/" + c.RunName + "/" + c.station + "_snowc.nc"
@@ -831,8 +831,8 @@ def evaluate_density_sumup(c):
         rhofirn = xr.open_dataset(filename, decode_cf=True).transpose()
         ds_mod_dens = snowc[['depth']]
         ds_mod_dens['density_bulk'] = (snowc.snowc + snic.snic) / (snowc.snowc / rhofirn.rhofirn + snic.snic / 900)
-        plot_density_profile(df_sumup, profile_list, df_meta, ds_mod_dens, c)
-        plot_density_scatter(df_sumup, profile_list, df_meta, ds_mod_dens, c)
+        plot_density_profile(df_sumup, name_list, df_meta, ds_mod_dens, c)
+        plot_density_scatter(df_sumup, name_list, df_meta, ds_mod_dens, c)
     except Exception as e:
         print(c.RunName, e); traceback.print_exc()
 
@@ -840,12 +840,12 @@ def plot_density_scatter(df_sumup, profile_list, df_meta, ds_mod_dens, c):
     fig = plt.figure(figsize=(8,8))
 
     for _, p in enumerate(profile_list):
-        df_profile = df_sumup.loc[df_sumup.profile_key == p, :]
+        df_profile = df_sumup.loc[df_sumup.name_key == p, :]
 
         if df_profile[['start_depth','stop_depth','midpoint']].isnull().all().all():
             print('no data in profile', p,
-                  df_meta.loc[df_meta.profile_key == p, 'profile'].item(),
-                  df_meta.loc[df_meta.profile_key == p, 'reference_short'].item())
+                  df_meta.loc[df_meta.name_key == p, 'name'].item(),
+                  df_meta.loc[df_meta.name_key == p, 'reference_short'].item())
             continue
 
         df_mod = (ds_mod_dens
@@ -876,7 +876,7 @@ def plot_density_scatter(df_sumup, profile_list, df_meta, ds_mod_dens, c):
                 df_mod.loc[i, 'density_obs'] = np.sum(bin_densities * bin_heights) / np.sum(bin_heights)
 
         # Scatter plot
-        label=  df_meta.loc[df_meta.profile_key == p, 'profile'].unique().item() + ' ' + pd.to_datetime(df_profile.timestamp.values[0]).strftime('%Y')
+        label=  df_meta.loc[df_meta.name_key == p, 'name'].unique().item() + ' ' + pd.to_datetime(df_profile.timestamp.values[0]).strftime('%Y')
         plt.scatter(df_mod['density_obs'], df_mod['density_bulk'], alpha=0.7, label=label)
 
     plt.plot([200, 900],
@@ -902,12 +902,12 @@ def plot_density_profile(df_sumup, profile_list, df_meta, ds_mod_dens, c):
     fig,ax = new_figure()
     count = 0
     for i, p in enumerate(profile_list):
-        df_profile = df_sumup.loc[df_sumup.profile_key == p, :]
+        df_profile = df_sumup.loc[df_sumup.name_key == p, :]
 
         if df_profile[['start_depth','stop_depth','midpoint']].isnull().all().all():
             print('no data in profile', p,
-                  df_meta.loc[df_meta.profile_key == p, 'profile'].item(),
-                  df_meta.loc[df_meta.profile_key == p, 'reference_short'].item())
+                  df_meta.loc[df_meta.name_key == p, 'name'].item(),
+                  df_meta.loc[df_meta.name_key == p, 'reference_short'].item())
             continue
 
         for _, row in df_profile.iterrows():
@@ -941,8 +941,8 @@ def plot_density_profile(df_sumup, profile_list, df_meta, ds_mod_dens, c):
         else:
             ax[i-count*6].get_legend().remove()
         title =  (pd.to_datetime(df_profile.timestamp.values[0]).strftime('%Y-%m-%d')
-                  + '\n' + df_meta.loc[df_meta.profile_key == p, 'profile'].unique().item()
-                  + '\n' + df_meta.loc[df_meta.profile_key == p, 'reference_short'].unique().item())
+                  + '\n' + df_meta.loc[df_meta.name_key == p, 'name'].unique().item()
+                  + '\n' + df_meta.loc[df_meta.name_key == p, 'reference_short'].unique().item())
         ax[i-count*6].set_title(title, fontsize=8, fontweight='bold')
         ax[i-count*6].set_xlabel('Density (kg m$^{-3}$)')
         ax[i-count*6].set_ylim(df_profile[['midpoint','start_depth']].max().max()+1, 0)
@@ -964,7 +964,7 @@ def plot_density_profile(df_sumup, profile_list, df_meta, ds_mod_dens, c):
 
 
 def load_sumup(var='SMB', name_var='name', c=None):
-    with xr.open_dataset(f'../SUMup-data/SUMup_2025_{var}_greenland.nc',
+    with xr.open_dataset(f'../../Data/SUMup/2025/SUMup_2025_{var}_greenland.nc',
                          group='DATA', decode_timedelta=False) as ds:
         df_sumup = ds.to_dataframe()
         if 'timestamp' in df_sumup.columns:
@@ -996,7 +996,7 @@ def load_sumup(var='SMB', name_var='name', c=None):
 
     print(c.RunName, 'found', len(df_sumup),var, 'measurements in SUMup')
     ds_meta = xr.open_dataset(
-        f'../SUMup-data/SUMup_2025_{var}_greenland.nc',
+        f'../../Data/SUMup/2025/SUMup_2025_{var}_greenland.nc',
         group='METADATA', decode_timedelta=False)
 
     # decoding strings as utf-8
