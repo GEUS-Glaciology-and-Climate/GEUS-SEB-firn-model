@@ -13,14 +13,14 @@ def run_on_core(station, core):
     """Set CPU affinity and run run_SEB_firn for the given station."""
     print(f"Core {core} processing station: {station}")
     surface_input_path = f"/data/CARRA/extracted/list_pixels_minimal_grid/{station}.nc"
-    output_path = '/data/CARRA-SMB/list_pixels_minimal_grid_202512/'
+    output_path = '/data/CARRA-SMB/list_pixels_minimal_grid_20260316/'
     spin_up_path = '/data/CARRA-SMB/spin up 3H/'
 
     cmd = (
         f"taskset -c {core} "
         f"python3 -c \"import main_SEB_firn; "
         f"main_SEB_firn.run_SEB_firn('{station}', "
-        f"'{surface_input_path}', '{output_path}', '{spin_up_path}')\""
+        f"'{surface_input_path}', '{output_path}', '{spin_up_path}', plot=False)\""
     )
 
     os.system(cmd)
