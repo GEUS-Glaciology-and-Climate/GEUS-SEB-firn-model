@@ -12,13 +12,16 @@ import numpy as np
 import lib.plot as lpl
 
 # output_path= 'C:/Users/bav/data_save/output firn model/spin up 3H/'
-output_path = './output/new/'
-run_name = 'CP1_100_layers_3h'
+output_path = './output/2026-03-16/'
+run_name = 'Petermann Glacier_100_layers_3h'
 #%%
 def main(output_path, run_name):
     # %% Loading data
     print(run_name)
-    df_out, df_in, c = lpl.load_model_input_output(output_path, run_name)
+    station = run_name.split('_100')[0]
+    df_out, df_in, c = lpl.load_model_input_output(output_path,
+                           run_name,
+                           input_path = f'C:/Users/bav/OneDrive - GEUS/Data/CARRA/CARRA_at_AWS/{station}.nc')
 
     # plotting surface variables
     lpl.plot_summary(df_out, c, 'SEB_output')

@@ -112,7 +112,10 @@ def load_CARRA_data(*args, resample=True):
         aws_ds = ds.where(ds.stid==c.station, drop=True).load()
 
     if 'altitude' in aws_ds.data_vars:
-        c.altitude= aws_ds.altitude.item()
+        if aws_ds.latitude.size > 1:
+            c.altitude= aws_ds.altitude.mean(dim='time').item()
+        else:
+            c.altitude= aws_ds.altitude.item()
     else:
         c.altitude= aws_ds.altitude_mod.item()
 

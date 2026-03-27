@@ -26,7 +26,7 @@ from scipy.stats import linregress
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 PATH_TO_PROMICE_GCNET_DATA = 'C:/Users/bav/GitHub/PROMICE data/thredds-data/level_3_sites/csv/hour/'
-PATH_TO_HISTORICAL_GCNET_DATA = 'C:/Users/bav/GitHub/PROMICE data/GC-Net-Level-1-data-processing/L1/hour/'
+PATH_TO_HISTORICAL_GCNET_DATA = 'C:/Users/bav/GitHub/PROMICE data/GC-Net-Level-1-data-processing/L1/hourly/'
 
 def plot_var(site, output_path, run_name, var_name, ylim=[], zero_surf=True,
              df_sumup=[], tag='', year=None, weq_depth=False):
@@ -640,10 +640,24 @@ def plot_summary(df, c, filetag="summary", var_list=None):
                 ax[k].set_axis_off()
         ax[0].set_title(c.station)
 
-        plt.savefig(
-            c.output_path + "/" + c.RunName + "/" + c.station + "_summary_" + str(count_fig),
-            bbox_inches="tight",
+        plt.savefig(f"{c.output_path}/{c.RunName}/{c.station}_summary_{str(count_fig)}.png",
+                    dpi=120, bbox_inches="tight",
         )
+
+        fig=plt.figure()
+        for var in ['snowfall_mweq','melt_mweq', 'runoff_mweq']:
+            df_y = df[var].resample('YE').sum()
+            if var != 'snowfall_mweq':
+                df_y = -df_y
+            # df_y.index = df_y.index + pd.DateOffset()
+            df_y.plot(drawstyle='steps-pre',marker='o', label=var)
+        plt.title(c.station)
+        plt.legend()
+        plt.grid()
+        plt.savefig( f"{c.output_path}/{c.RunName}/{c.station}_annual_SMB.png",
+                    dpi=120, bbox_inches="tight",
+        )
+
     except Exception as e:
         print(c.RunName, e); traceback.print_exc()
 
@@ -1241,12 +1255,19 @@ def evaluate_accumulation_snowfox(df_in, c):
 
 def plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SHF','t_i_10m']):
     try:
-        fig = plt.figure(figsize=(12, 17))
-        gs = gridspec.GridSpec(len(var_list), 2, width_ratios=[3, 1])
 
         df_obs = df_obs[~df_obs.index.duplicated(keep='first')]
         df_out = df_out[~df_out.index.duplicated(keep='first')]
         common_idx = df_obs.index.intersection(df_out.index)
+
+        if len(common_idx)==0 or df_obs.loc[common_idx, var_list].isnull().all().all():
+            print(f"No observation data for: {', '.join(var_list)}")
+            return
+
+
+        fig = plt.figure(figsize=(12, 17))
+        gs = gridspec.GridSpec(len(var_list), 2, width_ratios=[3, 1])
+
         for i, var in enumerate(var_list):
             if var not in df_obs.columns:
                 df_obs[var] = np.nan
@@ -1258,7 +1279,8 @@ def plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SH
             df_obs[var].plot(ax=ax1, label='AWS',marker='.',markersize=2)
             df_out[var].plot(ax=ax1, alpha=0.7, label='SEB model')
             ax1.set_ylabel(var)
-            ax1.set_xlim(common_idx.min(), common_idx.max())
+            if len(common_idx)>1:
+                ax1.set_xlim(common_idx.min(), common_idx.max())
             ax1.grid()
             if i == 0:  ax1.set_title(c.station+'\n\n')
             ax1.legend()
@@ -1268,13 +1290,16 @@ def plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SH
                      color='k',alpha=0.1,marker='.',ls='None')
             ax2.set_xlabel('AWS')
             ax2.set_ylabel('SEB model')
-            common_idx = df_obs.loc[df_obs[var].notnull()].index.intersection(df_out.loc[df_out[var.replace('_uncor','')].notnull()].index)
+            common_not_null_idx = df_obs.loc[df_obs[var].notnull()].index.intersection(
+                df_out.loc[df_out[var.replace('_uncor','')].notnull()].index)
 
             try:
                 slope, intercept, r_value, p_value, std_err = linregress(
-                    df_obs.loc[common_idx, var], df_out.loc[common_idx, var])
-                max_val = max(df_obs.loc[common_idx,var].max(), df_out.loc[common_idx,var].max())
-                min_val = min(df_obs.loc[common_idx,var].min(), df_out.loc[common_idx,var].min())
+                    df_obs.loc[common_not_null_idx, var], df_out.loc[common_not_null_idx, var])
+                max_val = max(df_obs.loc[common_not_null_idx,var].max(),
+                              df_out.loc[common_not_null_idx,var].max())
+                min_val = min(df_obs.loc[common_not_null_idx,var].min(),
+                              df_out.loc[common_not_null_idx,var].min())
                 ax2.plot([min_val, max_val], [min_val, max_val], 'k-', label='1:1 Line')
                 regression_line = slope * df_obs[var] + intercept
                 ax2.plot(df_obs[var], regression_line, 'r-', label='Linear Regression')
@@ -1341,9 +1366,10 @@ def plot_surface_height_evaluation(df_out, c):
         df_obs = pd.read_csv(PATH_TO_PROMICE_GCNET_DATA+name_alias(c.station)+'_hour.csv')
         obs_avail = True
     else:
-        if os.path.isfile(PATH_TO_HISTORICAL_GCNET_DATA+c.station.replace(' ','')+'.csv'):
+        historical_data_path = f"{PATH_TO_HISTORICAL_GCNET_DATA}{c.station.replace(' ','')}.csv"
+        if os.path.isfile(historical_data_path):
             import nead
-            df_obs = nead.read(PATH_TO_HISTORICAL_GCNET_DATA+c.station.replace(' ','')+'_daily.csv').to_dataframe()
+            df_obs = nead.read(historical_data_path).to_dataframe()
             df_obs = df_obs.rename(columns={'timestamp':'time',
                                             'HS_combined':'z_surf_combined',
                                             'T10m': 't_i_10m',
@@ -1367,26 +1393,28 @@ def plot_surface_height_evaluation(df_out, c):
             else:
                 df_obs[var1] = np.nan
 
-        df_obs.time= pd.to_datetime(df_obs.time)
+        df_obs.time = pd.to_datetime(df_obs.time).dt.tz_localize(None)
         df_obs = df_obs.set_index('time')
         df_obs = df_obs.resample(pd.infer_freq(df_out.index)).mean()
 
+        df_mod = df_out.loc[slice(df_obs.index[0], df_obs.index[-1])]
         fig = plt.figure()
         tmp = (df_obs.z_surf_combined -df_out.surface_height).mean()
         plt.plot(df_obs.index, df_obs.z_surf_combined-tmp,
                   marker='.',ls='None', label='AWS')
-        plt.plot(df_out.index, df_out.surface_height,color='tab:red',
+        plt.plot(df_mod.index, df_mod.surface_height,color='tab:red',
                  label='model')
         plt.legend()
         plt.ylabel('Surface height (m)')
         plt.title(c.station)
+        plt.xlim(df_obs.index[0], df_obs.index[-1])
         plt.grid()
         fig.savefig(c.output_path+c.RunName+'/'+c.station+'_surface_height.png', dpi=120)
     return df_obs, obs_avail
 
-def load_model_input_output(output_path, run_name):
+def load_model_input_output(output_path, run_name, input_path = None):
     # loading constants
-    tmp =pd.read_csv(output_path+'/'+ run_name+'/constants.csv', dtype={'key':str})
+    tmp =pd.read_csv(output_path+'/'+ run_name+'/constants.csv', dtype={'key':str, 'value':object})
     # converting all numerical fields to numeric, except station
     tmp['value_num'] = pd.to_numeric(tmp.value, errors='coerce')
     msk = (tmp.value_num.notnull() & (tmp.key!='station'))
@@ -1395,6 +1423,9 @@ def load_model_input_output(output_path, run_name):
     # making it a structure
     c = Struct(**tmp.to_dict()['value'] )
     c.RunName=run_name
+
+    if input_path:
+        c.surface_input_path = input_path
 
     # loading surface input
     df_in, c = io.load_surface_input_data(c,
