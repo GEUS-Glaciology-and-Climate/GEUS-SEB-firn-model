@@ -187,7 +187,8 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
 
         # Step 6/*:  Mass Budget in mweq
         melt_mweq[k] = meltflux[k] * c.zdtime / c.L_fus / c.rho_water
-        sublimation_mweq[k] = LHF[k] * c.zdtime / c.L_sub / c.rho_water  # in mweq
+        L_heat = c.L_vap if Tsurf[k] >= c.T_0 else c.L_sub
+        sublimation_mweq[k] = LHF[k] * c.zdtime / L_heat / c.rho_water  # in mweq
         # positive LHF -> deposition -> dH_subl positive
 
         # ========== Step 7/*:  Sub-surface model ====================================
@@ -609,7 +610,8 @@ def SensLatFluxes_bulk_opt(
 
                 q_star = c.kappa * (q - q_surf) / (np.log(z_RH / z_q) - psi_q2 + psi_q)
 
-                SHF, LHF = get_SHF_LHF(rho_atm, u_star, th_star, q_star, c.c_pd, c.L_sub)
+                L_heat = c.L_vap if Tsurf >= c.T_0 else c.L_sub
+                SHF, LHF = get_SHF_LHF(rho_atm, u_star, th_star, q_star, c.c_pd, L_heat)
 
                 L_prev = L
                 # L = u_star**2 * theta_v  / ( 3.9280 * th_star*(1 + 0.6077*q_star))
@@ -650,7 +652,8 @@ def SensLatFluxes_bulk_opt(
                 )
 
                 q_star = c.kappa * (q - q_surf) / (np.log(z_RH / z_q) - psi_q2 + psi_q)
-                SHF, LHF = get_SHF_LHF(rho_atm, u_star, th_star, q_star, c.c_pd, c.L_sub)
+                L_heat = c.L_vap if Tsurf >= c.T_0 else c.L_sub
+                SHF, LHF = get_SHF_LHF(rho_atm, u_star, th_star, q_star, c.c_pd, L_heat)
 
                 L_prev = L
 
