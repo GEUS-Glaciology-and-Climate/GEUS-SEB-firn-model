@@ -74,7 +74,7 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
     )
 
     pgrndc, pgrndd, pgrndcapc, pgrndhflx = update_tempdiff_params_opt(
-        prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_cond, zso_capa, c.zdtime
+        prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_cond, zso_capa, c.zdtime, c
     )
     return (psnowc, psnic, pslwc, ptsoil, zrfrz, prhofirn, zsupimp, pdgrain,
             zrogl, ptsoil[0], pgrndc, pgrndd, pgrndcapc, pgrndhflx, dH_comp,
@@ -165,21 +165,45 @@ def switch_snowbucket_to_first_layer(ptsoil, psnic, psnowc, pslwc,pts,psnowbkt,
 
 @jit(nopython=True)
 def tsoil_diffusion(pts, pgrndc, pgrndd, ptsoil):
-    #   tsoil_diffusion: Update subsurface temperatures ptsoil based on previous
-    #   time step coefficients for heat conduction
-    #
-    #   This script was originally developped by Peter Langen (pla@dmi.dk) and
-    #   Robert S. Fausto (rsf@geus.dk) in FORTRAN then translated to python by
-    #   Baptiste Vandecrux (bav@geus.dk).
+    """Reconstruct the temperature profile from the implicit heat-diffusion solver.
 
-    # Upper layer
+    This is the *back-substitution* step of a fully-implicit (backward-Euler)
+    tridiagonal solver for the 1-D heat conduction equation.  The matching
+    *forward-elimination* step is performed by ``update_tempdiff_params_opt`` at
+    the end of each time-step, which pre-computes the scalar coefficients
+    ``pgrndc`` and ``pgrndd`` stored from the previous step.
+
+    Numerical scheme
+    ----------------
+    The recurrence relation applied here is::
+
+        T_new[0]      = pts                                    (Dirichlet BC)
+        T_new[jk+1]   = pgrndc[jk] + pgrndd[jk] * T_new[jk]  (back-substitution)
+
+    where ``pgrndc`` and ``pgrndd`` are precomputed during the elimination phase
+    and encode the fully-implicit finite-difference discretisation of heat
+    conduction.  The scheme is unconditionally stable for any time-step size.
+
+    Originally developed in Fortran by Peter Langen (pla@dmi.dk) and
+    Robert S. Fausto (rsf@geus.dk); translated to Python by
+    Baptiste Vandecrux (bav@geus.dk).
+
+    Args:
+        pts (float): Surface temperature imposed as Dirichlet BC [K].
+        pgrndc (np.ndarray): Backward-sweep offset coefficients, shape (n,),
+            computed by ``update_tempdiff_params_opt`` in the previous step.
+        pgrndd (np.ndarray): Backward-sweep multiplier coefficients, shape (n,),
+            computed by ``update_tempdiff_params_opt`` in the previous step.
+        ptsoil (np.ndarray): Layer temperatures from the previous time-step,
+            shape (n,) [K].  Modified in-place and returned.
+
+    Returns:
+        ptsoil (np.ndarray): Updated layer temperatures, shape (n,) [K].
+    """
+    # Top layer: Dirichlet boundary condition from surface energy balance
     ptsoil[0] = pts
 
-    # Lower layers
-    # update BV2017
-    # for jk = 2:c.jpgrnd
-    #     ptsoil[jk] = pgrndc[jk] + pgrndd[jk] * ptsoil[jk]
-    # original :
+    # Back-substitution: propagate surface temperature downward through column
     for jk in range(len(ptsoil) - 1):
         ptsoil[jk + 1] = pgrndc[jk] + pgrndd[jk] * ptsoil[jk]
     return ptsoil
@@ -1093,159 +1117,175 @@ def numba_insert(arr, num, row):
 
 #@profile
 def update_tempdiff_params_opt(
-    prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_cond, zso_capa, zdtime
+    prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_cond, zso_capa, zdtime, c
 ):
-    # update_tempdiff_params: Updates the thermal capacity and conductivity of
-    # subsurface column based on the new density and temperature profiles. Also
-    # calcualates subsurface heat flux to the surface pgrndhflx and calorific capacity of the
-    # ground pgrndcapc.
-    # Input:
-    #   zso_cond - Thermal conductivity of pure ice. Calculated in ice_heats.
-    #   zso_capa - Specific heat capacity of ice and snow.
-    #   pgrndc - heat capacity (W/K)
-    #
-    # This script was originally developped by Peter Langen (pla@dmi.dk) and
-    # Robert S. Fausto (rsf@geus.dk) in FORTRAN then translated to python by
-    # Baptiste Vandecrux (bav@geus.dk).
-    # =========================================================================
+    """Compute the backward-sweep coefficients (pgrndc, pgrndd) for the implicit
+    heat-diffusion solver, and the surface heat-flux diagnostics.
 
-    # PETER AND RUTH's VERSION (Note: we ignore the liquid content in all of
-    # the following). We need physical layer thicknesses (i.e., in
-    # snow and ice meters, not liquid meters):
+    This is the *backward-sweep* step of the Thomas algorithm (fully-implicit
+    backward-Euler tridiagonal solver) for 1-D heat conduction.  See
+    ``tsoil_diffusion`` for the matching forward-substitution step and a
+    description of the overall numerical scheme.
 
-    # We consider that each of our temperature in the column are taken at
-    # the center of the cell. In other words they are seen as nodes and not
-    # as cells anymore. We then calculate the heat capacity and thermal
-    # conductivity of the material that separates neighbouring nodes.
+    Layer geometry and material properties
+    ---------------------------------------
+    Temperatures are node-centred (cell midpoints).  For each inter-node
+    interval the effective volumetric heat capacity (``zcapa``) and effective
+    thermal conductivity (``zkappa``) are computed as the **volume-weighted
+    average** and **harmonic mean** of the three constituent materials:
+
+    * snow    – conductivity from Yen (1981): k = 2.22362*(rho/1000)^1.88
+    * ice     – conductivity from Yen (1981): k = 9.828*exp(-0.0057*T)
+    * liquid water – conductivity c.k_water (≈ 0.56 W m-1 K-1)
+
+    Liquid water is now included in both the node-spacing (``thickness_m``)
+    and heat-capacity integrals with volumetric heat capacity rho_w * c_w,
+    making the geometry consistent with the full layer composition.
+
+    Originally developed in Fortran by Peter Langen (pla@dmi.dk) and
+    Robert S. Fausto (rsf@geus.dk); translated to Python by
+    Baptiste Vandecrux (bav@geus.dk).
+
+    Args:
+        prhofirn (np.ndarray): Snow/firn density, shape (n,) [kg m-3].
+        pTdeep (float): Deep boundary temperature [K].
+        psnowc (np.ndarray): Snow water-equivalent content, shape (n,) [m weq].
+        psnic (np.ndarray): Ice water-equivalent content, shape (n,) [m weq].
+        pslwc (np.ndarray): Liquid-water content, shape (n,) [m weq].
+        ptsoil (np.ndarray): Layer temperatures, shape (n,) [K].
+        zso_cond (np.ndarray): Pure-ice thermal conductivity, shape (n,) [W m-1 K-1].
+        zso_capa (np.ndarray): Pure-ice volumetric heat capacity, shape (n,) [J m-3 K-1].
+        zdtime (float): Time-step length [s].
+        c (Struct): Model constants.  Required fields: rho_water, rho_ice,
+            rh2oice, c_w, k_water.
+
+    Returns:
+        pgrndc (np.ndarray): Backward-sweep offset coefficients, shape (n,).
+        pgrndd (np.ndarray): Backward-sweep multiplier coefficients, shape (n,).
+        pgrndcapc (float): Calorific capacity of the top layer [J m-2 K-1].
+        pgrndhflx (float): Diffusive heat flux from subsurface to surface [W m-2].
+    """
+    # Convenience aliases for physical constants
+    rho_w  = c.rho_water
+    rho_i  = c.rho_ice
+    rh2oi  = c.rh2oice          # = rho_water / rho_ice
+    cw_vol = rho_w * c.c_w      # volumetric heat capacity of liquid water [J/m³/K]
+    k_wat  = c.k_water          # thermal conductivity of liquid water [W/m/K]
+
+    # Small positive floor to prevent division by zero in degenerate layers
+    _eps = 1e-10
+
     thickness_weq = psnic + psnowc + pslwc
-    snowV1 = np.zeros_like(prhofirn)
-    snowV2 = np.zeros_like(prhofirn)
-    iceV = np.zeros_like(prhofirn)
     pgrndc = np.zeros_like(prhofirn)
     pgrndd = np.zeros_like(prhofirn)
 
-    # Calculate midpoint volume-weighted versions of capa (heat capacity) and
-    # kappa (thermal conductivity)
+    # -------------------------------------------------------------------------
+    # Physical (metric) volumes of each constituent between neighbouring nodes.
+    # Temperatures are at cell midpoints, so adjacent nodes are separated by:
+    #   - the full upper layer (layer i)   for the top interface (i=0)
+    #   - half of layer i + half of layer i+1   for all other interfaces
+    # -------------------------------------------------------------------------
 
-    # PLA densification (Feb 2015) Update BV2017
-    # The first layer should be in equilibrium with the surface temperature.
-    # Therefore first two nodes are seperated by all of layer 1 and half of
-    # layer 2.
-    # volume of snow in upper layer:
-    snowV1[0] = psnowc[0] * 999.8395 / prhofirn[0]
-    # volume of snow in lower half layer:
-    snowV2[0] = 0.5 * psnowc[1] * 999.8395 / prhofirn[1]
-    # volume of ice in both layer:
-    iceV[0] = (psnic[0] + 0.5 * psnic[1]) * 999.8395 / 900
+    # --- snow volumes [m] ---
+    snowV1 = np.zeros_like(prhofirn)
+    snowV2 = np.zeros_like(prhofirn)
+    # Top interface: full layer 0 + half of layer 1
+    snowV1[0]    = psnowc[0] * rho_w / prhofirn[0]
+    snowV2[0]    = 0.5 * psnowc[1] * rho_w / prhofirn[1]
+    # Remaining interfaces: half of upper + half of lower
+    snowV1[1:]   = 0.5 * psnowc[1:] * rho_w / prhofirn[1:]
+    snowV2[1:-1] = 0.5 * psnowc[2:] * rho_w / prhofirn[2:]
+    snowV2[-1]   = 0.0   # bottom: sublayer assumed pure ice
 
-    # For following nodes, two neighboring nodes are separated by half of the
-    # upper layer and half of the lower layer
-    # volume of snow in upper half layer:
-    snowV1[1:] = 0.5 * psnowc[1:] * 999.8395 / prhofirn[1:]
-    # volume of snow in lower half layer:
-    snowV2[1:-1] = 0.5 * psnowc[2:] * 999.8395 / prhofirn[2:]
-    # volume of ice in both half layers:
-    iceV[1:-1] = 0.5 * (psnic[1:-1] + psnic[2:]) * 1.1109327777777778
+    # --- ice volumes [m] ---
+    iceV = np.zeros_like(prhofirn)
+    iceV[0]      = (psnic[0] + 0.5 * psnic[1]) * rh2oi
+    iceV[1:-1]   = 0.5 * (psnic[1:-1] + psnic[2:]) * rh2oi
+    # Bottom: sublayer of same total thickness assumed to be pure ice
+    iceV[-1]     = 0.5 * (psnic[-1] + thickness_weq[-1]) * rh2oi
 
-    # Bottom layer zcapa asnp.suming below is ice to same thickness (at least)
-    snowV2[-1] = 0
-    iceV[-1] = 0.5 * (psnic[-1] + thickness_weq[-1]) * 1.1109327777777778
+    # --- liquid water volumes [m] (physical thickness = m weq for water) ---
+    waterV1 = np.zeros_like(prhofirn)
+    waterV2 = np.zeros_like(prhofirn)
+    waterV1[0]    = pslwc[0]
+    waterV2[0]    = 0.5 * pslwc[1]
+    waterV1[1:]   = 0.5 * pslwc[1:]
+    waterV2[1:-1] = 0.5 * pslwc[2:]
+    waterV2[-1]   = 0.0   # bottom sublayer assumed pure ice
 
-    # total mass separating two nodes
-    totalV = snowV1 + snowV2 + iceV
+    # Total physical volume between nodes (guarded against zero-thickness layers)
+    totalV = np.maximum(snowV1 + snowV2 + iceV + waterV1 + waterV2, _eps)
 
-    # ice and snow volumetric fractions in the material separating two nodes
-    snow_frac_lay_1 = snowV1 / totalV
-    snow_frac_lay_2 = snowV2 / totalV
-    ice_frac = iceV / totalV
+    # Volume fractions of each constituent between nodes
+    snow_frac_1  = snowV1  / totalV
+    snow_frac_2  = snowV2  / totalV
+    ice_frac     = iceV    / totalV
+    water_frac_1 = waterV1 / totalV
+    water_frac_2 = waterV2 / totalV
 
-    # heat capacity of the layer calculated as the volume-weighted average of
-    # the snow and ice heat capacity. Mind the repeated index for the last
-    # layer. Here zcapa is still volumetric since everything on the right hand
-    # side has been deivided by 'totalV'. It is in J/m**3/K.
+    # -------------------------------------------------------------------------
+    # Effective volumetric heat capacity [J m-3 K-1] — volume-weighted average
+    # -------------------------------------------------------------------------
+    prhofirn_next = np.append(prhofirn[1:], prhofirn[-1])
+    ptsoil_next   = np.append(ptsoil[1:],   ptsoil[-1])
+
     zcapa = (
-        snow_frac_lay_1 * zsn_capaF(prhofirn, ptsoil)
-        + snow_frac_lay_2
-        * zsn_capaF(
-            np.append(prhofirn[1:], prhofirn[-1]), np.append(ptsoil[1:], ptsoil[-1])
-        )
-        + ice_frac * zso_capa
+        snow_frac_1  * zsn_capaF(prhofirn,      ptsoil)
+        + snow_frac_2  * zsn_capaF(prhofirn_next, ptsoil_next)
+        + ice_frac     * zso_capa
+        + (water_frac_1 + water_frac_2) * cw_vol
     )
 
-    #zcapa = compute_zcapa(snow_frac_lay_1, prhofirn, ptsoil,snow_frac_lay_2, ice_frac, zso_capa)
+    # -------------------------------------------------------------------------
+    # Effective thermal conductivity [W m-1 K-1] — harmonic mean (series
+    # resistance): 1/k_eff = sum(frac_i / k_i)
+    # Note: air in pore space is neglected.
+    # -------------------------------------------------------------------------
+    harmonic_denom = (
+        snow_frac_1  / np.maximum(zsn_condF(prhofirn),      _eps)
+        + snow_frac_2  / np.maximum(zsn_condF(prhofirn_next), _eps)
+        + ice_frac     / np.maximum(zso_cond,                  _eps)
+        + (water_frac_1 + water_frac_2) / k_wat
+    )
+    zkappa = 1.0 / np.maximum(harmonic_denom, _eps)
 
-    # thermal conductivity of the layer calculated as the inverse of the np.sum of
-    # the inversed conductivities.
-    # thick_tt/k_tt_eff = thick_1/k_1 + thick_2/k_2 + thick_3/k_3
-    # Warning: It dos not include thermal exchange through air in pore and
-    # through water. In W/m/K.
-    zkappa = 1 / (
-        snow_frac_lay_1 / zsn_condF(prhofirn)
-        + snow_frac_lay_2 / zsn_condF(np.append(prhofirn[1:], prhofirn[-1]))
-        + ice_frac / zso_cond
+    # -------------------------------------------------------------------------
+    # Layer thickness in physical metres, including liquid water.
+    # This is used for the heat-capacity integral and node-spacing, ensuring
+    # the geometry is consistent with the full layer composition.
+    # -------------------------------------------------------------------------
+    thickness_m = (
+        psnowc * rho_w / prhofirn   # snow: m weq → m physical
+        + psnic  * rh2oi             # ice:  m weq → m physical
+        + pslwc                      # water: m weq = m physical
     )
 
-    # Calculate volumetric heat capacity and effective thermal conductivity
-    # by multiplying, resp. dividing, by each layer thickness to get to the
-    # effective values
+    # Absolute heat capacity per unit area for each layer [W m-2 K-1]
+    zcapa_abs = zcapa * thickness_m / zdtime
 
-    # calculating layer volume (without liquid water)
-    thickness_dry_m = psnowc * 999.8395 / prhofirn + psnic * 1.1109327777777778
-    # !!! Why here not totalV ?
-
-    # Total heat capacity for each layer in W/K
-    zcapa_abs = zcapa * thickness_dry_m / zdtime
-
-    # The following used to go jk=1,c.jpgrnd-1
-    # Now we include c.jpgrnd, because it is needed below:
-
-    # Real distance between midpoints. Note repeated index for last layer.
+    # Distance between adjacent midpoints [m] (repeated index for bottom layer)
     dist_mid = (
-        numba_insert(thickness_dry_m[1:], -1, thickness_dry_m[-1]) + thickness_dry_m
-    ) / 2
-    # calculating effective thermal conductivity
-    zkappa_abs = zkappa / dist_mid
-    # !!! why her not *depth_mid_m
+        numba_insert(thickness_m[1:], -1, thickness_m[-1]) + thickness_m
+    ) / 2.0
+    # Thermal conductance per unit area between nodes [W m-2 K-1]
+    zkappa_abs = zkappa / np.maximum(dist_mid, _eps)
 
-    # We have now calculated our new versions of zdz1, zdz2, zcapa and zkappa.
-    # Before introducing diffusion with sub-model layer, the old code was used
-    # as it were. Now, we for some more:
+    # -------------------------------------------------------------------------
+    # Virtual sublayer below the active grid: pure ice at pTdeep, same
+    # physical thickness as the deepest active layer.  Used to anchor the
+    # bottom boundary condition.
+    # -------------------------------------------------------------------------
+    thick_sublayer_m = thickness_weq[-1] * rho_w / rho_i
+    zcapa_abs_sublayer = zsn_capaF(rho_i, pTdeep) * thick_sublayer_m / zdtime
 
-    # In the original version, this loop calculated c and d of c.jpgrnd-1
-    # (which are in turn used above (in next time step) to prognose
-    # tsoil[-1]. Now we calculate c and d of c.jpgrnd.
-    # These are not used to prognose t of c.jpgrnd+1 (because this isn't
-    # relevant) but to initialize the upwards calculation of c and d:
-
-    # Sublayer is all ice (zcapa = zso_capa) and of mass thickness_weq[-1]
-    # giving physical thickness thickness_weq[-1]*c.rh2oice:
-    # Update BV2017: using the temperature depant heat capacity of ice
-    zcapa_abs_sublayer = (
-        zsn_capaF(900, pTdeep) * thickness_weq[-1] * 999.8395 / 900 / zdtime
-    )
-    # corresponds to zcapa_abs(c.jpgrnd+1)
     z1 = zcapa_abs_sublayer + zkappa_abs[-1]
-
     pgrndc[-1] = zcapa_abs_sublayer * pTdeep / z1
     pgrndd[-1] = zkappa_abs[-1] / z1
-    # PLA Tdeep (feb 2015) pTdeep changed in the above
 
-    # This loop went jk=c.jpgrnd-1,2,-1 (ie, calculating c and d for 3,2,1)
-    # Now, it goes   jk=c.jpgrnd,2,-1 (ie, calculating c and d for 4,3,2,1)
-    # It thus needs zdz1[-1] which is now also calculated above
-
-    # for jk in range(len(ptsoil) - 1, 0, -1):  # jk = c.jpgrnd:-1:2
-    #     z1 = 1 / (
-    #         zcapa_abs[jk] + zkappa_abs[jk - 1] + zkappa_abs[jk] * (1 - pgrndd[jk])
-    #     )
-    #     pgrndc[jk - 1] = (ptsoil[jk] * zcapa_abs[jk] + zkappa_abs[jk] * pgrndc[jk]) * z1
-    #     pgrndd[jk - 1] = zkappa_abs[jk - 1] * z1
-
+    # Backward sweep up through the column (Thomas algorithm)
     pgrndc, pgrndd = compute_pgrndc_pgrndd(ptsoil, zcapa_abs, zkappa_abs, pgrndd, pgrndc)
-    #   ---------------------------------------
-    #   COMPUTATION OFSIVE FLUX FROM GROUND AND
-    #   CALORIFIC CAPACITY OF THE GROUND:
-    #   ---------------------------------------------------------
+
+    # Surface heat flux and calorific capacity diagnostics
     pgrndhflx = zkappa_abs[0] * (pgrndc[0] + (pgrndd[0] - 1) * ptsoil[0])
     pgrndcapc = zcapa_abs[0] * zdtime + zdtime * (1 - pgrndd[0]) * zkappa_abs[0]
     return pgrndc, pgrndd, pgrndcapc, pgrndhflx

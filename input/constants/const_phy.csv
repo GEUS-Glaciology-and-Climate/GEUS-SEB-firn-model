@@ -34,6 +34,7 @@ dd;0.35;
 beta;2317;
 c_pd;1005;specific heat of dry air (J/kg/K)
 c_w;4210;specific heat of water at 0 C (J/kg/K) (Source www.engineeringtoolbox.com)
+k_water;0.56;thermal conductivity of liquid water at 0 C (W/m/K)
 ch1;1.25, 0.149, 0.317;used in calculating roughness length for heat z_h over smooth surfaces (Andreas 1987)
 ch2;0., -0.55, -0.565;
 ch3;0., 0., -0.183;
