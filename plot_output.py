@@ -13,7 +13,7 @@ import lib.plot as lpl
 
 # output_path= 'C:/Users/bav/data_save/output firn model/spin up 3H/'
 output_path = './output/2026-03-16/'
-run_name = 'Petermann Glacier_100_layers_3h'
+run_name = 'DY2_100_layers_3h'
 #%%
 def main(output_path, run_name):
     # %% Loading data
@@ -21,10 +21,15 @@ def main(output_path, run_name):
     station = run_name.split('_100')[0]
     df_out, df_in, c = lpl.load_model_input_output(output_path,
                            run_name,
-                           input_path = f'C:/Users/bav/OneDrive - GEUS/Data/CARRA/CARRA_at_AWS/{station}.nc')
+                           # input_path = f'C:/Users/bav/OneDrive - GEUS/Data/CARRA/CARRA_at_AWS/{station}.nc')
+                           input_path = f'C:/Users/bav/OneDrive - Geological survey of Denmark and Greenland/Data/CARRA/CARRA_at_AWS/{station}.nc')
 
     # plotting surface variables
     lpl.plot_summary(df_out, c, 'SEB_output')
+    
+    for v in df_in.columns:
+        if v not in df_out.columns:
+            df_out[v] = df_in[v]
 
     # %% plotting subsurface variables
     for var in ['density_bulk','slwc','rfrz']:
@@ -38,9 +43,24 @@ def main(output_path, run_name):
 
     # %%
     df_obs, obs_avail = lpl.plot_surface_height_evaluation(df_out, c)
-
+    # %%
     if obs_avail:
-        lpl.plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SHF','t_i_10m'])
+        lpl.plot_observed_vars(df_obs, df_out, c, 
+                               # var_list = ['t_surf','LRout','LHF','SHF','t_i_10m'])
+                               var_list = ['dsr_cor','usr','albedo'])
+        lpl.plot_observed_vars(df_obs, df_out, c, 
+                               # var_list = ['t_surf','LRout','LHF','SHF','t_i_10m'])
+                               var_list = ['dlr','ulr', 't_surf'])
+        df_obs['SWnet'] = df_obs.dsr_cor - df_obs.usr
+        df_obs['LWnet'] = df_obs.dlr - df_obs.ulr
+        df_obs['Qrad_net'] = df_obs['SWnet'] + df_obs['LWnet']
+        df_out['SWnet'] = df_out.ShortwaveRadiationDownWm2 - df_out.ShortwaveRadiationUpWm2
+        df_out['LWnet'] = df_out.LongwaveRadiationDownWm2 - df_out.LongwaveRadiationUpWm2
+        df_out['Qrad_net'] = df_out['SWnet'] + df_out['LWnet']
+        lpl.plot_observed_vars(df_obs, df_out, c, 
+                               # var_list = ['t_surf','LRout','LHF','SHF','t_i_10m'])
+                               var_list = ['SWnet','LWnet','Qrad_net'])
+    #%%
 
     lpl.plot_smb_components(df_out, c)
     lpl.evaluate_temperature_sumup(df_out, c)

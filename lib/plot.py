@@ -1255,8 +1255,15 @@ def evaluate_accumulation_snowfox(df_in, c):
 
 def plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SHF','t_i_10m']):
     try:
-
+        print("plotting "+', '.join(var_list))
+        df_out = df_out.rename(columns={'ShortwaveRadiationDownWm2': 'dsr_cor',
+                                        'ShortwaveRadiationUpWm2': 'usr',
+                                        'LongwaveRadiationDownWm2': 'dlr',
+                                        'LongwaveRadiationUpWm2': 'ulr',
+                                        'Albedo':'albedo'})
         df_obs = df_obs[~df_obs.index.duplicated(keep='first')]
+        df_obs = df_obs.loc[slice(df_obs.index[df_obs[var_list].notnull().all(axis=1)][0], 
+                                  df_obs.index[df_obs[var_list].notnull().all(axis=1)][-1])]
         df_out = df_out[~df_out.index.duplicated(keep='first')]
         common_idx = df_obs.index.intersection(df_out.index)
 
@@ -1271,7 +1278,11 @@ def plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SH
         for i, var in enumerate(var_list):
             if var not in df_obs.columns:
                 df_obs[var] = np.nan
-            ax1 = plt.subplot(gs[i, 0])
+            if i == 0:
+                ax1 = plt.subplot(gs[i, 0])
+                ax0 = ax1
+            else: 
+                ax1 = plt.subplot(gs[i, 0], sharex=ax0)
             ax2 = plt.subplot(gs[i, 1])
             # first plot
             ME = np.mean(df_out.loc[common_idx, var] - df_obs.loc[common_idx, var])
@@ -1316,7 +1327,6 @@ def plot_observed_vars(df_obs, df_out, c, var_list = ['t_surf','LRout','LHF','SH
                                                 edgecolor='black', facecolor='white'))
 
         fig.savefig(c.output_path+c.RunName+'/SEB_evaluation_vs_AWS.png', dpi=120)
-        plt.close(fig)
     except Exception as e:
         print(c.RunName, e); traceback.print_exc()
 
