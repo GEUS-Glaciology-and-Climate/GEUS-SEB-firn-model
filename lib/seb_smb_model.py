@@ -450,16 +450,22 @@ def SRbalance(SRnet_surf, ind_ice, thickness_m, T_ice, rho, c):
     # last layer absorbs all remaining flux
     absorbed = SRnet - np.append(SRnet[1:], 0.0)
 
-    # temperature rise from SW absorption
+    # Layer 0 (surface layer): its absorbed SW is already handled by
+    # SurfEnergyBudget via SRnet[0]-SRnet[1], so skip it here to avoid
+    # double-counting.  Only subsurface layers (index 1+) are warmed.
+    absorbed_sub = absorbed.copy()
+    absorbed_sub[0] = 0.0
+
+    # temperature rise from SW absorption in subsurface layers
     # specific heat of ice (slight overestimate near melt, max ~48 J/kg/K)
     c_i = 152.456 + 7.122 * T_ice
-    T_ice = T_ice + absorbed * c.zdtime / c.dev / rho / c_i / thickness_m
+    T_ice = T_ice + absorbed_sub * c.zdtime / c.dev / rho / c_i / thickness_m
 
     # internal melt where T exceeds melting point
     overheat = np.maximum(T_ice - c.T_0, 0.0)
     T_ice = np.minimum(T_ice, c.T_0)
 
-    # convert excess heat to melt [m w.e. per layer]
+    # convert excess heat to melt [m w.e. per layer] (subsurface only; layer 0 = 0)
     internal_melt_mweq = rho * c_i * overheat * c.dev * thickness_m / c.L_fus / c.rho_water
 
     return SRnet, T_ice, internal_melt_mweq
