@@ -120,14 +120,22 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
             * c.rho_water / thickness_m
         )
 
-        (
-            SRnet, T_ice[:, k], internal_melt_mweq
-        ) = SRbalance(
-            SRin[k] - SRout[k], ind_ice, thickness_m, T_ice[:, k - 1],
-            rho[:, k], c
-        )
-        # SRnet[i] is now downwelling flux at top of layer i, so
-        # SRnet[0]-SRnet[1] in SurfEnergyBudget gives absorption in layer 0 only.
+        if c.sw_penetration:
+            (
+                SRnet, T_ice[:, k], internal_melt_mweq
+            ) = SRbalance(
+                SRin[k] - SRout[k], ind_ice, thickness_m, T_ice[:, k - 1],
+                rho[:, k], c
+            )
+            # SRnet[i] is downwelling flux at top of layer i, so
+            # SRnet[0]-SRnet[1] in SurfEnergyBudget gives absorption in layer 0 only.
+        else:
+            # No penetration: all SW absorbed at surface layer.
+            # SRnet[0]=SRnet_surf, SRnet[1:]=0 → SRnet[0]-SRnet[1]=SRnet_surf.
+            T_ice[:, k] = T_ice[:, k - 1]
+            SRnet = np.zeros(len(T_ice[:, k]))
+            SRnet[0] = SRin[k] - SRout[k]
+            internal_melt_mweq = np.zeros(len(T_ice[:, k]))
 
         # Step 5/*:  Surface temperature calculation
         k_eff = 0.021 + 2.5e-6 * rho[:, k] ** 2

@@ -17,6 +17,7 @@ fresh_snow_dens;315;
 Tdeep;263; 
 verbose;1;
 avoid_runoff;0; if 1 runoff is not allowed
+sw_penetration;1;enable shortwave penetration into subsurface layers (1=on 0=off)
 THF_calc;1; choice of THF calculation: 1 = bulk, 2 = profile if possible, 3 = calculate both and save both results
 lim_new_lay;0.02;thickness in m w.e. for a new layer to be created
 snowthick_ini;1;initial snow thickness in meter

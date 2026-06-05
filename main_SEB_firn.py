@@ -31,6 +31,9 @@ def run_SEB_firn(
     output_var: str = "all",
     plot: bool = True,
     silent: bool = False,
+    time_range: tuple = None,
+    c_overrides: dict = None,
+    run_name_suffix: str = "",
 ) -> None:
     """
     Run the GEUS surface energy balance and firn model for a single station.
@@ -59,6 +62,14 @@ def run_SEB_firn(
             Default is True.
         silent (bool, optional):
             If True, suppress console output. Default is False.
+        time_range (tuple, optional):
+            (start, end) strings passed to df_in.loc[start:end] to restrict
+            the simulation period (e.g. ('2012', '2012')).
+        c_overrides (dict, optional):
+            Key-value pairs applied to the c constants struct after loading,
+            overriding any default or CSV value (e.g. {'sw_penetration': 0}).
+        run_name_suffix (str, optional):
+            Appended to the auto-generated RunName to distinguish variants.
 
     Returns:
         None
@@ -88,12 +99,17 @@ def run_SEB_firn(
     c.num_lay = 100
     c.lim_new_lay = lim_new_lay# 0.05 # m w.e.
 
+    # apply caller-supplied overrides before anything depends on them
+    if c_overrides:
+        for key, val in c_overrides.items():
+            setattr(c, key, val)
+
     # defining run name
     if c.spin_up:
         print('######### spin-up run ##########')
         c.output_path = '/data/CARRA-SMB/spin up 3H/'
 
-    c.RunName = c.station + "_" + str(c.num_lay) + "_layers_"+c.freq
+    c.RunName = c.station + "_" + str(c.num_lay) + "_layers_" + c.freq + run_name_suffix
 
     # if it is a spin up, then checking whether the pckl file is already available
     if c.spin_up and os.path.isfile(c.output_path+c.RunName+'/'+c.station+'_final.pkl'):
@@ -114,6 +130,9 @@ def run_SEB_firn(
 
     # loading input data
     df_in, c = io.load_surface_input_data(c, resample=resample)
+
+    if time_range is not None:
+        df_in = df_in.loc[time_range[0]:time_range[1]]
 
     freq = pd.infer_freq(df_in.index)
     if freq=='h': freq = '1h'
