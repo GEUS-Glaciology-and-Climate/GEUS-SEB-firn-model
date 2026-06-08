@@ -618,18 +618,25 @@ def SensLatFluxes_bulk_opt(
                     q, q_surf, z_RH, z_q, psi_q2, psi_q
                 )
 
-                q_star = c.kappa * (q - q_surf) / (np.log(z_RH / z_q) - psi_q2 + psi_q)
-
                 L_heat = c.L_vap if Tsurf >= c.T_0 else c.L_sub
                 SHF, LHF = get_SHF_LHF(rho_atm, u_star, th_star, q_star, c.c_pd, L_heat)
 
                 L_prev = L
-                # L = u_star**2 * theta_v  / ( 3.9280 * th_star*(1 + 0.6077*q_star))
                 L = get_L(u_star, theta, c.es, q, c.g, c.kappa, th_star, q_star)
 
-                if (L < c.smallno) | (abs((L_prev - L)) < c.L_dif):
-                    # convergence reached, exiting loop
+                if (L <= 0) | (abs((L_prev - L)) < c.L_dif):
+                    # L <= 0 means the iteration overshot into unstable territory;
+                    # exit rather than diverge.  abs-change test is the normal
+                    # convergence criterion (mirrors the unstable branch).
                     break
+
+            # 2m / 10m diagnostics for the stable case
+            theta_2m, q_2m, ws_10m = calc_2m_theta_q_ws(
+                Tsurf, th_star, c.kappa,
+                z_h, psi_h2, psi_h1,
+                q_surf, q_star, z_q, psi_q2, psi_q,
+                u_star, z_0, psi_m2, psi_m1,
+            )
 
         if (theta < Tsurf) & (WS >= c.WS_lim):  # unstable stratification
             # correction defs as in
@@ -661,7 +668,6 @@ def SensLatFluxes_bulk_opt(
                     z_q, psi_q2, psi_q
                 )
 
-                q_star = c.kappa * (q - q_surf) / (np.log(z_RH / z_q) - psi_q2 + psi_q)
                 L_heat = c.L_vap if Tsurf >= c.T_0 else c.L_sub
                 SHF, LHF = get_SHF_LHF(rho_atm, u_star, th_star, q_star, c.c_pd, L_heat)
 
@@ -808,12 +814,23 @@ def get_SHF_LHF(rho_atm, u_star, th_star, q_star, c_pd, L_sub):
 # Returns L
 @njit
 def get_L(u_star, theta, es, q, g, kappa, th_star, q_star):
-    return (
-        u_star ** 2
-        * theta
-        * (1 + ((1 - es) / es) * q)
-        / (g * kappa * th_star * (1 + ((1 - es) / es) * q_star))
-    )
+    """Monin-Obukhov length [m].
+
+    Uses virtual potential temperature to account for the buoyancy effect of
+    moisture (Stull 1988, eq. 5.7c):
+
+        L = u*²·θ_v / (κ·g·θ_v*)
+
+    where the virtual potential temperature and its turbulent scale are
+        θ_v  = θ  · (1 + β·q)          β = (1−ε)/ε ≈ 0.608
+        θ_v* = θ* + β·θ·q*             (NOT θ*·(1 + β·q*))
+
+    Sign convention: L > 0 stable (θ_v* > 0),  L < 0 unstable (θ_v* < 0).
+    """
+    beta = (1.0 - es) / es          # ≈ 0.608
+    theta_v  = theta  * (1.0 + beta * q)
+    thv_star = th_star + beta * theta * q_star   # correct virtual scale
+    return u_star ** 2 * theta_v / (g * kappa * thv_star)
 
 
 # Several functions computing values for psi, added for faster execution
