@@ -1263,10 +1263,17 @@ def update_tempdiff_params_opt(
     # Absolute heat capacity per unit area for each layer [W m-2 K-1]
     zcapa_abs = zcapa * thickness_m / zdtime
 
-    # Distance between adjacent midpoints [m] (repeated index for bottom layer)
+    # Distance between adjacent nodes [m] (repeated index for bottom layer).
+    # Node 0 sits AT the surface (z=0, forced to Tsurf by the Dirichlet BC),
+    # while nodes 1..n-1 sit at the midpoints of layers 1..n-1 — matching the
+    # "full layer 0 + half layer 1" volume weighting used above for
+    # snowV1[0]/iceV[0]/waterV1[0].  So the top spacing is
+    # (full layer 0) + (half layer 1), not the generic half+half used for all
+    # interior (midpoint-to-midpoint) interfaces.
     dist_mid = (
         numba_insert(thickness_m[1:], -1, thickness_m[-1]) + thickness_m
     ) / 2.0
+    dist_mid[0] = thickness_m[0] + 0.5 * thickness_m[1]
     # Thermal conductance per unit area between nodes [W m-2 K-1]
     zkappa_abs = zkappa / np.maximum(dist_mid, _eps)
 
