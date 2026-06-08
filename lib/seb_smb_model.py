@@ -563,8 +563,10 @@ def SensLatFluxes_bulk_opt(
     psi_m1 = 0
     psi_m2 = 0
 
-    # will be updated later
-    theta_2m = theta
+    # Defaults used when WS < WS_lim (turbulent fluxes negligible): use the
+    # actual temperature at sensor height as the best proxy for T_2m.
+    # theta (potential) = T + z_T*g/c_pd  →  T_sensor = theta - z_T*g/c_pd
+    T_2m = theta - z_T * c.g / c.c_pd
     q_2m = q
     ws_10m = WS
 
@@ -630,13 +632,21 @@ def SensLatFluxes_bulk_opt(
                     # convergence criterion (mirrors the unstable branch).
                     break
 
-            # 2m / 10m diagnostics for the stable case
-            theta_2m, q_2m, ws_10m = calc_2m_theta_q_ws(
+            # 2m / 10m diagnostics for the stable case.
+            # Re-evaluate ψ at the standard output heights (2 m for T/q,
+            # 10 m for wind) — NOT at the sensor heights z_T / z_RH / z_WS.
+            psi_h_2m  = get_psi_h2_stable(c.aa, c.bb, c.cc, c.dd, L, 2.0)
+            psi_q_2m  = get_psi_q2_stable(c.aa, c.bb, c.cc, c.dd, L, 2.0)
+            psi_m_10m = get_psi_m2_stable(c.aa, c.bb, c.cc, c.dd, L, 10.0)
+            theta_2m_pot, q_2m, ws_10m = calc_2m_theta_q_ws(
                 Tsurf, th_star, c.kappa,
-                z_h, psi_h2, psi_h1,
-                q_surf, q_star, z_q, psi_q2, psi_q,
-                u_star, z_0, psi_m2, psi_m1,
+                z_h, psi_h_2m, psi_h1,
+                q_surf, q_star, z_q, psi_q_2m, psi_q,
+                u_star, z_0, psi_m_10m, psi_m1,
             )
+            # convert potential temperature at 2 m to actual temperature:
+            # theta = T + z*g/c_pd  →  T = theta - 2*g/c_pd
+            T_2m = theta_2m_pot - 2.0 * c.g / c.c_pd
 
         if (theta < Tsurf) & (WS >= c.WS_lim):  # unstable stratification
             # correction defs as in
@@ -679,24 +689,25 @@ def SensLatFluxes_bulk_opt(
                     # convergence reached, exiting loop
                     break
 
-            # calculating 2m temperature, humidity and wind speed
-            theta_2m, q_2m, ws_10m = calc_2m_theta_q_ws(
-                Tsurf,
-                th_star,
-                c.kappa,
-                z_h,
-                psi_h2,
-                psi_h1,
-                q_surf,
-                q_star,
-                z_q,
-                psi_q2,
-                psi_q,
-                u_star,
-                z_0,
-                psi_m2,
-                psi_m1,
+            # calculating 2m temperature, humidity and wind speed.
+            # Re-evaluate ψ at the standard output heights (2 m for T/q,
+            # 10 m for wind) using the Paulson/Dyer (unstable) functions.
+            x_2m  = (1.0 - c.gamma * 2.0  / L) ** 0.25
+            x_10m = (1.0 - c.gamma * 10.0 / L) ** 0.25
+            y_2m  = (1.0 - c.gamma * 2.0  / L) ** 0.5
+            psi_m_10m = (np.log(((1.0 + x_10m) / 2.0) ** 2 * (1.0 + x_10m ** 2) / 2.0)
+                         - 2.0 * np.arctan(x_10m) + np.pi / 2.0)
+            psi_h_2m  = np.log(((1.0 + y_2m) / 2.0) ** 2)
+            psi_q_2m  = np.log(((1.0 + y_2m) / 2.0) ** 2)
+            theta_2m_pot, q_2m, ws_10m = calc_2m_theta_q_ws(
+                Tsurf, th_star, c.kappa, z_h,
+                psi_h_2m, psi_h1, q_surf,
+                q_star, z_q, psi_q_2m, psi_q,
+                u_star, z_0, psi_m_10m, psi_m1,
                 )
+            # convert potential temperature at 2 m to actual temperature:
+            # theta = T + z*g/c_pd  →  T = theta - 2*g/c_pd
+            T_2m = theta_2m_pot - 2.0 * c.g / c.c_pd
 
     else:
         # threshold in windspeed ensuring the stability of the SHF/THF
@@ -718,12 +729,13 @@ def SensLatFluxes_bulk_opt(
         psi_q = 0
         psi_q2 = -999
 
-        # calculating 2m temperature, humidity and wind speed
-        theta_2m = theta
+        # 2m/10m diagnostics not meaningful at near-zero wind; fall back to
+        # measurement-height values (T_2m uses actual, not potential, temperature)
+        T_2m = theta - z_T * c.g / c.c_pd   # actual temperature at sensor height
         q_2m = q
         ws_10m = WS
 
-    return L, LHF, SHF, theta_2m, q_2m, ws_10m, Re
+    return L, LHF, SHF, T_2m, q_2m, ws_10m, Re
 
 def SpecHumSat(RH, T, pres, c: Struct):
     # SpecHumSat
