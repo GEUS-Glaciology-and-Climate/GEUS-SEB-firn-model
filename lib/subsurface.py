@@ -175,23 +175,36 @@ def tsoil_diffusion(pts, pgrndc, pgrndd, ptsoil):
 
     Numerical scheme
     ----------------
-    The recurrence relation applied here is::
+    Node 0 is a normal, finite-mass, prognostic node — it is *not* forced to
+    equal the diagnostic surface skin temperature ``pts``.  Instead the two
+    are coupled through a Robin (flux) boundary condition across the half-cell
+    that separates the surface (z=0, where the zero-heat-capacity skin sits)
+    from the centre of layer 0 (see ``update_tempdiff_params_opt`` for the
+    derivation of the coupling conductance and of ``pgrndc[0]``/``pgrndd[0]``).
+    Treating the skin as a forced "virtual node -1" extends the same backward-
+    sweep recursion used for every interior node by one more step, so the
+    recurrence applied here is uniform all the way down the column::
 
-        T_new[0]      = pts                                    (Dirichlet BC)
-        T_new[jk+1]   = pgrndc[jk] + pgrndd[jk] * T_new[jk]  (back-substitution)
+        T_new[0]   = pgrndc[0] + pgrndd[0] * pts          (skin -> node 0)
+        T_new[jk]  = pgrndc[jk] + pgrndd[jk] * T_new[jk-1]  (jk = 1 .. n-1)
 
     where ``pgrndc`` and ``pgrndd`` are precomputed during the elimination phase
     and encode the fully-implicit finite-difference discretisation of heat
-    conduction.  The scheme is unconditionally stable for any time-step size.
+    conduction (including, in slot 0, the skin-coupling Robin condition).  The
+    scheme is unconditionally stable for any time-step size.
 
     Originally developed in Fortran by Peter Langen (pla@dmi.dk) and
     Robert S. Fausto (rsf@geus.dk); translated to Python by
     Baptiste Vandecrux (bav@geus.dk).
 
     Args:
-        pts (float): Surface temperature imposed as Dirichlet BC [K].
+        pts (float): Diagnostic surface skin temperature from the surface
+            energy balance [K].  Forces the top Robin boundary condition
+            (it no longer overwrites node 0 directly).
         pgrndc (np.ndarray): Backward-sweep offset coefficients, shape (n,),
             computed by ``update_tempdiff_params_opt`` in the previous step.
+            Slot 0 encodes the skin-to-node-0 Robin condition; slots 1..n-1
+            encode the standard interior node-to-node recursion.
         pgrndd (np.ndarray): Backward-sweep multiplier coefficients, shape (n,),
             computed by ``update_tempdiff_params_opt`` in the previous step.
         ptsoil (np.ndarray): Layer temperatures from the previous time-step,
@@ -200,12 +213,16 @@ def tsoil_diffusion(pts, pgrndc, pgrndd, ptsoil):
     Returns:
         ptsoil (np.ndarray): Updated layer temperatures, shape (n,) [K].
     """
-    # Top layer: Dirichlet boundary condition from surface energy balance
-    ptsoil[0] = pts
+    # Node 0: Robin (flux/skin-layer) boundary condition, forced by the
+    # diagnostic skin temperature `pts` (see update_tempdiff_params_opt).
+    ptsoil[0] = pgrndc[0] + pgrndd[0] * pts
 
-    # Back-substitution: propagate surface temperature downward through column
-    for jk in range(len(ptsoil) - 1):
-        ptsoil[jk + 1] = pgrndc[jk] + pgrndd[jk] * ptsoil[jk]
+    # Back-substitution: propagate the solution downward through the column.
+    # With the shifted convention (see update_tempdiff_params_opt), slot jk
+    # gives node jk directly from node jk-1 — uniformly, including jk=0 where
+    # "node -1" is the forcing skin temperature `pts` (set just above).
+    for jk in range(1, len(ptsoil)):
+        ptsoil[jk] = pgrndc[jk] + pgrndd[jk] * ptsoil[jk - 1]
     return ptsoil
 
 
@@ -1142,6 +1159,22 @@ def update_tempdiff_params_opt(
     and heat-capacity integrals with volumetric heat capacity rho_w * c_w,
     making the geometry consistent with the full layer composition.
 
+    Skin-layer top boundary condition
+    ---------------------------------
+    Node 0 is treated like every other node — centred at its own midpoint,
+    carrying its own finite heat capacity and conductivity — rather than as a
+    massless skin pinned to the surface temperature.  The diagnostic surface
+    skin temperature ``Tsurf`` (computed by the SEB with zero heat capacity)
+    is coupled to node 0 through a Robin (flux) condition across the half-cell
+    that separates the surface from node 0's centre::
+
+        G = k_eff_skin * (Tsurf - T_0) / (0.5 * dz_0)
+
+    This is folded into the same backward-sweep (Thomas algorithm) recursion
+    used for the interior nodes and for the bottom boundary, by treating the
+    skin as a forced, zero-heat-capacity "virtual node -1".  See the inline
+    comments above the top-boundary block for the full derivation.
+
     Originally developed in Fortran by Peter Langen (pla@dmi.dk) and
     Robert S. Fausto (rsf@geus.dk); translated to Python by
     Baptiste Vandecrux (bav@geus.dk).
@@ -1161,9 +1194,14 @@ def update_tempdiff_params_opt(
 
     Returns:
         pgrndc (np.ndarray): Backward-sweep offset coefficients, shape (n,).
+            Slot 0 encodes the skin-to-node-0 Robin (flux) boundary condition
+            — i.e. ``T_0 = pgrndc[0] + pgrndd[0] * Tsurf`` — while slots
+            1..n-1 encode the standard interior node-to-node recursion
+            ``T_jk = pgrndc[jk] + pgrndd[jk] * T_{jk-1}``.
         pgrndd (np.ndarray): Backward-sweep multiplier coefficients, shape (n,).
-        pgrndcapc (float): Calorific capacity of the top layer [J m-2 K-1].
-        pgrndhflx (float): Diffusive heat flux from subsurface to surface [W m-2].
+        pgrndcapc (float): Calorific capacity of node 0 [J m-2 K-1].
+        pgrndhflx (float): Predicted skin <-> node-0 conductive heat flux
+            [W m-2, positive upwards / from the subsurface to the surface].
     """
     # Convenience aliases for physical constants
     rho_w  = c.rho_water
@@ -1187,30 +1225,27 @@ def update_tempdiff_params_opt(
     # -------------------------------------------------------------------------
 
     # --- snow volumes [m] ---
+    # Node 0 is a normal, centred, finite-mass prognostic node (skin-layer
+    # formulation: the surface skin is a separate, massless diagnostic — see
+    # the top boundary condition below), so every interface — including the
+    # top one — uses the same half-upper / half-lower split.
     snowV1 = np.zeros_like(prhofirn)
     snowV2 = np.zeros_like(prhofirn)
-    # Top interface: full layer 0 + half of layer 1
-    snowV1[0]    = psnowc[0] * rho_w / prhofirn[0]
-    snowV2[0]    = 0.5 * psnowc[1] * rho_w / prhofirn[1]
-    # Remaining interfaces: half of upper + half of lower
-    snowV1[1:]   = 0.5 * psnowc[1:] * rho_w / prhofirn[1:]
-    snowV2[1:-1] = 0.5 * psnowc[2:] * rho_w / prhofirn[2:]
+    snowV1[:]    = 0.5 * psnowc * rho_w / prhofirn
+    snowV2[:-1]  = 0.5 * psnowc[1:] * rho_w / prhofirn[1:]
     snowV2[-1]   = 0.0   # bottom: sublayer assumed pure ice
 
     # --- ice volumes [m] ---
     iceV = np.zeros_like(prhofirn)
-    iceV[0]      = (psnic[0] + 0.5 * psnic[1]) * rh2oi
-    iceV[1:-1]   = 0.5 * (psnic[1:-1] + psnic[2:]) * rh2oi
+    iceV[:-1]    = 0.5 * (psnic[:-1] + psnic[1:]) * rh2oi
     # Bottom: sublayer of same total thickness assumed to be pure ice
     iceV[-1]     = 0.5 * (psnic[-1] + thickness_weq[-1]) * rh2oi
 
     # --- liquid water volumes [m] (physical thickness = m weq for water) ---
     waterV1 = np.zeros_like(prhofirn)
     waterV2 = np.zeros_like(prhofirn)
-    waterV1[0]    = pslwc[0]
-    waterV2[0]    = 0.5 * pslwc[1]
-    waterV1[1:]   = 0.5 * pslwc[1:]
-    waterV2[1:-1] = 0.5 * pslwc[2:]
+    waterV1[:]    = 0.5 * pslwc
+    waterV2[:-1]  = 0.5 * pslwc[1:]
     waterV2[-1]   = 0.0   # bottom sublayer assumed pure ice
 
     # Total physical volume between nodes (guarded against zero-thickness layers)
@@ -1264,18 +1299,22 @@ def update_tempdiff_params_opt(
     zcapa_abs = zcapa * thickness_m / zdtime
 
     # Distance between adjacent nodes [m] (repeated index for bottom layer).
-    # Node 0 sits AT the surface (z=0, forced to Tsurf by the Dirichlet BC),
-    # while nodes 1..n-1 sit at the midpoints of layers 1..n-1 — matching the
-    # "full layer 0 + half layer 1" volume weighting used above for
-    # snowV1[0]/iceV[0]/waterV1[0].  So the top spacing is
-    # (full layer 0) + (half layer 1), not the generic half+half used for all
-    # interior (midpoint-to-midpoint) interfaces.
+    # All nodes — including node 0 — are centred at their layer's midpoint
+    # (skin-layer formulation), so the generic midpoint-to-midpoint spacing
+    # (half of the upper layer + half of the lower layer) applies uniformly,
+    # including at the top interface (node 0 <-> node 1).
     dist_mid = (
         numba_insert(thickness_m[1:], -1, thickness_m[-1]) + thickness_m
     ) / 2.0
-    dist_mid[0] = thickness_m[0] + 0.5 * thickness_m[1]
     # Thermal conductance per unit area between nodes [W m-2 K-1]
     zkappa_abs = zkappa / np.maximum(dist_mid, _eps)
+
+    # Skin-to-node-0 spacing [m]: half the thickness of layer 0, i.e. the
+    # distance from the surface (z=0, where the diagnostic skin temperature
+    # `Tsurf` lives) to the centre of the first prognostic node — the
+    # standard finite-volume half-cell distance used by the new top Robin
+    # (flux) boundary condition below.
+    dist_skin = 0.5 * thickness_m[0]
 
     # -------------------------------------------------------------------------
     # Virtual sublayer below the active grid: pure ice at pTdeep, same
@@ -1289,12 +1328,101 @@ def update_tempdiff_params_opt(
     pgrndc[-1] = zcapa_abs_sublayer * pTdeep / z1
     pgrndd[-1] = zkappa_abs[-1] / z1
 
-    # Backward sweep up through the column (Thomas algorithm)
+    # Backward sweep up through the column (Thomas algorithm).  After this,
+    # pgrndc[jk]/pgrndd[jk] give node jk+1 from node jk for jk = 0..n-2 (the
+    # value left in the last slot, pgrndc[-1]/pgrndd[-1], was only ever a seed
+    # for this recursion — the virtual sub-layer temperature from the bottom
+    # node — and is not consumed by the back-substitution in `tsoil_diffusion`).
     pgrndc, pgrndd = compute_pgrndc_pgrndd(ptsoil, zcapa_abs, zkappa_abs, pgrndd, pgrndc)
 
-    # Surface heat flux and calorific capacity diagnostics
-    pgrndhflx = zkappa_abs[0] * (pgrndc[0] + (pgrndd[0] - 1) * ptsoil[0])
-    pgrndcapc = zcapa_abs[0] * zdtime + zdtime * (1 - pgrndd[0]) * zkappa_abs[0]
+    # -------------------------------------------------------------------------
+    # Top boundary condition: skin layer / Robin (flux) coupling.
+    #
+    # The diagnostic surface "skin" temperature `Tsurf` (= `pts` in
+    # `tsoil_diffusion`) is computed by the SEB with zero heat capacity and is
+    # *not* identified with node 0: node 0 is a normal, prognostic, finite-
+    # mass layer like every other node (see the volume-weighting above, now
+    # reverted to the standard half/half split).  The skin and node 0 are
+    # coupled through a flux that crosses the half-cell separating the surface
+    # (z=0, where Tsurf lives) from the centre of layer 0:
+    #
+    #     G = k_eff_skin * (Tsurf - T_0) / (0.5 * dz_0)
+    #
+    # the standard finite-volume half-cell conductance.  k_eff_skin uses the
+    # conductivity of layer 0's own constituents only (harmonic mean, as for
+    # the interior interfaces) — no blending with layer 1, since this link
+    # lies entirely inside layer 0.
+    #
+    # Treating the skin as a zero-capacity "virtual node -1" with forced
+    # temperature Tsurf extends the same backward-sweep recursion used for
+    # every interior node (and for the bottom virtual sub-layer) by one more
+    # step, yielding a coefficient pair that gives node 0 directly from Tsurf:
+    #
+    #     T_0 = pgrndc[0] + pgrndd[0] * Tsurf
+    #
+    # Every coefficient slot that used to hold "node jk+1 from node jk" is
+    # therefore shifted up by one index; the bottom slot (which only ever
+    # served as a recursion seed, see above) is dropped to make room, so the
+    # arrays keep their original length.
+    # -------------------------------------------------------------------------
+
+    # Effective conductivity of layer 0's own constituents [W m-1 K-1]
+    # (harmonic mean / series resistance, mirroring the interior treatment).
+    snow_vol0  = psnowc[0] * rho_w / prhofirn[0]
+    ice_vol0   = psnic[0] * rh2oi
+    water_vol0 = pslwc[0]
+    vol0 = max(snow_vol0 + ice_vol0 + water_vol0, _eps)
+    harmonic_denom_skin = (
+        snow_vol0  / vol0 / max(zsn_condF(prhofirn[0]), _eps)
+        + ice_vol0   / vol0 / max(zso_cond[0], _eps)
+        + water_vol0 / vol0 / k_wat
+    )
+    zkappa_skin = 1.0 / max(harmonic_denom_skin, _eps)
+
+    # Skin-to-node-0 conductance per unit area [W m-2 K-1]
+    zkappa_abs_skin = zkappa_skin / max(dist_skin, _eps)
+
+    # Shift the chain coefficients up by one slot (in place, from the bottom
+    # up, to avoid overwriting values not yet read): new[jk+1] = old[jk].
+    for jk in range(len(pgrndc) - 2, -1, -1):
+        pgrndc[jk + 1] = pgrndc[jk]
+        pgrndd[jk + 1] = pgrndd[jk]
+
+    # Node-0 balance (fully-implicit / backward-Euler), with the skin playing
+    # the role that the "next node down the chain" plays in the interior
+    # recursion (`compute_pgrndc_pgrndd`) and that the virtual sub-layer plays
+    # at the bottom:
+    #
+    #   C_0/dt * (T_0 - T_0^n) = k_skin*(Tsurf - T_0) - k_01*(T_0 - T_1)
+    #
+    # with T_1 = pgrndc[1] + pgrndd[1] * T_0 (already known from the sweep
+    # above, now shifted into slot 1).  Solving for T_0 in terms of Tsurf:
+    z1 = 1.0 / (zcapa_abs[0] + zkappa_abs_skin + zkappa_abs[0] * (1 - pgrndd[1]))
+    pgrndc[0] = (ptsoil[0] * zcapa_abs[0] + zkappa_abs[0] * pgrndc[1]) * z1
+    pgrndd[0] = zkappa_abs_skin * z1
+
+    # -------------------------------------------------------------------------
+    # Diagnostics.
+    #
+    # `pgrndhflx`: predicted skin <-> node-0 conductive flux G [W m-2,
+    # positive upwards, i.e. from the subsurface towards the surface],
+    # evaluated the same way the previous Dirichlet-based diagnostic was —
+    # by reusing the current node-0 temperature as a proxy for the
+    # forthcoming Tsurf (this routine has no direct access to next step's
+    # SEB-derived skin temperature):
+    #
+    #     G_up = k_eff_skin/(0.5 dz_0) * (T_0_predicted - T_0_current)
+    #          = zkappa_abs_skin * (pgrndc[0] + (pgrndd[0]-1) * ptsoil[0])
+    #
+    # `pgrndcapc`: calorific capacity of node 0 [J m-2 K-1].  Node 0 now
+    # carries its own genuine heat capacity (it is no longer instantaneously
+    # reset to Tsurf each step), so this is simply its absolute heat capacity
+    # over one time-step — the old "augmented capacity" correction term that
+    # compensated for the Dirichlet relaxation towards node 1 is no longer
+    # needed/meaningful.
+    # -------------------------------------------------------------------------
+    pgrndhflx = zkappa_abs_skin * (pgrndc[0] + (pgrndd[0] - 1) * ptsoil[0])
+    pgrndcapc = zcapa_abs[0] * zdtime
     return pgrndc, pgrndd, pgrndcapc, pgrndhflx
 
 # Function added for a faster execution
