@@ -476,8 +476,6 @@ def melting(psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn):
         ptsoil[jk] = ptsoil[jk] + warming_energy / heat_capa
         # removing the corresponding amount from the prescribed melt
         zsnmel = zsnmel - warming_energy / 334000 / 999.8395  # in m weq
-        # adding what was used for the warming as ice content
-        psnic[jk] = psnic[jk] + warming_energy / 334000 / 999.8395
         # if we deleted the melt, no need to melt more layers
         if zsnmel < 1e-12:
             break
