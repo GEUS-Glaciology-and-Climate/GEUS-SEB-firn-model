@@ -452,6 +452,11 @@ def melting(psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn):
         if zsnmel < 1e-12:
             break
 
+        # skip layers without frozen material (nothing to warm or melt)
+        frozen = psnowc[jk] + psnic[jk]
+        if frozen < 1e-12:
+            continue
+
         # Update BV2017
         # How much energy is needed to bring the layer to melting point
         deltaT = 273.15 - ptsoil[jk]
@@ -480,21 +485,24 @@ def melting(psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn):
         # depleted. We can use the rest of zsnmel to change phase.
 
         #  How much frozen mass do we have in layer available for melting?
-        # zdel = min(zsnmel, psnowc[jk] + psnic[jk])
+        # zdel is computed once, before the layer is reduced, so that the
+        # frozen mass removed, the water added and the melt consumed are equal
+        frozen = psnowc[jk] + psnic[jk]
+        zdel = min(zsnmel, frozen)
 
         # Update BV2017: Snow and ice are now melted simultaneously
-        snow_melt = (
-            psnowc[jk] / (psnowc[jk] + psnic[jk]) * min(zsnmel, psnowc[jk] + psnic[jk])
-        )
-        ice_melt = (
-            psnic[jk] / (psnowc[jk] + psnic[jk]) * min(zsnmel, psnowc[jk] + psnic[jk])
-        )
+        snow_melt = psnowc[jk] / frozen * zdel
+        ice_melt = psnic[jk] / frozen * zdel
 
         psnowc[jk] = psnowc[jk] - snow_melt
         psnic[jk] = psnic[jk] - ice_melt
-        pslwc[jk] = pslwc[jk] + min(zsnmel, psnowc[jk] + psnic[jk])
-        if (pslwc<0).any(): import pdb; pdb.set_trace()
-        zsnmel = zsnmel - min(zsnmel, psnowc[jk] + psnic[jk])
+        pslwc[jk] = pslwc[jk] + zdel
+        if (pslwc < 0).any():
+            raise ValueError(
+                f"Negative liquid water content after melting layer {jk}: "
+                f"pslwc = {pslwc[pslwc < 0]} at layer(s) {np.where(pslwc < 0)[0]}"
+            )
+        zsnmel = zsnmel - zdel
 
     if np.sum((psnowc + psnic) == 0) > 1:
         print("MELTING MORE THAN ONE LAYER")
