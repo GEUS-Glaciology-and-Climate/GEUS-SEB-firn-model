@@ -491,27 +491,17 @@ def SmoothSurf_opt(
     u_star = get_u_star(c.kappa, WS, z_WS, z_0, psi_m2, psi_m1)
 
     Re = u_star * z_0 / nu
-    if Re <= 0.135:
-        ind = 0
-    elif (Re > 0.135) & (Re < 2.5):
-    #elif (0.135 > Re < 2.5):
-        ind = 1
-    elif Re >= 2.5:
-        ind = 2
-    else:
-        print("Re is nan")
-        ind = float("nan")
-        print("ERROR")
-        print("Re: ", Re)
+    if np.isnan(Re):
+        print("ERROR: Re is nan")
         print("u_star: ", u_star)
         print("z_WS: ",z_WS)
         print("psi_m2: ",psi_m2)
         print("psi_m1: ",psi_m1)
         print("nu: ",nu)
-        print("ind: ",ind)
 
     # smooth surfaces: Andreas 1987
-    z_h, z_q = get_zh_zq(z_0, c.ch1, c.ch2, c.ch3, ind, Re, c.cq1, c.cq2, c.cq3)
+    ch1, ch2, ch3, cq1, cq2, cq3 = andreas_coefficients(Re, c)
+    z_h, z_q = get_zh_zq(z_0, Re, ch1, ch2, ch3, cq1, cq2, cq3)
 
     if z_h < 1e-6:
         z_h = 1e-6
@@ -526,16 +516,29 @@ def SmoothSurf_opt(
 def get_u_star(kappa: float, WS: np.float64, z_WS: np.float64, z_0: np.float64, psi_m2: np.float64, psi_m1: np.float64):
     return kappa * WS / (np.log(z_WS / z_0) - psi_m2 + psi_m1)
 
+def andreas_coefficients(Re, c):
+    """Return the Andreas (1987) coefficients (ch1, ch2, ch3, cq1, cq2, cq3)
+    of the roughness lengths for heat and moisture for the Reynolds-number
+    regime of Re: low (Re <= 0.135), mid (0.135 < Re < 2.5) or high
+    (Re >= 2.5)."""
+    if Re <= 0.135:
+        return (c.ch1_low_Re, c.ch2_low_Re, c.ch3_low_Re,
+                c.cq1_low_Re, c.cq2_low_Re, c.cq3_low_Re)
+    if Re < 2.5:
+        return (c.ch1_mid_Re, c.ch2_mid_Re, c.ch3_mid_Re,
+                c.cq1_mid_Re, c.cq2_mid_Re, c.cq3_mid_Re)
+    if Re >= 2.5:
+        return (c.ch1_high_Re, c.ch2_high_Re, c.ch3_high_Re,
+                c.cq1_high_Re, c.cq2_high_Re, c.cq3_high_Re)
+    raise ValueError(f"Reynolds number is not a valid number: {Re}")
+
+
 # A function called from SmoothSurf, added for faster execution
 # Returns: Computed value of z_h and z_q
 @njit
-def get_zh_zq(z_0, ch1, ch2, ch3, ind, Re, cq1, cq2, cq3):
-    z_h = z_0 * np.exp(
-        ch1[ind] + ch2[ind] * np.log(Re) + ch3[ind] * (np.log(Re)) ** 2
-    )
-    z_q = z_0 * np.exp(
-        cq1[ind] + cq2[ind] * np.log(Re) + cq3[ind] * (np.log(Re)) ** 2
-    )
+def get_zh_zq(z_0, Re, ch1, ch2, ch3, cq1, cq2, cq3):
+    z_h = z_0 * np.exp(ch1 + ch2 * np.log(Re) + ch3 * (np.log(Re)) ** 2)
+    z_q = z_0 * np.exp(cq1 + cq2 * np.log(Re) + cq3 * (np.log(Re)) ** 2)
     return z_h, z_q
 
 
@@ -940,29 +943,11 @@ def SmoothSurf_old(WS, z_0, psi_m1, psi_m2, nu, z_WS, c):
     u_star = c.kappa * WS / (np.log(z_WS / z_0) - psi_m2 + psi_m1)
 
     Re = u_star * z_0 / nu
-    if Re <= 0.135:
-        ind = 0
-    elif (Re > 0.135) & (Re < 2.5):
-        ind = 1
-    elif Re >= 2.5:
-        ind = 2
-    else:
-        print("ERROR")
-        print(Re)
-        print(u_star)
-        print(z_WS)
-        print(psi_m2)
-        print(psi_m1)
-        print(nu)
-        print(ind)
 
     # smooth surfaces: Andreas 1987
-    z_h = z_0 * np.exp(
-        c.ch1[ind] + c.ch2[ind] * np.log(Re) + c.ch3[ind] * (np.log(Re)) ** 2
-    )
-    z_q = z_0 * np.exp(
-        c.cq1[ind] + c.cq2[ind] * np.log(Re) + c.cq3[ind] * (np.log(Re)) ** 2
-    )
+    ch1, ch2, ch3, cq1, cq2, cq3 = andreas_coefficients(Re, c)
+    z_h = z_0 * np.exp(ch1 + ch2 * np.log(Re) + ch3 * (np.log(Re)) ** 2)
+    z_q = z_0 * np.exp(cq1 + cq2 * np.log(Re) + cq3 * (np.log(Re)) ** 2)
 
     if z_h < 1e-6:
         z_h = 1e-6

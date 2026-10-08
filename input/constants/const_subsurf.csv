@@ -1,47 +1,48 @@
-﻿whwice;0.1; Ratio wh/wice of widths of holes in ice lenses to ice lenses. Colbeck 1975 does not give a value and this is a tuning parameter
-liqmax;0.02; Maximum liquid water fraction in the snow (pr pore space vol, SOMARS/RACMO uses 2%)
-do_no_darcy;0; Turn off effects of slower Darcy flow (flush down liqexcess immediately)
-old_perc;0;uses the old percolation scheme and superimposed ice function
-Ck;1;fraction of the water available for refreezing that refreezes during the time step
-ConductionModel;0;if 1 does conduction only
-calc_CLliq;1;uses Coleou and Lesaffre to calculate the irreduscible water content
-rho_pco;830; Pore close-off density (kg/m3) (determines when layer becomes impermeable)
-pemi;0.996; HIRHAM value of surface emissivity
-zdifiz;1.20E-06; temperature diffusivity of ice  [m**2/s]
-icemax;0.85; Ice fraction that determines when to stop counting snow depth
-cro_1;28512; (units seconds) Parameter c1 from Zuo & oerlemans and Reijmer et al. controlling runoff timescale. Z&O say 1.5 Reijmer (MAR) say 0.05, Lefebfre say 0.33
-cro_2;2160000; (units seconds) Parameter c2 from Zuo & oerlemans 
-cro_3;140; (unitless)      Parameter c3 from Zuo & oerlemans 
-a_rho;328.35327; a parameter in RFO's surface snow density parameterization 
-b_rho;-0.049376258; b parameter in RFO's surface snow density parameterization 
-c_rho;1.0426993; c parameter in RFO's surface snow density parameterization 
-d_rho;-0.11186342; d parameter in RFO's surface snow density parameterization 
-nuw;1.79E-06; Kinematic viscosity of water (at 0*C) [m2/s]    
-kice;0; Permeability of ice lenses
-dgrainNew;0.1; Grain diameter of newfallen snow (in mm)
-delta_time;3600; Model time step (s)
-eps;0.1; Tuning parameters
-missing_value;-999; Missing value
-smallno;1.00E-12; Small number for layer calculations   
-shallow_firn_lim;8;
-deep_firn_lim;20;
-thick_crit;5;
-new_bottom_lay;10;
-max_lay_thick;10;
-min_tot_thick;40;
-merge_crit_temp;1;
-merge_crit_dens;10;
-merge_crit_gsize;1;
-merge_crit_rel_lwc;0.1;
-merge_crit_rel_snic;0.1;
-new_lay_frac;5;number by which average accumulation is divided to give the new layer thickness
-lim_max_column;70;
-hetero_percol;0;choice for heterogeneous percolation parametrization
-hetero_percol_dist;10;depth range to which meltwater is routed
-hetero_percol_frac;0.1;fraction of the available water that is routed
-hetero_percol_p;0.001302083;probability for a heterogeneous percolation occurs
-crit_diff_grain;1;
-ice_threshold;0.3;
-t_runoff_fact;1;
-a_dens;1;
-b_dens;1;
+name,value,unit,description
+whwice,0.1,-,ratio wh/wice of the widths of holes in ice lenses to ice lenses (tuning parameter; Colbeck 1975 gives no value)
+liqmax,0.02,-,maximum liquid water fraction in the snow per pore-space volume (SOMARS/RACMO use 2%)
+do_no_darcy,0,-,1 = turn off the slower Darcy flow (flush liqexcess down immediately)
+old_perc,0,-,1 = use the old percolation scheme and superimposed ice function
+Ck,1,-,fraction of the water available for refreezing that refreezes during one time step
+ConductionModel,0,-,1 = conduction-only model
+calc_CLliq,1,-,1 = use Coleou and Lesaffre (1998) to calculate the irreducible water content
+rho_pco,830,kg m-3,pore close-off density (determines when a layer becomes impermeable)
+pemi,0.996,-,HIRHAM value of surface emissivity
+zdifiz,1.20E-06,m2 s-1,temperature diffusivity of ice
+icemax,0.85,-,ice fraction that determines when to stop counting snow depth
+cro_1,28512,s,runoff time-scale parameter c1 (Zuo & Oerlemans 1996; Reijmer et al.). Z&O: 1.5 d; Reijmer (MAR): 0.05 d; Lefebre: 0.33 d
+cro_2,2160000,s,runoff time-scale parameter c2 (Zuo & Oerlemans 1996)
+cro_3,140,-,runoff time-scale parameter c3 (Zuo & Oerlemans 1996)
+a_rho,328.35327,,parameter a in RFO's surface snow density parameterization
+b_rho,-0.049376258,,parameter b in RFO's surface snow density parameterization
+c_rho,1.0426993,,parameter c in RFO's surface snow density parameterization
+d_rho,-0.11186342,,parameter d in RFO's surface snow density parameterization
+nuw,1.79E-06,m2 s-1,kinematic viscosity of water at 0 degC
+kice,0,,permeability of ice lenses
+dgrainNew,0.1,mm,grain diameter of newly fallen snow
+delta_time,3600,s,model time step (overwritten in main_SEB_firn.py from the forcing frequency)
+eps,0.1,-,tuning parameter
+missing_value,-999,-,missing value flag
+smallno,1.00E-12,-,small number used in layer calculations
+shallow_firn_lim,8,m w.e.,depth above which layer merging is discouraged
+deep_firn_lim,20,m w.e.,depth below which layer merging is favoured and splitting is discouraged
+thick_crit,5,m w.e.,layer thickness at which the thickness-based splitting criterion reaches its maximum
+new_bottom_lay,10,m w.e.,thickness of the ice layer added at the bottom when no layer can be split
+max_lay_thick,10,m w.e.,maximum layer thickness
+min_tot_thick,40,m w.e.,minimum total column thickness for layers to be split (otherwise ice is added at the bottom)
+merge_crit_temp,1,K,temperature difference per 0.1 m w.e. above which two layers are not considered similar for merging
+merge_crit_dens,10,kg m-3,firn density difference per 0.1 m w.e. above which two layers are not considered similar for merging
+merge_crit_gsize,1,mm,grain size difference per 0.1 m w.e. above which two layers are not considered similar for merging
+merge_crit_rel_lwc,0.1,-,relative liquid water content difference per 0.1 m w.e. above which two layers are not considered similar for merging
+merge_crit_rel_snic,0.1,-,relative ice content difference per m w.e. above which two layers are not considered similar for merging
+new_lay_frac,5,-,number by which the average accumulation is divided to give the new layer thickness
+lim_max_column,70,m w.e.,maximum column thickness (legacy)
+hetero_percol,0,-,1 = use the heterogeneous percolation parameterization
+hetero_percol_dist,10,m,depth range to which meltwater is routed by heterogeneous percolation
+hetero_percol_frac,0.1,-,fraction of the available water that is routed by heterogeneous percolation
+hetero_percol_p,0.001302083,-,probability that heterogeneous percolation occurs
+crit_diff_grain,1,mm,grain size difference that stops heterogeneous percolation
+ice_threshold,0.3,-,ice fraction that stops heterogeneous percolation
+t_runoff_fact,1,-,multiplication factor applied to the runoff time scale
+a_dens,1,-,scaling factor on the snow viscosity in the densification scheme
+b_dens,1,-,scaling factor on the density dependence of the snow viscosity in the densification scheme

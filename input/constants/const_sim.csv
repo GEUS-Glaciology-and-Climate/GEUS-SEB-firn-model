@@ -1,26 +1,27 @@
-zdtime;3600;time step length in seconds
-dev;1;time step interpolation factor: 1,2,...,n (to keep sub-surface calculations stable)
-dTsurf_ini;10;initial surface temperature step in search for EB=0 (C)
-dz_ice;0.1;distance between vertical sub-surface levels (m)
-z_max;40;maximum depth for sub-surface levels (m)
-EB_max;0.1;surface temperature iteration will stop when the imbalance in the energy budget is less then EB_max (W/m2)
-iter_max_EB;60;max number of iterations in reaching EB=0
-iter_max_flux;20;max number of iterations in calculating flux profiles
-L_dif;0.01;limit of relative change in Obukhov length during flux iterations
-prec_cutoff;0;elevation below which there is half precipitation
-prec_rate;1.00E-03;artificial precipitation rate (m of water equivalent per hour)
-RH_min;20;lowest possible relative humidity over snow&ice after extrapolating over the DEM (%)
-WS_lim;1;wind speed below which turbulent fluxes are set to zero to prevent model instability (m/s)
-year;0;choice of year
-precip_rate ;0.001;
-fresh_snow_dens;315; 
-Tdeep;263; 
-verbose;1;
-avoid_runoff;0; if 1 runoff is not allowed
-sw_penetration;1;enable shortwave penetration into subsurface layers (1=on 0=off)
-THF_calc;1; choice of THF calculation: 1 = bulk, 2 = profile if possible, 3 = calculate both and save both results
-lim_new_lay;0.02;thickness in m w.e. for a new layer to be created
-snowthick_ini;1;initial snow thickness in meter
-output_path;./output/;
-station_info;input/constants/StationInfo.csv;
-initial_state_folder_path;./input/initial state/;
+name,value,unit,description
+zdtime,3600,s,time step length (overwritten in main_SEB_firn.py from the forcing frequency)
+dev,1,-,time step interpolation factor 1 to n (to keep sub-surface calculations stable)
+dTsurf_ini,10,K,initial surface temperature step in the search for EB=0
+dz_ice,0.1,m,distance between vertical sub-surface levels
+z_max,40,m w.e.,maximum depth of the sub-surface column
+EB_max,0.1,W m-2,surface temperature iteration stops when the energy budget imbalance is below EB_max
+iter_max_EB,60,-,maximum number of iterations to reach EB=0
+iter_max_flux,20,-,maximum number of iterations in the flux-profile calculation
+L_dif,0.01,m,convergence limit on the change in Obukhov length during flux iterations
+prec_cutoff,0,m a.s.l.,elevation below which precipitation is halved
+prec_rate,1.00E-03,m w.e. h-1,artificial precipitation rate
+RH_min,20,%,lowest possible relative humidity over snow and ice after extrapolation over the DEM
+WS_lim,1,m s-1,wind speed below which turbulent fluxes are set to zero to prevent model instability
+year,0,-,choice of year
+precip_rate,0.001,m w.e. h-1,precipitation rate
+fresh_snow_dens,315,kg m-3,density of fresh snow
+Tdeep,263,K,deep firn temperature at the bottom boundary (overwritten in main_SEB_firn.py)
+verbose,1,-,1 = print progress and make diagnostic plots; 0 = silent
+avoid_runoff,0,-,if 1 runoff is not allowed
+sw_penetration,0,-,enable shortwave penetration into subsurface layers (1 = on; 0 = off)
+THF_calc,1,-,choice of turbulent heat flux calculation: 1 = bulk; 2 = profile if possible; 3 = calculate both and save both results
+lim_new_lay,0.02,m w.e.,thickness of the snow bucket above which a new layer is created
+snowthick_ini,1,m,initial snow thickness
+output_path,./output/,,folder where model output is written
+station_info,input/constants/StationInfo.csv,,path to the station information file
+initial_state_folder_path,./input/initial state/,,folder containing the initial density/temperature/grain size profiles

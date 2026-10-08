@@ -1,45 +1,58 @@
-﻿alb_ice;0.45;albedo of ice -> if elev_bins = 1 then albedo will be determined from measurements
-alb_snow;0.8;albedo of snow -> if elev_bins = 1 then albedo will be determined from measurements
-es;0.622;
-es_0;6.1071;saturation vapour pressure at the melting point (hPa)
-es_100;1013.246;saturation vapour pressure at steam point temperature (hPa)
-em;0.98;longwave surface emissivity
-ext_air;1.50E-04;extinction coefficient of shortwave radiation in air for clear-sky conditions (m^-1)
-ext_air_cl;1.50E-04;cloud-dependent add-on to extinction coefficient of shortwave radiation in air (m^-1)
-ext_ice;5;extinction coefficient of shortwave radiation in ice (m^-1) (no penetration if set to 1e10)
-ext_snow;20;extinction coefficient of shortwave radiation in snow (m^-1) (no penetration if set to 1e10)
-g;9.82;gravitational constant (at sea level). 80 N -> 9.83, 60 N -> 9.82
-gamma;16;flux profile correction (Paulson & Dyer)
-kappa;0.4;Von Karman constant (0.35-0.42)
-L_sub;2.83E+06;latent heat of sublimation (J/kg)
-L_fus;3.34E+05;latent heat of fusion/melting (J/kg)
-L_vap;2.50E+06;latent heat of vaporization (J/kg)
-R_d;287.05;gas constant of dry air
-R_v;461.51;gas constant of water vapour
-rho_ice;900;density of ice (kg/m3)
-rho_snow;500;density of snow (kg/m3)
-rho_water;999.8395;density of water at the melting point (kg/m3)
-rh2oice;1.1109327777777778;
-sigma;5.67E-08;Stefan-Boltzmann's constant
-T_solidprecip;0;Near-surface temperature below which precipitation is solid (C)
-T_0;273.15;melting point temperature (K)
-T_100;373.15;steam point temperature (K)
-z0_ice;0.0032;surface roughness length for ice (m) as in Lefebvre et al. 2003
-z0_fresh_snow;0.00012;surface roughness length for snow (m) as in Lefebvre et al. 2003
-z0_old_snow;0.0013;surface roughness length for snow (m) as in Lefebvre et al. 2003
-aa;0.7;flux profile correction constants (Holtslag & De Bruin '88)
-bb;0.75;
-cc;5;
-dd;0.35;
-beta;2317;
-c_pd;1005;specific heat of dry air (J/kg/K)
-c_w;4210;specific heat of water at 0 C (J/kg/K) (Source www.engineeringtoolbox.com)
-k_water;0.56;thermal conductivity of liquid water at 0 C (W/m/K)
-ch1;1.25, 0.149, 0.317;used in calculating roughness length for heat z_h over smooth surfaces (Andreas 1987)
-ch2;0., -0.55, -0.565;
-ch3;0., 0., -0.183;
-cq1;1.61, 0.351, 0.396;used in calculating roughness length for moisture z_q over smooth surfaces (Andreas 1987)
-cq2;0., -0.628, -0.512;
-cq3;0., 0., -0.18;
-R;8.314;
-kappa_poisson;0.2854;for dry air ratio of R
+name,value,unit,description
+alb_ice,0.45,-,albedo of ice (only used if albedo is not prescribed by the forcing)
+alb_snow,0.8,-,albedo of snow (only used if albedo is not prescribed by the forcing)
+es,0.622,-,ratio of the molar masses of water vapour and dry air (epsilon)
+es_0,6.1071,hPa,saturation vapour pressure at the melting point
+es_100,1013.246,hPa,saturation vapour pressure at the steam point temperature
+em,0.98,-,longwave surface emissivity
+ext_air,1.50E-04,m-1,extinction coefficient of shortwave radiation in air for clear-sky conditions
+ext_air_cl,1.50E-04,m-1,cloud-dependent add-on to the extinction coefficient of shortwave radiation in air
+ext_ice,5,m-1,extinction coefficient of shortwave radiation in ice (no penetration if set to 1e10)
+ext_snow,20,m-1,extinction coefficient of shortwave radiation in snow (no penetration if set to 1e10)
+g,9.82,m s-2,gravitational acceleration at sea level (80 N: 9.83; 60 N: 9.82)
+gamma,16,-,flux-profile correction constant for unstable conditions (Paulson 1970; Dyer 1974)
+kappa,0.4,-,von Karman constant (0.35-0.42)
+L_sub,2.83E+06,J kg-1,latent heat of sublimation
+L_fus,3.34E+05,J kg-1,latent heat of fusion
+L_vap,2.50E+06,J kg-1,latent heat of vaporization
+R_d,287.05,J kg-1 K-1,gas constant of dry air
+R_v,461.51,J kg-1 K-1,gas constant of water vapour
+rho_ice,900,kg m-3,density of ice
+rho_snow,500,kg m-3,density of snow
+rho_water,999.8395,kg m-3,density of water at the melting point
+rh2oice,1.1109327777777778,-,ratio rho_water / rho_ice
+sigma,5.67E-08,W m-2 K-4,Stefan-Boltzmann constant
+T_solidprecip,0,degC,near-surface temperature below which precipitation is solid
+T_0,273.15,K,melting point temperature
+T_100,373.15,K,steam point temperature
+z0_ice,0.0032,m,surface roughness length for ice (Lefebre et al. 2003)
+z0_fresh_snow,0.00012,m,surface roughness length for fresh snow (Lefebre et al. 2003)
+z0_old_snow,0.0013,m,surface roughness length for old snow (Lefebre et al. 2003)
+aa,0.7,-,stable flux-profile correction constant a (Holtslag & De Bruin 1988)
+bb,0.75,-,stable flux-profile correction constant b (Holtslag & De Bruin 1988)
+cc,5,-,stable flux-profile correction constant c (Holtslag & De Bruin 1988)
+dd,0.35,-,stable flux-profile correction constant d (Holtslag & De Bruin 1988)
+beta,2317,,legacy constant from the original SEB code (not used in the Python version)
+c_pd,1005,J kg-1 K-1,specific heat of dry air
+c_w,4210,J kg-1 K-1,specific heat of water at 0 degC (www.engineeringtoolbox.com)
+k_water,0.56,W m-1 K-1,thermal conductivity of liquid water at 0 degC
+ch1_low_Re,1.25,-,coefficient 1 of the roughness length for heat z_h over smooth surfaces for Re <= 0.135 (Andreas 1987)
+ch1_mid_Re,0.149,-,coefficient 1 of the roughness length for heat z_h over smooth surfaces for 0.135 < Re < 2.5 (Andreas 1987)
+ch1_high_Re,0.317,-,coefficient 1 of the roughness length for heat z_h over smooth surfaces for Re >= 2.5 (Andreas 1987)
+ch2_low_Re,0.,-,coefficient 2 of the roughness length for heat z_h over smooth surfaces for Re <= 0.135 (Andreas 1987)
+ch2_mid_Re,-0.55,-,coefficient 2 of the roughness length for heat z_h over smooth surfaces for 0.135 < Re < 2.5 (Andreas 1987)
+ch2_high_Re,-0.565,-,coefficient 2 of the roughness length for heat z_h over smooth surfaces for Re >= 2.5 (Andreas 1987)
+ch3_low_Re,0.,-,coefficient 3 of the roughness length for heat z_h over smooth surfaces for Re <= 0.135 (Andreas 1987)
+ch3_mid_Re,0.,-,coefficient 3 of the roughness length for heat z_h over smooth surfaces for 0.135 < Re < 2.5 (Andreas 1987)
+ch3_high_Re,-0.183,-,coefficient 3 of the roughness length for heat z_h over smooth surfaces for Re >= 2.5 (Andreas 1987)
+cq1_low_Re,1.61,-,coefficient 1 of the roughness length for moisture z_q over smooth surfaces for Re <= 0.135 (Andreas 1987)
+cq1_mid_Re,0.351,-,coefficient 1 of the roughness length for moisture z_q over smooth surfaces for 0.135 < Re < 2.5 (Andreas 1987)
+cq1_high_Re,0.396,-,coefficient 1 of the roughness length for moisture z_q over smooth surfaces for Re >= 2.5 (Andreas 1987)
+cq2_low_Re,0.,-,coefficient 2 of the roughness length for moisture z_q over smooth surfaces for Re <= 0.135 (Andreas 1987)
+cq2_mid_Re,-0.628,-,coefficient 2 of the roughness length for moisture z_q over smooth surfaces for 0.135 < Re < 2.5 (Andreas 1987)
+cq2_high_Re,-0.512,-,coefficient 2 of the roughness length for moisture z_q over smooth surfaces for Re >= 2.5 (Andreas 1987)
+cq3_low_Re,0.,-,coefficient 3 of the roughness length for moisture z_q over smooth surfaces for Re <= 0.135 (Andreas 1987)
+cq3_mid_Re,0.,-,coefficient 3 of the roughness length for moisture z_q over smooth surfaces for 0.135 < Re < 2.5 (Andreas 1987)
+cq3_high_Re,-0.18,-,coefficient 3 of the roughness length for moisture z_q over smooth surfaces for Re >= 2.5 (Andreas 1987)
+R,8.314,J mol-1 K-1,universal gas constant
+kappa_poisson,0.2854,-,Poisson constant for dry air (R_d / c_pd)
