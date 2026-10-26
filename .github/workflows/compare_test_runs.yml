@@ -1,0 +1,94 @@
+name: Compare test runs with main
+
+# Runs the model on the test forcing in test_data/ with the main branch and
+# with the PR branch, then reports the differences in melt and SMB.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONWARNINGS: ignore
+      MPLBACKEND: Agg
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@v4
+        with:
+          path: pr
+
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pr/.github/workflows/compare_test_runs.yml
+
+      - name: Install dependencies
+        run: |
+          pip install numpy pandas xarray netCDF4 numba scipy tqdm matplotlib pytz
+
+      - name: Run test cases with main
+        id: run_main
+        continue-on-error: true
+        run: |
+          python pr/.github/scripts/run_test_cases.py \
+            --model-dir main --data-dir pr/test_data --out out/main
+
+      - name: Run test cases with PR branch
+        id: run_pr
+        continue-on-error: true
+        run: |
+          python pr/.github/scripts/run_test_cases.py \
+            --model-dir pr --data-dir pr/test_data --out out/pr
+
+      - name: Compare melt and SMB
+        run: |
+          python pr/.github/scripts/compare_runs.py \
+            --ref out/main --new out/pr --report report.md \
+            --ref-name main --new-name "PR #${{ github.event.pull_request.number }}"
+          {
+            echo ""
+            echo "Run with main: ${{ steps.run_main.outcome }}, run with PR branch: ${{ steps.run_pr.outcome }}."
+            echo "Constant Tdeep = 263 K; no spin-up (initial profiles from input/initial state)."
+          } >> report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post report as PR comment
+        # not possible from forks: their token is read-only
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} --body-file report.md \
+            --edit-last --create-if-none
+
+      - name: Upload model output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-run-output
+          path: |
+            out/**/*_surface.nc
+            out/**/error.txt
+            report.md
+          if-no-files-found: ignore
+
+      - name: Fail if the PR branch run failed
+        if: steps.run_pr.outcome == 'failure'
+        run: |
+          echo "The model failed on the test cases with the PR branch."
+          exit 1

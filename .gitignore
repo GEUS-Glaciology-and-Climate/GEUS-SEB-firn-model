@@ -1,5 +1,6 @@
 side analysis
 *.nc
+!test_data/*.nc
 *.png
 
 # Byte-compiled / optimized / DLL files
