@@ -56,6 +56,9 @@ def IniVar(time, c):
 
             file_path = c.spin_up_path + "/" + spin_up_run_name + "/"  \
                 + c.station + '_final.pkl'
+            # an explicit initial state file can be given instead of a spin-up
+            if getattr(c, 'initial_state_pkl', None):
+                file_path = c.initial_state_pkl
             with open(file_path, 'rb') as f:
                 [snowc[:, -1], snic[:, -1], slwc[:, -1], tsoil[:, -1],  rhofirn[:, -1],
                     dgrain[:, -1], Tsurf[-1], grndc[:, -1], grndd[:, -1], snowbkt[-1],
@@ -64,8 +67,8 @@ def IniVar(time, c):
                 rho[:, -1] = (snowc[:, -1] + snic[:, -1]) / (
                     snowc[:, -1] / rhofirn[:, -1] + snic[:, -1] / c.rho_ice
                 )
-            print('Initializing with',c.spin_up_path + "/" + spin_up_run_name + "/"  \
-                + c.station + '_final.pkl')
+            snowthick[-1] = c.snowthick_ini
+            print('Initializing with', file_path)
             return (rhofirn,  rho, snowc, snic, slwc, dgrain, tsoil, grndc, grndd,
                     compaction, zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp,
                     snowbkt, snowthick)

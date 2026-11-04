@@ -78,6 +78,13 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
     ) = variables_preparation(weather_df, c)
     T = np.round(T,7)
 
+    # observed surface temperature, only used when c.Tsurf_mode == 'observed'
+    # NaN values (gaps in observed LRout) fall back on the SEB inversion
+    if getattr(c, 'Tsurf_mode', 'inverted') == 'observed':
+        Tsurf_obs = observed_surface_temperature(weather_df, c)
+    else:
+        Tsurf_obs = np.full(len(time), np.nan)
+
     (
      rhofirn, rho, snowc, snic, slwc, dgrain, T_ice, grndc, grndd, compaction,
      zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp, snowbkt, snowthick
@@ -135,8 +142,17 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
 
         # effective conductivity by Anderson 1976, is ok at limits
         # https://repository.library.noaa.gov/view/noaa/6392
-        # thickness of the first layer in m weq for thermal transfer
-        thick_first_lay = snic[0, k - 1] + snowc[0, k - 1]
+        # distance (dz_GF) and subsurface temperature (T_GF) used for the
+        # conductive heat flux between the surface and the subsurface
+        if getattr(c, 'GF_formulation', 'original') == 'skin':
+            # Fourier's law between the skin and the middle of the first layer
+            dz_GF = thickness_m[0] / 2
+            T_GF = T_ice[0, k]
+        else:
+            # thickness of the first layer in m weq and temperature of the
+            # second layer
+            dz_GF = snic[0, k - 1] + snowc[0, k - 1]
+            T_GF = T_ice[1, k]
 
         # Prepare parameters needed for SEB
         EB_prev = 1
@@ -160,8 +176,11 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
             # ice roughness length
             z_0 = c.z0_ice
 
-        for findbalance in range(1, c.iter_max_EB):
-            # SENSIBLE AND LATENT HEAT FLUX
+        if not np.isnan(Tsurf_obs[k]):
+            # surface temperature prescribed from the observed upward longwave
+            # radiation. Melt is the positive energy residual when the observed
+            # surface is at the melting point, zero otherwise.
+            Tsurf[k] = Tsurf_obs[k]
             (
                 L[k], LHF[k], SHF[k], theta_2m[k], q_2m[k],
                 ws_10m[k], Re[k],
@@ -171,19 +190,38 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
                 theta_v[k].copy(), pres[k].copy(), rho_atm[k].copy(), z_WS[k].copy(),
                 z_T[k].copy(), z_RH[k].copy(), z_0, c, k
             )
+            meltflux[k], LRout[k] = surface_energy_residual(
+                SRnet, LRin[k], Tsurf[k], k_eff, dz_GF, T_GF,
+                T_rain[k], SHF[k], LHF[k], rainfall[k], c)
+            if Tsurf[k] < c.T_0:
+                meltflux[k] = 0
+            else:
+                meltflux[k] = max(meltflux[k], 0)
+        else:
+            for findbalance in range(1, c.iter_max_EB):
+                # SENSIBLE AND LATENT HEAT FLUX
+                (
+                    L[k], LHF[k], SHF[k], theta_2m[k], q_2m[k],
+                    ws_10m[k], Re[k],
+                ) = SensLatFluxes_bulk_opt(
+                    WS[k].copy(), nu[k].copy(), q[k].copy(), snowthick[k].copy(),
+                    Tsurf[k].copy(), theta[k].copy(),
+                    theta_v[k].copy(), pres[k].copy(), rho_atm[k].copy(), z_WS[k].copy(),
+                    z_T[k].copy(), z_RH[k].copy(), z_0, c, k
+                )
 
-            # SURFACE ENERGY BUDGET
-            (
-                meltflux[k], Tsurf[k], dTsurf, EB_prev, stop, LRout[k]
-             ) = SurfEnergyBudget(
-                SRnet, LRin[k].copy(), Tsurf[k].copy(), k_eff, thick_first_lay,
-                T_ice[:, k].copy(), T_rain[k].copy(), dTsurf, EB_prev,
-                SHF[k].copy(), LHF[k].copy(), rainfall[k].copy(), c,
-            )
-            if stop: break
+                # SURFACE ENERGY BUDGET
+                (
+                    meltflux[k], Tsurf[k], dTsurf, EB_prev, stop, LRout[k]
+                 ) = SurfEnergyBudget(
+                    SRnet, LRin[k].copy(), Tsurf[k].copy(), k_eff, dz_GF,
+                    T_GF, T_rain[k].copy(), dTsurf, EB_prev,
+                    SHF[k].copy(), LHF[k].copy(), rainfall[k].copy(), c,
+                )
+                if stop: break
 
-        if (findbalance == c.iter_max_EB) & (abs(meltflux[k]) >= 10 * c.EB_max):
-            print("Problem closing energy budget")
+            if (findbalance == c.iter_max_EB) & (abs(meltflux[k]) >= 10 * c.EB_max):
+                print("Problem closing energy budget")
 
         # Step 6/*:  Mass Budget in mweq
         melt_mweq[k] = meltflux[k] * c.zdtime / c.L_fus / c.rho_water
@@ -328,8 +366,41 @@ def variables_preparation(weather_df: pd.DataFrame, c: Struct):
             melt_mweq, sublimation_mweq,
             )
 
+def observed_surface_temperature(weather_df: pd.DataFrame, c: Struct):
+    # Surface temperature from observed upward and downward longwave radiation.
+    # Values within c.Tsurf_obs_melt_tol (K) of the melting point are considered
+    # melting surfaces (the radiometer uncertainty is several W/m2) and set to T_0.
+    if 'LongwaveRadiationUpWm2' not in weather_df.columns:
+        print('Warning: no observed LRout, surface temperature will be inverted')
+        return np.full(len(weather_df), np.nan)
+    LRout_obs = weather_df.LongwaveRadiationUpWm2.values
+    LRin = weather_df.LongwaveRadiationDownWm2.values
+    Tsurf_obs = ((LRout_obs - (1 - c.em) * LRin) / (c.em * c.sigma)) ** 0.25
+    tol = getattr(c, 'Tsurf_obs_melt_tol', 0.5)
+    Tsurf_obs[Tsurf_obs >= c.T_0 - tol] = c.T_0
+    return Tsurf_obs
+
+
+def surface_energy_residual(
+    SRnet, LRin, Tsurf, k_eff, dz_GF, T_GF, T_rain,
+    SHF, LHF, rainfall, c,
+):
+    # sum of the surface energy fluxes for a given surface temperature,
+    # positive values are available for melt
+    LRout_mdl = c.em * c.sigma * Tsurf ** 4 + (1 - c.em) * LRin
+
+    meltflux = (
+        SRnet[0] - SRnet[1]
+        + LRin - LRout_mdl
+        + SHF + LHF
+        - (k_eff[0]) * (Tsurf - T_GF) / dz_GF
+        + c.rho_water * c.c_w * rainfall * c.dev / c.zdtime * (T_rain - c.T_0)
+    )
+    return meltflux, LRout_mdl
+
+
 def SurfEnergyBudget(
-    SRnet,  LRin,  Tsurf,  k_eff,  thick_first_lay,  T_ice,  T_rain,
+    SRnet,  LRin,  Tsurf,  k_eff,  dz_GF,  T_GF,  T_rain,
     dTsurf,  EB_prev,  SHF,  LHF,  rainfall,  c,
 ):
     # meltflux[k], Tsurf[k], dTsurf, EB_prev, stop  \
@@ -345,16 +416,9 @@ def SurfEnergyBudget(
     # ==========================================================================
     stop = 0
     # SURFACE ENERGY BUDGET
-
-    LRout_mdl = c.em * c.sigma * Tsurf ** 4 + (1 - c.em) * LRin
-
-    meltflux = (
-        SRnet[0] - SRnet[1]
-        + LRin - LRout_mdl
-        + SHF + LHF
-        - (k_eff[0]) * (Tsurf - T_ice[1]) / thick_first_lay
-        + c.rho_water * c.c_w * rainfall * c.dev / c.zdtime * (T_rain - c.T_0)
-    )
+    meltflux, LRout_mdl = surface_energy_residual(
+        SRnet, LRin, Tsurf, k_eff, dz_GF, T_GF, T_rain,
+        SHF, LHF, rainfall, c)
 
     if (meltflux >= 0) & (Tsurf == c.T_0):
         # stop iteration for melting surface

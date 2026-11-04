@@ -189,10 +189,21 @@ def load_CARRA_data(*args, resample=True):
     df_carra['Snowfallmweq'] = df_carra['Snowfallmweq'].fillna(0)
     return df_carra
 
+def load_AWS_L3_forcing(c):
+    '''Reads the gap-filled AWS forcing made by tools/prepare_aws_forcing.py'''
+    df = pd.read_csv(c.surface_input_path, index_col=0, parse_dates=True)
+    c.latitude = df.latitude.iloc[0]
+    c.longitude = df.longitude.iloc[0]
+    c.altitude = df.altitude.iloc[0]
+    return df
+
+
 def load_surface_input_data(c, resample=True):
     df_surf = None
     if c.surface_input_driver  == 'AWS_old':
         df_surf = load_promice_old(c.surface_input_path)
+    if c.surface_input_driver  == 'AWS_L3':
+        df_surf = load_AWS_L3_forcing(c)
     # if c.surface_input_driver  == 'AWS':
     #     return load_promice(c.surface_input_path)
     if c.surface_input_driver  == 'CARRA':
