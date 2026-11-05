@@ -17,10 +17,11 @@ All the scripts were adapted from the ![Matlab version](https://github.com/Bapti
 1. [Overview](#overview)
 2. [Structure of the program](#structure-of-the-program)
 3. [Getting started](#start)
-4. [Coding and running tips](#tips)
-5. [Frequently asked questions](#faq)
-6. [Supported studies and references](#ref)
-7. [Funding](#funding)
+4. [Testing changes against main](#testing)
+5. [Coding and running tips](#tips)
+6. [Frequently asked questions](#faq)
+7. [Supported studies and references](#ref)
+8. [Funding](#funding)
 
 ## Overview
 These are the scripts for the Surface Energy Balance model from [van As et al. (2005)](https://doi.org/10.1007/s10546-004-4631-1) as used in Vandecrux et al. ([2018](https://doi.org/10.1029/2017JF004597), [2020a](https://doi.org/10.1017/jog.2020.30), [2020b](https://doi.org/10.5194/tc-2019-331)) and from the GEUS firn model also described in Vandecrux et al. ([2018](https://doi.org/10.1029/2017JF004597), [2020a](https://doi.org/10.1017/jog.2020.30), [2020b](https://doi.org/10.5194/tc-14-3785-2020)). They take as input gap-free time series of air temperature, humidity, wind speed, downward and upward shortwave radiation and downward longwave radiation, along with instrument heights and snowfall. These data can be prepared at PROMICE and GC-Net sites using this [AWS data processing suite](https://github.com/BaptisteVandecrux/AWS_processing). 
@@ -83,6 +84,14 @@ RCM_list = {'RACMO'};
 - You can now run the Main.m script. It will create a folder in *Output* where outputs will be saved in netcdf format. Consider the [Panoply tool](https://www.giss.nasa.gov/tools/panoply/) for easy visualization.
 
 - Many ideas for plots and analysis are available in [Analysis.m](Analysis.m) or in the [Study-specific scripts](/Study-specific%20scripts)
+
+## Testing changes against main <a name="testing" />
+
+Every change to the model is checked by running the same test cases with `main` and with the modified code, and comparing melt, runoff, refreezing, sublimation and SMB.
+
+- Test cases are the files `test_data/<site>_<year>.nc`: one year of 3-hourly CARRA forcing at one site, in the same format as `CARRA_at_AWS.nc`. They are run without spin-up (initial profiles from `input/initial state`) and with a constant deep firn temperature of 263 K. Any file added to `test_data` becomes a new test case.
+- **Locally**: double-click `tools/compare_branches.bat` (or run `python tools/compare_branches.py --name <short_pr_name>`). It compares `origin/main` with your working tree, including uncommitted changes, and writes the figures (`<site>_<year>_<figure>.png`), a summary table (`summary.md`) and a template for the PR description (`PR_description.md`) to `docs/PR_results/<date>_<short_pr_name>/`. Commit that folder with the PR and paste `PR_description.md` into the PR description: the figures will show once the branch is pushed.
+- **On GitHub**: the workflow `.github/workflows/compare_test_runs.yml` runs the same comparison on every pull request, posts the summary table as a PR comment and attaches the figures to the workflow run.
 
 ## Coding and running tips <a name="tips" />
 - I have divided every scripts into sections using the command ‘%%’. Matlab allow to expend or collapse each section using the ‘+’ or ‘-‘ sign next to ‘%%’. This works also for ‘for’ loops and ‘if’ loops. For better visibility, you can always start by collapsing all sections (‘View’ tab> collapse all) and open only the section that you are interested in. Each section should have a clear name to help you navigate into the script. This should avoid you to scroll up and down all day.

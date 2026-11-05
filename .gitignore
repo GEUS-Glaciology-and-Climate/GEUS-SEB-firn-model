@@ -1,6 +1,8 @@
 side analysis
 *.nc
+!test_data/*.nc
 *.png
+!docs/PR_results/**/*.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
