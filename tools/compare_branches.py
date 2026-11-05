@@ -53,18 +53,22 @@ def export_working_tree(dest):
             shutil.copy2(src, os.path.join(dest, f))
 
 
-def github_url_of(folder):
-    """URL of a repository folder on the current branch on GitHub, or None."""
+def github_urls_of(folder, base_branch):
+    """URLs of a repository folder on GitHub, on the current branch and on the
+    base branch (where it will be once the PR is merged). Empty list if the
+    repository is not on GitHub."""
     try:
         remote = git("remote", "get-url", "origin")
         branch = git("branch", "--show-current")
     except subprocess.CalledProcessError:
-        return None
+        return []
     match = re.search(r"github\.com[:/](.+?)(\.git)?$", remote)
-    if not match or not branch:
-        return None
+    if not match:
+        return []
     rel = os.path.relpath(folder, REPO).replace(os.sep, "/")
-    return f"https://github.com/{match.group(1)}/blob/{branch}/{rel}"
+    branches = [b for b in [branch, base_branch] if b]
+    return [f"https://github.com/{match.group(1)}/blob/{b}/{rel}"
+            for b in dict.fromkeys(branches)]
 
 
 def run_version(label, model_dir, data_dir, runs_dir, log_dir):
@@ -124,8 +128,7 @@ def main():
                "--out", out,
                "--base-name", args.base.replace("origin/", ""),
                "--head-name", head_name]
-        url = github_url_of(out)
-        if url:
+        for url in github_urls_of(out, args.base.replace("origin/", "")):
             cmd += ["--image-url-prefix", url]
         subprocess.run(cmd, check=True)
     finally:

@@ -11,7 +11,7 @@ For every test case (<site>_<year>) found in either run, writes to --out:
 
 Usage:
     python compare_runs.py --base-runs <dir> --head-runs <dir> --out <dir>
-        [--base-name main] [--head-name PR] [--image-url-prefix <url>]
+        [--base-name main] [--head-name PR] [--image-url-prefix <url> ...]
 """
 import argparse
 import glob
@@ -179,9 +179,13 @@ def main():
     parser.add_argument("--out", required=True)
     parser.add_argument("--base-name", default="main")
     parser.add_argument("--head-name", default="PR")
-    parser.add_argument("--image-url-prefix", default=None,
+    parser.add_argument("--image-url-prefix", action="append", default=[],
                         help="URL of the --out folder on GitHub, used to embed "
-                             "the figures in PR_description.md")
+                             "the figures in PR_description.md. Can be given "
+                             "several times (e.g. PR branch and main): each "
+                             "figure is then linked from every location, with "
+                             "an empty alt text so that links that do not "
+                             "resolve (yet, or any more) display nothing")
     args = parser.parse_args()
     os.makedirs(args.out, exist_ok=True)
 
@@ -219,8 +223,9 @@ def main():
     if args.image_url_prefix:
         for case in cases:
             description += [f"### {case}", ""]
-            description += [f"![{name}]({args.image_url_prefix}/{name}?raw=true)"
-                            for name in figures[case]]
+            for name in figures[case]:
+                description += [f'<img src="{prefix}/{name}?raw=true" alt="">'
+                                for prefix in args.image_url_prefix]
             description.append("")
     with open(os.path.join(args.out, "PR_description.md"), "w") as f:
         f.write("\n".join(description) + "\n")

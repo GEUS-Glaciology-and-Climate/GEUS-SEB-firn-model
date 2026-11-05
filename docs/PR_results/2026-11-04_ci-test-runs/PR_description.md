@@ -43,25 +43,37 @@ Totals over each test case in m w.e. (ci/test-runs vs main). Constant Tdeep = 26
 
 ### DY2_2012
 
-![DY2_2012_cumulative_melt_smb.png](https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/DY2_2012_cumulative_melt_smb.png?raw=true)
-![DY2_2012_cumulative_runoff_refreezing.png](https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/DY2_2012_cumulative_runoff_refreezing.png?raw=true)
-![DY2_2012_lwc_profiles.png](https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/DY2_2012_lwc_profiles.png?raw=true)
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/DY2_2012_cumulative_melt_smb.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/main/docs/PR_results/2026-11-04_ci-test-runs/DY2_2012_cumulative_melt_smb.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/DY2_2012_cumulative_runoff_refreezing.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/main/docs/PR_results/2026-11-04_ci-test-runs/DY2_2012_cumulative_runoff_refreezing.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/DY2_2012_lwc_profiles.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/main/docs/PR_results/2026-11-04_ci-test-runs/DY2_2012_lwc_profiles.png?raw=true" alt="">
 
 ### DY2_2019
 
-![DY2_2019_cumulative_melt_smb.png](https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/DY2_2019_cumulative_melt_smb.png?raw=true)
-![DY2_2019_cumulative_runoff_refreezing.png](https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/DY2_2019_cumulative_runoff_refreezing.png?raw=true)
-![DY2_2019_lwc_profiles.png](https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/DY2_2019_lwc_profiles.png?raw=true)
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/DY2_2019_cumulative_melt_smb.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/main/docs/PR_results/2026-11-04_ci-test-runs/DY2_2019_cumulative_melt_smb.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/DY2_2019_cumulative_runoff_refreezing.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/main/docs/PR_results/2026-11-04_ci-test-runs/DY2_2019_cumulative_runoff_refreezing.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/DY2_2019_lwc_profiles.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/main/docs/PR_results/2026-11-04_ci-test-runs/DY2_2019_lwc_profiles.png?raw=true" alt="">
 
 ### KAN_L_2012
 
-![KAN_L_2012_cumulative_melt_smb.png](https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/KAN_L_2012_cumulative_melt_smb.png?raw=true)
-![KAN_L_2012_cumulative_runoff_refreezing.png](https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/KAN_L_2012_cumulative_runoff_refreezing.png?raw=true)
-![KAN_L_2012_lwc_profiles.png](https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/KAN_L_2012_lwc_profiles.png?raw=true)
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/KAN_L_2012_cumulative_melt_smb.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/main/docs/PR_results/2026-11-04_ci-test-runs/KAN_L_2012_cumulative_melt_smb.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/KAN_L_2012_cumulative_runoff_refreezing.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/main/docs/PR_results/2026-11-04_ci-test-runs/KAN_L_2012_cumulative_runoff_refreezing.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/KAN_L_2012_lwc_profiles.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/main/docs/PR_results/2026-11-04_ci-test-runs/KAN_L_2012_lwc_profiles.png?raw=true" alt="">
 
 ### KAN_L_2019
 
-![KAN_L_2019_cumulative_melt_smb.png](https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/KAN_L_2019_cumulative_melt_smb.png?raw=true)
-![KAN_L_2019_cumulative_runoff_refreezing.png](https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/KAN_L_2019_cumulative_runoff_refreezing.png?raw=true)
-![KAN_L_2019_lwc_profiles.png](https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/KAN_L_2019_lwc_profiles.png?raw=true)
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/KAN_L_2019_cumulative_melt_smb.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/main/docs/PR_results/2026-11-04_ci-test-runs/KAN_L_2019_cumulative_melt_smb.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/KAN_L_2019_cumulative_runoff_refreezing.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/main/docs/PR_results/2026-11-04_ci-test-runs/KAN_L_2019_cumulative_runoff_refreezing.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/ci/test-runs/docs/PR_results/2026-11-04_ci-test-runs/KAN_L_2019_lwc_profiles.png?raw=true" alt="">
+<img src="https://github.com/GEUS-Glaciology-and-Climate/GEUS-SEB-firn-model/blob/main/docs/PR_results/2026-11-04_ci-test-runs/KAN_L_2019_lwc_profiles.png?raw=true" alt="">
 
