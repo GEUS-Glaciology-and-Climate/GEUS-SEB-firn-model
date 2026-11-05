@@ -18,6 +18,7 @@ fresh_snow_dens,315,kg m-3,density of fresh snow
 Tdeep,263,K,deep firn temperature at the bottom boundary (overwritten in main_SEB_firn.py)
 verbose,1,-,1 = print progress and make diagnostic plots; 0 = silent
 avoid_runoff,0,-,if 1 runoff is not allowed
+sw_penetration,0,-,shortwave radiation penetrating below the top layer: 1 = on (Beer-Lambert extinction with ext_snow and ext_ice); 0 = all absorbed at the surface
 THF_calc,1,-,choice of turbulent heat flux calculation: 1 = bulk; 2 = profile if possible; 3 = calculate both and save both results
 lim_new_lay,0.02,m w.e.,thickness of the snow bucket above which a new layer is created
 snowthick_ini,1,m,initial snow thickness

@@ -26,6 +26,7 @@ import xarray as xr
 # variables compared, all in m w.e. per time step in <site>_surface.nc
 VARIABLES = {
     "melt_mweq": "Melt",
+    "internal_melt_mweq": "Internal melt",
     "runoff_mweq": "Runoff",
     "refreezing_mweq": "Refreezing",
     "sublimation_mweq": "Sublimation",
@@ -154,21 +155,31 @@ def plot_lwc(case, base, head, base_name, head_name, out_dir):
 
 
 def summary_table(cases, runs, base_name, head_name):
+    """Table of the totals of each variable. A variable that only one of the
+    runs has (e.g. a new output) is shown as n/a for the other run and is
+    not used to decide whether the runs are identical."""
     lines = ["| Test case | Variable | " + base_name + " | " + head_name
              + " | Difference | Difference (%) |",
              "|---|---|---|---|---|---|"]
-    identical = True
+    identical = all(b is not None and h is not None
+                                    for b, h in runs.values())
     for case in cases:
         base, head = runs[case]
         for var, label in VARIABLES.items():
-            b = base[var].sum() if base is not None and var in base else np.nan
-            h = head[var].sum() if head is not None and var in head else np.nan
-            diff = h - b
-            pct = f"{100 * diff / abs(b):+.1f}" if b else "n/a"
-            if not (base is not None and head is not None and var in base and var in head
-                    and np.array_equal(base[var].values, head[var].values)):
-                identical = False
-            lines.append(f"| {case} | {label} | {b:.3f} | {h:.3f} | {diff:+.3f} | {pct} |")
+            in_base = base is not None and var in base
+            in_head = head is not None and var in head
+            if not (in_base or in_head):
+                continue
+            b = f"{base[var].sum():.3f}" if in_base else "n/a"
+            h = f"{head[var].sum():.3f}" if in_head else "n/a"
+            if in_base and in_head:
+                bs, diff = base[var].sum(), head[var].sum() - base[var].sum()
+                d, pct = f"{diff:+.3f}", (f"{100 * diff / abs(bs):+.1f}" if bs else "n/a")
+                if not np.array_equal(base[var].values, head[var].values):
+                    identical = False
+            else:
+                d = pct = "n/a"
+            lines.append(f"| {case} | {label} | {b} | {h} | {d} | {pct} |")
     return lines, identical
 
 

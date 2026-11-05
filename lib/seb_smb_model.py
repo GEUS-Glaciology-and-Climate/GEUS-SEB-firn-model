@@ -82,6 +82,8 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
      rhofirn, rho, snowc, snic, slwc, dgrain, T_ice, grndc, grndd, compaction,
      zrfrz, zrogl, pgrndcapc, pgrndhflx, dH_comp, snowbkt, snowthick
     ) = IniVar(time, c)
+    # melt below the top layer from absorbed shortwave radiation (m w.e.)
+    internal_melt_mweq = np.zeros(len(time))
 
     if np.isnan(c.Tdeep):
         print('Warning: assigning Tdeep')
@@ -120,16 +122,24 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
             * c.rho_water / thickness_m
         )
 
-        # All net shortwave radiation is absorbed at the surface (SRnet[0];
-        # SurfEnergyBudget uses SRnet[0] - SRnet[1]). The subsurface
-        # temperature is only changed by the subsurface model: it is not
-        # warmed here by shortwave radiation, which would count the same
-        # energy twice (at the surface and through the conductive flux from
-        # the warmer second layer). Penetration of shortwave radiation below
-        # the surface (SRbalance) is not used.
+        # The subsurface temperature is only changed by the subsurface model
+        # (heat diffusion, refreezing, and absorbed shortwave radiation when
+        # c.sw_penetration is on). It is not warmed here, which would count
+        # the same energy twice (at the surface and through the conductive
+        # flux from the warmer second layer).
         T_ice[:, k] = T_ice[:, k - 1]
-        SRnet = np.zeros(len(thickness_m))
-        SRnet[0] = SRin[k] - SRout[k]
+        if c.sw_penetration:
+            # SRnet[i]: downwelling shortwave flux at the top of layer i. The
+            # surface energy budget gets what is absorbed in the top layer
+            # (SRnet[0] - SRnet[1]); what is absorbed below (sw_absorbed) is
+            # given to the subsurface model.
+            SRnet, sw_absorbed = SRbalance(
+                SRin[k] - SRout[k], ind_ice, thickness_m, c)
+        else:
+            # all net shortwave radiation is absorbed at the surface
+            SRnet = np.zeros(len(thickness_m))
+            SRnet[0] = SRin[k] - SRout[k]
+            sw_absorbed = None
 
         # Step 5/*:  Surface temperature calculation
         k_eff = 0.021 + 2.5e-6 * rho[:, k] ** 2
@@ -199,7 +209,7 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
             dgrain[:, k], zrogl[k],
             Tsurf[k], grndc[:, k], grndd[:, k],
             pgrndcapc[k], pgrndhflx[k], dH_comp[k],
-            snowbkt[k], compaction[:, k],
+            snowbkt[k], compaction[:, k], internal_melt_mweq[k],
         ) = subsurface_opt(
             Tsurf[k].copy(), grndc[:, k - 1].copy(), grndd[:, k - 1].copy(),
             slwc[:, k - 1].copy(), snic[:, k - 1].copy(), snowc[:, k - 1].copy(),
@@ -207,7 +217,8 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
             snowfall[k] + sublimation_mweq[k].copy(),  # net accumulation
             rainfall[k].copy(),  # rain
             melt_mweq[k].copy(),  # melt
-            c.Tdeep, snowbkt[k - 1].copy(), c
+            c.Tdeep, snowbkt[k - 1].copy(), c,
+            sw_absorbed=sw_absorbed,
         )
         if ((snowc[:, k]+snic[:, k]) == 0).any():
             print((snowc[:, k]+snic[:, k]) == 0)
@@ -241,7 +252,7 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
             sublimation_mweq, SRin, SRout, LRin, LRout,
             snowc, snic, slwc, T_ice, zrfrz, rhofirn, dgrain,
             zrogl, Tsurf, grndc, grndd, pgrndcapc, pgrndhflx, dH_comp,
-            snowbkt, compaction, snowthick)
+            snowbkt, compaction, snowthick, internal_melt_mweq)
 
 
 def IniRhoSnow(T, WS, c: Struct):
@@ -385,80 +396,48 @@ def SurfEnergyBudget(
     return meltflux, Tsurf, dTsurf, EB_prev, stop, LRout_mdl
 
 
-def SRbalance(SRnet_surf, ind_ice, thickness_m, T_ice, rho, c):
-    '''
-    SRbalance: Calculates the amount of Shortwave Radiation that is
-    penetrating at each layer (SRnet). Uses it to warm each layer and
-    eventually calculates the melt that is produced by this warming
+def SRbalance(SRnet_surf, ind_ice, thickness_m, c):
+    """Shortwave radiation penetrating the snow and ice layers, with
+    Beer-Lambert extinction (Greuell and Maykut, 1977): extinction
+    coefficient c.ext_snow in the snowpack (layers above ind_ice) and c.ext_ice
+    in the ice below.
 
     Inputs:
-          SRnet_surf      SRin-SRout
-          ind_ice         index of first ice layer underlying the snowpack
-          tickness_m      vector of layer thicknesses in meter
-          T_ice           vector of snow/ice temperature
-          rho             vector of bulk density
-          c               structure with all constants
+        SRnet_surf   net shortwave radiation at the surface, SRin - SRout (W m-2)
+        ind_ice      index of the first layer below the snowpack
+        thickness_m  layer thicknesses (m)
+        c            constants
+
+    Returns:
+        SRnet        downwelling shortwave flux at the top of each layer
+                     (W m-2): SRnet[0] = SRnet_surf, and SRnet[i] - SRnet[i+1]
+                     is absorbed in layer i (used by SurfEnergyBudget for the
+                     top layer)
+        sw_absorbed  shortwave radiation absorbed in each layer below the top
+                     one (W m-2); sw_absorbed[0] = 0 as the top layer is in
+                     the surface energy budget. The bottom layer absorbs what
+                     is left.
 
     Author: Dirk Van As (dva@geus.dk) & Robert S. Fausto (rsf@geus.dk)
-    translated to python by Baptiste Vandecrux (bav@geus.dk)
-    ==========================================================================
-    extinction coefficient of ice 0.6 to 1.5 m-1
-    extinction coefficient of snow 4 to 40 m-1
-    Greufell and Maykut, 1977, Journal of Glaciology, Vol. 18, No. 80, 1977
-
-    radiation absorption in snow
-    SRnet(snow_layer) = (SRin - SRout)
-        *exp(-ext_snow*depth(snow_layer))
-
-    radiation absorption in ice layers underneath the snowpack
-      SRnet(ice_layer) = (SRin-SRout).*
-            exp(-ext_snow*snowthick).*
-            exp(-ext_ice*(depth(ice_layer) - snowthick))
-    '''
-    SRnet = np.empty_like(T_ice)
-    depth_m = np.cumsum(thickness_m, 0)
-
-    # radiation absorption in snow
-    if ind_ice>0:
-        SRnet[:ind_ice] = SRnet_surf * (1 - np.exp(-c.ext_snow * depth_m[:ind_ice]))
-        SRnet[1:ind_ice] = SRnet[1:ind_ice] - SRnet[:(ind_ice-1)]
-
-        # radiation absorption in underlying ice
-        if ind_ice < len(SRnet):
-            SRnet[ind_ice:] = (
-                SRnet_surf
-                * np.exp(-c.ext_snow * depth_m[ind_ice-1])
-                * (1 - np.exp(-c.ext_ice * (depth_m[ind_ice:] - depth_m[ind_ice-1])))
-            )
-            SRnet[(ind_ice+1):] = SRnet[(ind_ice+1):] - SRnet[ind_ice:-1]
-    elif ind_ice == 0:
-        # radiation absorption in ice only
-        SRnet = SRnet_surf * (1 - np.exp(-c.ext_ice * depth_m))
-        SRnet[1:] = SRnet[1:] - SRnet[:-1]
-
-    # print(ind_ice, SRnet[0], SRnet[1])
-
-    # snow & ice temperature rise due to shortwave radiation absorption
-    # Specific heat of ice (a slight overestimation for near-melt T (max 48 J kg-1 K-1))
-    c_i = 152.456 + 7.122 * T_ice
-
-    T_ice = T_ice + SRnet * c.zdtime / c.dev / rho / c_i / thickness_m
-    # SRnet [W = J/s] x zdtime/dev [s] / rho [kg m-3] / c_i [J kg-1 K-1] / thick [m]
-
-    # finding where/how much melt occurs
-    subsurfmelt = T_ice > c.T_0
-    nosubsurfmelt = T_ice <= c.T_0
-    dT_ice = T_ice - c.T_0
-    dT_ice[nosubsurfmelt] = 0
-
-    meltflux_internal = rho * c_i * dT_ice / c.zdtime * c.dev * thickness_m
-    meltflux_internal_sum = np.sum(meltflux_internal)
-
-    if np.sum(subsurfmelt) > 0:
-        T_ice[subsurfmelt] = c.T_0  # removing non-freezing temperatures
-
-    # Reduce sub-surface density due to melt? Will most likely cause model instability
-    return SRnet, T_ice, meltflux_internal_sum
+    translated to python and updated by Baptiste Vandecrux (bav@geus.dk)
+    extinction coefficient of ice 0.6 to 1.5 m-1, of snow 4 to 40 m-1
+    Greuell and Maykut, 1977, Journal of Glaciology, Vol. 18, No. 80
+    """
+    depth_bottom = np.cumsum(thickness_m)
+    depth_top = depth_bottom - thickness_m
+    if ind_ice > 0:
+        snow_base = depth_bottom[ind_ice - 1]
+        optical_depth = np.where(
+            depth_top < snow_base,
+            c.ext_snow * depth_top,
+            c.ext_snow * snow_base + c.ext_ice * (depth_top - snow_base),
+        )
+    else:
+        optical_depth = c.ext_ice * depth_top
+    SRnet = SRnet_surf * np.exp(-optical_depth)
+    sw_absorbed = SRnet - np.append(SRnet[1:], 0.0)
+    sw_absorbed[0] = 0.0
+    return SRnet, sw_absorbed
 
 
 def RoughSurf(WS, z_0, psi_m1, psi_m2, nu, z_WS, c):

@@ -3,7 +3,8 @@ import lib.percolation as lp
 from numba import jit, njit
 
 def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
-                   ptsoil, pdgrain, zsn, zraind, zsnmel, pTdeep, psnowbkt, c):
+                   ptsoil, pdgrain, zsn, zraind, zsnmel, pTdeep, psnowbkt, c,
+                   sw_absorbed=None):
     # HIRHAM subsurface scheme - version 2016
     # Developped by Peter Langen (DMI), Robert Fausto (GEUS)
     # and Baptiste Vandecrux (DTU-GEUS)
@@ -26,6 +27,13 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
     # This thickness is allowed to vary within certain rules.
 
     ptsoil = tsoil_diffusion(pts, pgrndc, pgrndd, ptsoil)
+
+    # shortwave radiation absorbed below the top layer (c.sw_penetration).
+    # Applied after the diffusion, which recomputes all layer temperatures.
+    internal_melt = 0.0
+    if sw_absorbed is not None:
+        psnowc, psnic, pslwc, ptsoil, internal_melt = sw_heating(
+            psnowc, psnic, pslwc, ptsoil, sw_absorbed, c)
 
     prhofirn, dH_comp, compaction = densification(pslwc, psnowc, psnic, prhofirn, ptsoil, c)
 
@@ -77,7 +85,7 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
     )
     return (psnowc, psnic, pslwc, ptsoil, zrfrz, prhofirn, pdgrain,
             zrogl, ptsoil[0], pgrndc, pgrndd, pgrndcapc, pgrndhflx, dH_comp,
-            psnowbkt, compaction)
+            psnowbkt, compaction, internal_melt)
 
 
 
@@ -161,6 +169,32 @@ def switch_snowbucket_to_first_layer(ptsoil, psnic, psnowc, pslwc,pts,psnowbkt,
     psnowc = psnowc + psnowbkt
     psnowbkt = 0
     return ptsoil, psnowc, pslwc,psnowbkt,prhofirn, pdgrain
+
+
+def sw_heating(psnowc, psnic, pslwc, ptsoil, sw_absorbed, c):
+    """Warm the layers with the shortwave radiation they absorb
+    (sw_absorbed, W m-2, from SRbalance). The energy absorbed during the time
+    step first warms the frozen part of the layer to the melting point, the
+    rest melts snow and ice in proportion of their mass (as in melting()).
+    The meltwater is added to the liquid water content of the layer and then
+    percolates or refreezes like any other water. Returns the updated layers
+    and the total melt (m w.e.)."""
+    frozen = psnowc + psnic  # m w.e.
+    has_frozen = frozen > c.smallno
+    energy = np.where(has_frozen, sw_absorbed * c.zdtime, 0.0)  # J m-2
+    heat_capa = cpiceF(ptsoil) * frozen * c.rho_water  # J m-2 K-1
+    cold_content = np.maximum(c.T_0 - ptsoil, 0.0) * heat_capa  # J m-2
+    warming = np.minimum(energy, cold_content)
+    ptsoil = np.where(has_frozen,
+                      ptsoil + warming / np.where(has_frozen, heat_capa, 1.0),
+                      ptsoil)
+    melt = np.minimum((energy - warming) / c.L_fus / c.rho_water, frozen)  # m w.e.
+    snow_part = np.where(has_frozen, psnowc / np.where(has_frozen, frozen, 1.0), 0.0)
+    psnowc = psnowc - melt * snow_part
+    psnic = psnic - melt * (1 - snow_part)
+    pslwc = pslwc + melt
+    return psnowc, psnic, pslwc, ptsoil, melt.sum()
+
 
 @jit(nopython=True)
 def tsoil_diffusion(pts, pgrndc, pgrndd, ptsoil):

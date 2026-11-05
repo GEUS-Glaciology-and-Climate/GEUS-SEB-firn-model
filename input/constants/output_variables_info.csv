@@ -23,7 +23,8 @@ rainHF,Heat flux from rain,Wm-2
 meltflux,Melt energy,Wm-2
 H_surf,Surface height above model lower boundary at start in meters,m
 smb_mweq,Surface mass balance water equivalent,m w.e.
-melt_mweq,Melt per time step in water equivalent,m w.e.
+melt_mweq,Surface melt per time step in water equivalent,m w.e.
+internal_melt_mweq,Melt below the top layer from absorbed shortwave radiation per time step (sw_penetration),m w.e.
 zrogl,Runoff per time step in water equivalent,m w.e.
 sublimation_mweq,Sublimation per time step,m w.e.
 H_comp,Cumulated compaction in meters,m
