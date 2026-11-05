@@ -1,8 +1,8 @@
 """Run one version of the GEUS SEB-firn model on all test cases.
 
 Every file test_data/<site>_<year>.nc is one test case: a one-year forcing
-for one site, in the same format as CARRA_at_AWS.nc. Each case is run
-without spin-up (initial profiles from input/initial state) and with a
+for one site, in the same format as CARRA_at_AWS.nc. Each case starts from
+the initial state csv files in input/initial state (no spin-up), with a
 constant deep firn temperature, so that two model versions are run in
 exactly the same conditions.
 
@@ -78,7 +78,10 @@ def main():
             station=site,
             surface_input_path=path,
             output_path=case_dir,
-            spin_up_path=os.path.join(case_dir, "no_spin_up"),
+            # no spin-up: start from input/initial state. Versions where
+            # spin_up_path is required look for a spin-up file there, do not
+            # find it and also fall back to input/initial state.
+            spin_up_path=None,
             output_var=["slwc"],  # surface output + liquid water profiles
             plot=False,
             silent=True,

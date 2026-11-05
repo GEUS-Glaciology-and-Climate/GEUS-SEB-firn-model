@@ -26,7 +26,7 @@ def run_SEB_firn(
     station: str,
     surface_input_path: str,
     output_path: str,
-    spin_up_path: str,
+    spin_up_path: str = None,
     lim_new_lay = 0.05,
     output_var: str = "all",
     plot: bool = True,
@@ -48,9 +48,11 @@ def run_SEB_firn(
             Path to the surface forcing NetCDF file (e.g. CARRA at AWS).
         output_path (str):
             Directory where model output files will be written.
-        spin_up_path (str):
+        spin_up_path (str, optional):
             Directory containing spin-up results used to initialize the firn
-            state.
+            state (<spin_up_path>/<RunName>/<station>_final.pkl). If None
+            (default), the run starts from the initial state csv files in
+            input/initial state.
         output_var (str, optional):
             Variables to write to 2D output files. Use "all" to write all
             available variables. Default is "all".
@@ -76,7 +78,7 @@ def run_SEB_firn(
     c.output_path = output_path
     c.spin_up_path = spin_up_path
 
-    c.use_spin_up_init = True
+    c.use_spin_up_init = spin_up_path is not None
     if not c.use_spin_up_init: c.initial_state_folder_path = './input/initial state/'
 
     c.freq = '3h'
