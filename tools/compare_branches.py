@@ -1,13 +1,12 @@
 """Compare the model output of the current working tree with the main branch.
 
-This is the branch comparison run on every pull request, and it can be run
-locally (e.g. by double-clicking tools/compare_branches.bat). It:
+Run it locally (e.g. by double-clicking tools/compare_branches.bat). It:
   1. exports the base branch (default origin/main) and the current working
      tree, including uncommitted changes, to a temporary folder,
   2. runs both model versions on the test cases in test_data/
-     (tools/ci/run_test_cases.py),
+     (tools/test_runs/run_test_cases.py),
   3. writes figures, a summary table and a PR description template to
-     docs/PR_results/<date>_<name>/ (tools/ci/compare_runs.py).
+     docs/PR_results/<date>_<name>/ (tools/test_runs/compare_runs.py).
 Commit that folder with the PR: the figures are then shown in the PR
 description when PR_description.md is pasted into it.
 
@@ -27,7 +26,7 @@ import tarfile
 import tempfile
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-CI_DIR = os.path.join(REPO, "tools", "ci")
+SCRIPT_DIR = os.path.join(REPO, "tools", "test_runs")
 
 
 def git(*args):
@@ -72,7 +71,7 @@ def run_version(label, model_dir, data_dir, runs_dir, log_dir):
     print(f"--- running test cases with {label} (log: {log_dir}/{label}.log)", flush=True)
     with open(os.path.join(log_dir, f"{label}.log"), "w") as log:
         result = subprocess.run(
-            [sys.executable, os.path.join(CI_DIR, "run_test_cases.py"),
+            [sys.executable, os.path.join(SCRIPT_DIR, "run_test_cases.py"),
              "--model-dir", model_dir, "--data-dir", data_dir, "--out", runs_dir],
             stdout=log, stderr=subprocess.STDOUT,
             env={**os.environ, "PYTHONWARNINGS": "ignore", "MPLBACKEND": "Agg"})
@@ -119,7 +118,7 @@ def main():
             if not ok:  # keep the log of failed runs next to the results
                 shutil.copy(os.path.join(tmp, f"{label}.log"),
                             os.path.join(out, f"run_{label}.log"))
-        cmd = [sys.executable, os.path.join(CI_DIR, "compare_runs.py"),
+        cmd = [sys.executable, os.path.join(SCRIPT_DIR, "compare_runs.py"),
                "--base-runs", os.path.join(tmp, "runs_base"),
                "--head-runs", os.path.join(tmp, "runs_head"),
                "--out", out,
