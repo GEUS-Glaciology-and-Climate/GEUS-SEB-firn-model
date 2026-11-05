@@ -40,7 +40,6 @@ def IniVar(time, c):
     grndd = np.zeros((c.num_lay, len(time)))
     compaction = np.empty((c.num_lay, len(time)), dtype="float64")
     zrfrz = np.empty((c.num_lay, len(time)), dtype="float64")
-    zsupimp = np.empty((c.num_lay, len(time)), dtype="float64")
 
     Tsurf = np.empty((len(time)), dtype="float64")
     zrogl = np.empty((len(time)), dtype="float64")
@@ -67,7 +66,7 @@ def IniVar(time, c):
             print('Initializing with',c.spin_up_path + "/" + spin_up_run_name + "/"  \
                 + c.station + '_final.pkl')
             return (rhofirn,  rho, snowc, snic, slwc, dgrain, tsoil, grndc, grndd,
-                    compaction, zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp,
+                    compaction, zrfrz, zrogl, pgrndcapc, pgrndhflx, dH_comp,
                     snowbkt, snowthick)
         except Exception as e:
             print(e)
@@ -88,7 +87,7 @@ def IniVar(time, c):
     snowthick[-1] = c.snowthick_ini
 
     return (rhofirn,  rho, snowc, snic, slwc, dgrain, tsoil, grndc, grndd,
-            compaction, zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp,
+            compaction, zrfrz, zrogl, pgrndcapc, pgrndhflx, dH_comp,
             snowbkt, snowthick)
 
 def parse_const_value(value: str):

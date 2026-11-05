@@ -142,7 +142,6 @@ def writeOutput():
         T_ice,
         zrfrz,
         rhofirn,
-        zsupimp,
         dgrain,
         zrogl,
         Tsurf,
