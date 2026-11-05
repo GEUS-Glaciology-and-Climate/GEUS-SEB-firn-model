@@ -43,10 +43,10 @@ def run_GEUS_model_opt(site):
     c.verbose = 1
     c.OutputFolder = output_path_firn
     # Load station info
-    df_info = pd.read_csv(station_info, sep=";")
+    df_info = pd.read_csv(station_info)
     c.Tdeep = (
         df_info.loc[
-            df_info["station name"] == c.station, "deep firn temperature (degC)"
+            df_info["station_name"] == c.station, "deep_firn_temperature_degC"
         ].values[0]
         + 273.15
     )
@@ -237,11 +237,11 @@ def run_GEUS_model_old(site, filename):
     #c.OutputFolder = "C://Data_save/Output firn model"
     c.OutputFolder = output_path_firn + '/old_script'
 
-    df_info = pd.read_csv(station_info, sep=";")
+    df_info = pd.read_csv(station_info)
     #df_info = pd.read_csv("Input/Constants/StationInfo.csv", sep=";")
     c.Tdeep = (
         df_info.loc[
-            df_info["station name"] == c.station, "deep firn temperature (degC)"
+            df_info["station_name"] == c.station, "deep_firn_temperature_degC"
         ].values[0]
         + 273.15
     )
