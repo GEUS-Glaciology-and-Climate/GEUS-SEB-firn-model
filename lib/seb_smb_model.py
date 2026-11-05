@@ -80,7 +80,7 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
 
     (
      rhofirn, rho, snowc, snic, slwc, dgrain, T_ice, grndc, grndd, compaction,
-     zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp, snowbkt, snowthick
+     zrfrz, zrogl, pgrndcapc, pgrndhflx, dH_comp, snowbkt, snowthick
     ) = IniVar(time, c)
 
     if np.isnan(c.Tdeep):
@@ -195,7 +195,7 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
         (
             snowc[:, k], snic[:, k], slwc[:, k],
             T_ice[:, k],  zrfrz[:, k], rhofirn[:, k],
-            zsupimp[:, k], dgrain[:, k], zrogl[k],
+            dgrain[:, k], zrogl[k],
             Tsurf[k], grndc[:, k], grndd[:, k],
             pgrndcapc[k], pgrndhflx[k], dH_comp[k],
             snowbkt[k], compaction[:, k],
@@ -238,7 +238,7 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
 
     return (L, LHF, SHF, theta_2m, q_2m, ws_10m, Re, melt_mweq,
             sublimation_mweq, SRin, SRout, LRin, LRout,
-            snowc, snic, slwc, T_ice, zrfrz, rhofirn, zsupimp, dgrain,
+            snowc, snic, slwc, T_ice, zrfrz, rhofirn, dgrain,
             zrogl, Tsurf, grndc, grndd, pgrndcapc, pgrndhflx, dH_comp,
             snowbkt, compaction, snowthick)
 

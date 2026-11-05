@@ -158,7 +158,7 @@ def run_SEB_firn(
             df_out["sublimation_mweq"], df_out["SRin"], df_out["SRout"],
             df_out["LRin"], df_out["LRout_mdl"],
             snowc, snic, slwc, T_ice,
-            zrfrz, rhofirn, zsupimp, dgrain,
+            zrfrz, rhofirn, dgrain,
             df_out['zrogl'], Tsurf,
             grndc, grndd, pgrndcapc, pgrndhflx,
             dH_comp, df_out["snowbkt"], compaction, df_out['snowthick']

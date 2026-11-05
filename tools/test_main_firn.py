@@ -13,12 +13,12 @@ def compare_old_opt_firn():
         print(site)
         filename = "Firn viscosity/Input files/" + site + ".csv"
         (snowc_old, snic_old, slwc_old, tsoil_old, zrfrz_old, 
-        rhofirn_old, zsupimp_old, dgrain_old, grndc_old, 
+        rhofirn_old, dgrain_old, grndc_old, 
         grndd_old, compaction_old, zrogl_old, Tsurf_out_old,
         pgrndcapc_old, pgrndhflx_old, dH_comp_old, snowbkt_old) = run_GEUS_model_old(site, filename)
 
     output_old = [snowc_old, snic_old, slwc_old, tsoil_old, zrfrz_old, 
-        rhofirn_old, zsupimp_old, dgrain_old, grndc_old, 
+        rhofirn_old, dgrain_old, grndc_old, 
         grndd_old, compaction_old, zrogl_old, Tsurf_out_old,
         pgrndcapc_old, pgrndhflx_old, dH_comp_old, snowbkt_old]
 

@@ -72,7 +72,6 @@ def run_GEUS_model_opt(site):
         grndd,
         compaction,
         zrfrz,
-        zsupimp,
         ts,
         zrogl,
         pgrndcapc,
@@ -108,7 +107,6 @@ def run_GEUS_model_opt(site):
             tsoil[:, i],
             zrfrz[:, i],
             rhofirn[:, i],
-            zsupimp[:, i],
             dgrain[:, i],
             zrogl[i],
             Tsurf_out[i],
@@ -178,7 +176,7 @@ def run_GEUS_model_opt(site):
 
     #Return for testing
     # return (snowc, snic, slwc, tsoil, zrfrz, 
-    #         rhofirn, zsupimp, dgrain, grndc, 
+    #         rhofirn, dgrain, grndc, 
     #         grndd, compaction, zrogl, Tsurf_out,
     #         pgrndcapc, pgrndhflx, dH_comp, snowbkt)
 
@@ -275,7 +273,6 @@ def run_GEUS_model_old(site, filename):
         grndd,
         compaction,
         zrfrz,
-        zsupimp,
         ts,
         zrogl,
         pgrndcapc,
@@ -317,7 +314,6 @@ def run_GEUS_model_old(site, filename):
             tsoil[:, i],
             zrfrz[:, i],
             rhofirn[:, i],
-            zsupimp[:, i],
             dgrain[:, i],
             zrogl[i],
             #ts_out[i],
@@ -387,7 +383,7 @@ def run_GEUS_model_old(site, filename):
 
     #For test file:
     # return (snowc, snic, slwc, tsoil, zrfrz, 
-    #         rhofirn, zsupimp, dgrain, grndc, 
+    #         rhofirn, dgrain, grndc, 
     #         grndd, compaction, zrogl, Tsurf_out,
     #         pgrndcapc, pgrndhflx, dH_comp, snowbkt)
 
