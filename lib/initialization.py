@@ -91,21 +91,33 @@ def IniVar(time, c):
             compaction, zrfrz, zsupimp, zrogl, pgrndcapc, pgrndhflx, dH_comp,
             snowbkt, snowthick)
 
-def convert_and_log(series):
-    def try_convert(value):
-        if isinstance(value, str):
-            converted = pd.to_numeric(value, errors="coerce")
-            if pd.notna(converted):  # If conversion was successful
-                # print(f"Converted: {value} -> {converted}")
-                return converted
-            else:
-                # print(f"Left as string: {value}")
-                return value
-        else:
-            # print(f"Unchanged: {value}")
-            return value
+def parse_const_value(value: str):
+    """Convert a value read from a constants csv file to int or float, or
+    leave it as string."""
+    value = value.strip()
+    for cast in (int, float):
+        try:
+            return cast(value)
+        except ValueError:
+            pass
+    return value
 
-    return series.apply(try_convert)
+
+def read_const_file(path: str) -> dict:
+    """Read a constants csv file with columns name,value,unit,description
+    and return a {name: value} dictionary."""
+    df = pd.read_csv(path, dtype=str, keep_default_na=False,
+                     encoding="utf-8-sig")
+    missing = {"name", "value"} - set(df.columns)
+    if missing:
+        raise ValueError(f"{path} is missing the column(s): {missing}")
+    df["name"] = df["name"].str.strip()
+    duplicated = df.loc[df["name"].duplicated(), "name"].tolist()
+    if duplicated:
+        raise ValueError(f"{path} defines {duplicated} more than once")
+    return {name: parse_const_value(value)
+            for name, value in zip(df["name"], df["value"])}
+
 
 def ImportConst(ElevGrad:float=0.1):
     # ImportConst: Reads physical, site-depant, simulation-depant and
@@ -117,29 +129,20 @@ def ImportConst(ElevGrad:float=0.1):
     # Author: Baptiste Vandecrux (bav@geus.dk)
     # ========================================================================
 
-    const_phy_path = "input/constants/const_phy.csv"
-    const_sim_path = "input/constants/const_sim.csv"
-    const_subsurf_path = "input/constants/const_subsurf.csv"
+    const_paths = [
+        "input/constants/const_phy.csv",
+        "input/constants/const_sim.csv",
+        "input/constants/const_subsurf.csv",
+    ]
 
-    # Load dataframes with constants and create c containing all
-    df1, df2, df3 = (pd.read_csv(const_phy_path, sep=";", header=None),
-                     pd.read_csv(const_sim_path, sep=";", header=None),
-                     pd.read_csv(const_subsurf_path, sep=";", header=None)
-    )
-    df_concat = pd.concat([df1, df2, df3])
-    c = df_concat.transpose()
-
-    c.columns = c.iloc[0, :]
-    c = c.iloc[1, :]
-
-
-    c = convert_and_log(c)
-
-
-    c[["ch1", "ch2", "ch3", "cq1", "cq2", "cq3"]] = c[
-        ["ch1", "ch2", "ch3", "cq1", "cq2", "cq3"]
-    ].apply(np.fromstring, dtype=float, sep=",")
-    c = c.to_dict()
+    # Load all constants into c. A name defined in several files is an error.
+    c = {}
+    for path in const_paths:
+        new = read_const_file(path)
+        duplicated = set(c) & set(new)
+        if duplicated:
+            raise ValueError(f"{path} redefines {sorted(duplicated)}")
+        c.update(new)
     c = Struct(**c)
     # Determine local runoff time-scale  (Zuo and Oerlemans 1996). Parameters
     # are set as in Lefebre et al (JGR, 2003) = MAR value (Fettweis pers comm)
