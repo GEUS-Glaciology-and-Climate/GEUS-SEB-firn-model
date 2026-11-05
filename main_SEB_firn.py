@@ -161,7 +161,8 @@ def run_SEB_firn(
             zrfrz, rhofirn, dgrain,
             df_out['zrogl'], Tsurf,
             grndc, grndd, pgrndcapc, pgrndhflx,
-            dH_comp, df_out["snowbkt"], compaction, df_out['snowthick']
+            dH_comp, df_out["snowbkt"], compaction, df_out['snowthick'],
+            df_out["internal_melt_mweq"],
         ) = GEUS_model(df_in, c)
     except Exception as e:
         print(c.station, e); traceback.print_exc()
