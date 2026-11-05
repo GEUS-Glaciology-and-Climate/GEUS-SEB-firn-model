@@ -120,15 +120,16 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
             * c.rho_water / thickness_m
         )
 
-        (
-            SRnet, T_ice[:, k],  internal_melting
-        ) = SRbalance(
-            SRin[k] - SRout[k],  ind_ice,  thickness_m,  T_ice[:, k - 1],
-            rho[:, k],  c )
-
-        SRnet_tot = np.sum(SRnet)
-        SRnet=SRnet*0
-        SRnet[0] = SRnet_tot
+        # All net shortwave radiation is absorbed at the surface (SRnet[0];
+        # SurfEnergyBudget uses SRnet[0] - SRnet[1]). The subsurface
+        # temperature is only changed by the subsurface model: it is not
+        # warmed here by shortwave radiation, which would count the same
+        # energy twice (at the surface and through the conductive flux from
+        # the warmer second layer). Penetration of shortwave radiation below
+        # the surface (SRbalance) is not used.
+        T_ice[:, k] = T_ice[:, k - 1]
+        SRnet = np.zeros(len(thickness_m))
+        SRnet[0] = SRin[k] - SRout[k]
 
         # Step 5/*:  Surface temperature calculation
         k_eff = 0.021 + 2.5e-6 * rho[:, k] ** 2
