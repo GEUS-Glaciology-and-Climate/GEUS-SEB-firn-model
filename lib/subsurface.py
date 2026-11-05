@@ -652,8 +652,9 @@ def merge_small_layers(prhofirn, psnowc, psnic, pslwc, ptsoil, pdgrain, c):
 
                 # now layer jk is free but we need to shift the column from 1 to jk
                 # in order to free the first layer instead (just for being
-                # compatible with the SplitLayer def)
-                if jk > 1:
+                # compatible with the SplitLayer def). Needed for any jk > 0:
+                # split_layer discards the content of the top layer.
+                if jk > 0:
                     psnowc[1 : jk + 1] = psnowc[:jk]
                     psnic[1 : jk + 1] = psnic[:jk]
                     pslwc[1 : jk + 1] = pslwc[:jk]
