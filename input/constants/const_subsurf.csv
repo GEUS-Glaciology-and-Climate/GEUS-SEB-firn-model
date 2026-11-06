@@ -13,6 +13,7 @@ icemax,0.85,-,ice fraction that determines when to stop counting snow depth
 cro_1,28512,s,runoff time-scale parameter c1 (Zuo & Oerlemans 1996; Reijmer et al.). Z&O: 1.5 d; Reijmer (MAR): 0.05 d; Lefebre: 0.33 d
 cro_2,2160000,s,runoff time-scale parameter c2 (Zuo & Oerlemans 1996)
 cro_3,140,-,runoff time-scale parameter c3 (Zuo & Oerlemans 1996)
+surface_slope,0.02,m m-1,tangent of the surface slope used in the runoff time scale t_runoff = (cro_1 + cro_2 exp(-cro_3 surface_slope)) t_runoff_fact (Zuo & Oerlemans 1996). Default 0.02 as in Lefebre et al. (2003) at ETH Camp (t_runoff = 1.85 d). Overwritten by the variable surface_slope of the surface input file when present (distributed runs)
 a_rho,328.35327,,parameter a in RFO's surface snow density parameterization
 b_rho,-0.049376258,,parameter b in RFO's surface snow density parameterization
 c_rho,1.0426993,,parameter c in RFO's surface snow density parameterization

@@ -126,6 +126,17 @@ def load_CARRA_data(*args, resample=True):
     c.latitude = mean_lat
     c.longitude = mean_lon
 
+    # local surface slope (tangent, m m-1) for the runoff time scale: from the
+    # input file when available (distributed runs), otherwise the default of
+    # const_subsurf.csv
+    if 'surface_slope' in aws_ds.data_vars:
+        slope = float(aws_ds.surface_slope.mean())
+        if np.isfinite(slope):
+            c.surface_slope = slope
+        else:
+            print(c.station, 'surface_slope is NaN in the input file, using',
+                  c.surface_slope)
+
     if c.longitude>180:
         c.longitude = c.longitude-360
 
