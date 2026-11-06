@@ -198,7 +198,10 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
 
         # Step 6/*:  Mass Budget in mweq
         melt_mweq[k] = meltflux[k] * c.zdtime / c.L_fus / c.rho_water
-        sublimation_mweq[k] = LHF[k] * c.zdtime / c.L_sub / c.rho_water  # in mweq
+        # evaporation/condensation on a melting surface, sublimation/deposition
+        # otherwise (same latent heat as in SensLatFluxes_bulk_opt)
+        L_heat = latent_heat(Tsurf[k], c)
+        sublimation_mweq[k] = LHF[k] * c.zdtime / L_heat / c.rho_water  # in mweq
         # positive LHF -> deposition -> dH_subl positive
 
         # ========== Step 7/*:  Sub-surface model ====================================
@@ -535,10 +538,16 @@ def SensLatFluxes_bulk_opt(
     psi_m1 = 0
     psi_m2 = 0
 
-    # will be updated later
-    theta_2m = theta
+    # 2 m temperature (actual, not potential), 2 m specific humidity and 10 m
+    # wind speed. Default: values at sensor height, replaced below by the
+    # profiles evaluated at 2 m and 10 m when the turbulent fluxes are computed.
+    # theta = T + z * g / c_pd (potential temperature relative to the surface)
+    theta_2m = theta - z_T * c.g / c.c_pd
     q_2m = q
     ws_10m = WS
+
+    # latent heat: vaporization on a melting surface, sublimation otherwise
+    L_heat = latent_heat(Tsurf, c)
 
     if WS > c.WS_lim:
         # Roughness length scales for snow or ice - initial guess
@@ -590,17 +599,30 @@ def SensLatFluxes_bulk_opt(
                     q, q_surf, z_RH, z_q, psi_q2, psi_q
                 )
 
-                q_star = c.kappa * (q - q_surf) / (np.log(z_RH / z_q) - psi_q2 + psi_q)
-
-                SHF, LHF = get_SHF_LHF(rho_atm, u_star, th_star, q_star, c.c_pd, c.L_sub)
+                SHF, LHF = get_SHF_LHF(rho_atm, u_star, th_star, q_star, c.c_pd, L_heat)
 
                 L_prev = L
-                # L = u_star**2 * theta_v  / ( 3.9280 * th_star*(1 + 0.6077*q_star))
                 L = get_L(u_star, theta, c.es, q, c.g, c.kappa, th_star, q_star)
 
-                if (L < c.smallno) | (abs((L_prev - L)) < c.L_dif):
-                    # convergence reached, exiting loop
+                if (L <= 0) | (abs((L_prev - L)) < c.L_dif):
+                    # L <= 0: the iteration left the stable regime, exiting
+                    # rather than diverging. Otherwise convergence reached.
                     break
+
+            # 2 m temperature and humidity, 10 m wind speed: stability
+            # corrections evaluated at 2 m and 10 m (not at sensor heights)
+            # with L_prev, the length used for th_star, q_star and u_star in
+            # the last iteration (L has been updated since, and can be <= 0),
+            # so that the profiles go through the measurements.
+            theta_2m, q_2m, ws_10m = calc_2m_theta_q_ws(
+                Tsurf, th_star, c.kappa, z_h,
+                get_psi_h2_stable(c.aa, c.bb, c.cc, c.dd, L_prev, 2.0), psi_h1,
+                q_surf, q_star, z_q,
+                get_psi_q2_stable(c.aa, c.bb, c.cc, c.dd, L_prev, 2.0), psi_q,
+                u_star, z_0,
+                get_psi_m2_stable(c.aa, c.bb, c.cc, c.dd, L_prev, 10.0), psi_m1,
+            )
+            theta_2m = theta_2m - 2.0 * c.g / c.c_pd  # potential -> actual
 
         if (theta < Tsurf) & (WS >= c.WS_lim):  # unstable stratification
             # correction defs as in
@@ -632,8 +654,7 @@ def SensLatFluxes_bulk_opt(
                     z_q, psi_q2, psi_q
                 )
 
-                q_star = c.kappa * (q - q_surf) / (np.log(z_RH / z_q) - psi_q2 + psi_q)
-                SHF, LHF = get_SHF_LHF(rho_atm, u_star, th_star, q_star, c.c_pd, c.L_sub)
+                SHF, LHF = get_SHF_LHF(rho_atm, u_star, th_star, q_star, c.c_pd, L_heat)
 
                 L_prev = L
 
@@ -643,24 +664,21 @@ def SensLatFluxes_bulk_opt(
                     # convergence reached, exiting loop
                     break
 
-            # calculating 2m temperature, humidity and wind speed
+            # 2 m temperature and humidity, 10 m wind speed: stability
+            # corrections evaluated at 2 m and 10 m (not at sensor heights)
+            # with L_prev, the length used for th_star, q_star and u_star in
+            # the last iteration, so that the profiles go through the
+            # measurements.
+            x1, x2, y1, y2, yq, yq2 = compute_x_y_const(
+                c.gamma, z_0, 10.0, z_h, 2.0, z_q, 2.0, L_prev)
+            _, psi_m_10m, _, psi_h_2m, _, psi_q_2m = get_psi_unstable(
+                x1, x2, y1, y2, yq, yq2)
             theta_2m, q_2m, ws_10m = calc_2m_theta_q_ws(
-                Tsurf,
-                th_star,
-                c.kappa,
-                z_h,
-                psi_h2,
-                psi_h1,
-                q_surf,
-                q_star,
-                z_q,
-                psi_q2,
-                psi_q,
-                u_star,
-                z_0,
-                psi_m2,
-                psi_m1,
-                )
+                Tsurf, th_star, c.kappa, z_h, psi_h_2m, psi_h1,
+                q_surf, q_star, z_q, psi_q_2m, psi_q,
+                u_star, z_0, psi_m_10m, psi_m1,
+            )
+            theta_2m = theta_2m - 2.0 * c.g / c.c_pd  # potential -> actual
 
     else:
         # threshold in windspeed ensuring the stability of the SHF/THF
@@ -682,12 +700,20 @@ def SensLatFluxes_bulk_opt(
         psi_q = 0
         psi_q2 = -999
 
-        # calculating 2m temperature, humidity and wind speed
-        theta_2m = theta
+        # 2 m / 10 m diagnostics not computed at low wind speed: values at
+        # sensor height (actual temperature)
+        theta_2m = theta - z_T * c.g / c.c_pd
         q_2m = q
         ws_10m = WS
 
     return L, LHF, SHF, theta_2m, q_2m, ws_10m, Re
+
+
+def latent_heat(Tsurf, c):
+    """Latent heat of the turbulent moisture exchange (J kg-1): vaporization
+    when the surface is melting (Tsurf >= T_0, exchange with liquid water),
+    sublimation otherwise."""
+    return c.L_vap if Tsurf >= c.T_0 else c.L_sub
 
 def SpecHumSat(RH, T, pres, c: Struct):
     # SpecHumSat
@@ -778,12 +804,19 @@ def get_SHF_LHF(rho_atm, u_star, th_star, q_star, c_pd, L_sub):
 # Returns L
 @njit
 def get_L(u_star, theta, es, q, g, kappa, th_star, q_star):
-    return (
-        u_star ** 2
-        * theta
-        * (1 + ((1 - es) / es) * q)
-        / (g * kappa * th_star * (1 + ((1 - es) / es) * q_star))
-    )
+    """Monin-Obukhov length (m), with the virtual potential temperature to
+    include the buoyancy of water vapour (e.g. Stull, 1988):
+
+        L = u*^2 theta_v / (kappa g theta_v*)
+        theta_v  = theta (1 + beta q)
+        theta_v* = theta* + beta theta q*      (not theta* (1 + beta q*))
+        beta = (1 - es) / es ~ 0.608
+
+    L > 0 stable, L < 0 unstable."""
+    beta = (1 - es) / es
+    theta_v = theta * (1 + beta * q)
+    theta_v_star = th_star + beta * theta * q_star
+    return u_star ** 2 * theta_v / (g * kappa * theta_v_star)
 
 
 # Several functions computing values for psi, added for faster execution
