@@ -118,7 +118,7 @@ def read_const_file(path: str) -> dict:
             for name, value in zip(df["name"], df["value"])}
 
 
-def ImportConst(ElevGrad:float=0.1):
+def ImportConst():
     # ImportConst: Reads physical, site-depant, simulation-depant and
     # user-defined parameters from a set of csv files located in the ./Input
     # folder. It stores all of them in the c structure that is then passed to
@@ -143,10 +143,15 @@ def ImportConst(ElevGrad:float=0.1):
             raise ValueError(f"{path} redefines {sorted(duplicated)}")
         c.update(new)
     c = Struct(**c)
-    # Determine local runoff time-scale  (Zuo and Oerlemans 1996). Parameters
-    # are set as in Lefebre et al (JGR, 2003) = MAR value (Fettweis pers comm)
-    c.t_runoff = (c.cro_1 + c.cro_2 * np.exp(-c.cro_3 * ElevGrad)) * c.t_runoff_fact
+    c.t_runoff = runoff_time_scale(c)
     return c
+
+
+def runoff_time_scale(c):
+    """Runoff time scale (s) from the surface slope (Zuo and Oerlemans,
+    1996). Parameters as in Lefebre et al. (JGR, 2003) = MAR value (Fettweis
+    pers comm). Call again if c.surface_slope or the cro_* constants change."""
+    return (c.cro_1 + c.cro_2 * np.exp(-c.cro_3 * c.surface_slope)) * c.t_runoff_fact
 
 
 def InitializationSubsurface(c):

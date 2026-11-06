@@ -430,7 +430,8 @@ def ThetaF(pl, ps, rhos):
 
 
 @jit(nopython=True)
-def perc_runoff_new(prhofirn, psnowc, psnic, pslwc, pdgrain, zdtime):
+def perc_runoff_new(prhofirn, psnowc, psnic, pslwc, pdgrain, zdtime,
+                    t_runoff, do_no_darcy, avoid_runoff):
     """Compute liquid water percolation and runoff through firn layers.
 
     Calculates percolation and runoff of meltwater through a vertical snow/firn column
@@ -446,6 +447,12 @@ def perc_runoff_new(prhofirn, psnowc, psnic, pslwc, pdgrain, zdtime):
         pslwc (array-like): Liquid water content per layer (m w.e.).
         pdgrain (array-like): Mean grain size per layer (mm).
         zdtime (float): Time step duration (s).
+        t_runoff (float): Runoff time scale (s), c.t_runoff (from the
+            surface slope, see initialization.runoff_time_scale).
+        do_no_darcy (int): 1 = no Darcy flow, the water in excess of the
+            irreducible water content moves down immediately (c.do_no_darcy).
+        avoid_runoff (int): 1 = no runoff from the layers above the bottom
+            one (c.avoid_runoff).
 
     Returns:
         tuple: Updated values for:
@@ -493,10 +500,6 @@ def perc_runoff_new(prhofirn, psnowc, psnic, pslwc, pdgrain, zdtime):
     potret = max(liqmaxM * psnowc[jk], 0)
     # Calculate liqexcess from layer water. Make sure it is not negative:
     liqexcess = max(pslwc[jk] - potret, 0)
-
-    t_runoff = 28513.796102033262
-    do_no_darcy = 0
-    avoid_runoff = 0
 
     liqro = liqexcess / t_runoff * zdtime
     # Take runoff from water content and give to runoff box (Update PLA)
@@ -550,7 +553,9 @@ def perc_runoff_new(prhofirn, psnowc, psnic, pslwc, pdgrain, zdtime):
             pslwc[jk + 1] = pslwc[jk + 1] + dflux
             pslwc[jk] = pslwc[jk] - dflux
 
-        if do_runoff & (~avoid_runoff):
+        # (was `do_runoff & (~avoid_runoff)`: ~ of an int is -1 or -2, always
+        # true, so avoid_runoff = 1 had no effect)
+        if do_runoff and not avoid_runoff:
             # Yes: Remove runoff from layer (and add to runoff-box zrogl)
             # PLA Darcy 2016
             # if c.calc_CLliq:

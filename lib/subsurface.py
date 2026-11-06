@@ -67,7 +67,8 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
             )
 
     prhofirn, psnowc, psnic, pslwc, pdgrain, zrogl = lp.perc_runoff_new(
-        prhofirn, psnowc, psnic, pslwc, pdgrain, c.zdtime
+        prhofirn, psnowc, psnic, pslwc, pdgrain, c.zdtime,
+        c.t_runoff, c.do_no_darcy, c.avoid_runoff
     )
         
     psnic, pslwc, ptsoil, zrfrz = refreeze(psnowc, psnic, pslwc, ptsoil, c)

@@ -12,7 +12,7 @@ matplotlib.use('Agg')
 import numpy as np
 import pandas as pd
 import lib.io as io
-from lib.initialization import ImportConst
+from lib.initialization import ImportConst, runoff_time_scale
 from lib.seb_smb_model import GEUS_model
 import os
 import time
@@ -116,6 +116,8 @@ def run_SEB_firn(
 
     # loading input data
     df_in, c = io.load_surface_input_data(c, resample=resample)
+    # runoff time scale from the surface slope, which can come from the input
+    c.t_runoff = runoff_time_scale(c)
 
     freq = pd.infer_freq(df_in.index)
     if freq=='h': freq = '1h'
