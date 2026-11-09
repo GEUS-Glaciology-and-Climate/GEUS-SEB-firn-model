@@ -1,11 +1,23 @@
 ## Changes
 
 ### Problem on main: the surface and the subsurface do not exchange the same energy
-1. **Layer 0 is reset to the surface temperature.** `tsoil_diffusion` sets `ptsoil[0] = Tsurf` at every step. Bringing layer 0 to that temperature takes C₀·(Tsurf − T₀), and that energy is not counted in the surface energy budget. Over the 2012 DY2 and 2019 KAN_L test runs this created 160–260 MJ m⁻² and destroyed 220–320 MJ m⁻² per year. That is 12–18 W m⁻² on average in absolute value, and a net loss of about 2 W m⁻², roughly the energy needed to melt 0.2 m w.e. per year.
-2. **The surface energy budget has its own conduction flux**, `k_eff[0]·(Tsurf − T_ice[1]) / thick_first_lay`, which does not match what the subsurface heat diffusion computes:
-   - it uses Anderson's conductivity, while the diffusion uses Yen;
-   - `thick_first_lay` is the thickness of layer 0 in **m w.e.** instead of metres;
-   - it uses the temperature of layer 1 over the thickness of layer 0 only.
+The scheme on main comes from HIRHAM: layer 0 is set to the surface temperature (`ptsoil[0] = Tsurf` in `tsoil_diffusion`). In HIRHAM, the surface temperature is solved with the heat capacity and flux of that node (`pgrndcapc`, `pgrndhflx`), so the two are consistent. These are still computed here, but the Python surface energy budget does not use them. It uses its own conduction flux, `k_eff[0]·(Tsurf − T_ice[1]) / thick_first_lay`, which does not match the subsurface:
+- it uses Anderson's conductivity, while the diffusion uses Yen;
+- `thick_first_lay` is the thickness of layer 0 in **m w.e.** instead of metres;
+- it uses the temperature of layer 1, and it ignores the heat needed to bring layer 0 to Tsurf.
+
+Measured on the test runs, per 3 h step: the conduction flux the SEB subtracts vs the heat the column gains in the diffusion step.
+
+| Run | Mean \|mismatch\| | Correlation SEB flux vs column heat gain | Net mismatch, mean over the year |
+|---|---|---|---|
+| main, DY2_2012 | 20.7 W m⁻² | 0.58 | +4.7 W m⁻² |
+| this PR, DY2_2012 | 1.5 W m⁻² | 1.00 | +1.3 W m⁻² |
+| main, KAN_L_2019 | 15.8 W m⁻² | 0.79 | −2.2 W m⁻² |
+| this PR, KAN_L_2019 | 2.0 W m⁻² | 1.00 | −1.8 W m⁻² |
+
+The rows for this PR show the accuracy of the check itself: the heat exchanged at the bottom of the column, and heat capacities approximated as c_p × mass. So on main:
+- the surface and the subsurface exchanged clearly different fluxes at each step;
+- over the year the net imbalance is small (about 3 W m⁻² at DY2, 0.4 W m⁻² at KAN_L), because the errors mostly cancel between day and night.
 
 ### Change: skin-layer top boundary (from bav-dev), with the matching surface flux
 - **Skin layer.** The surface temperature is now a skin temperature with no heat capacity, at the top of layer 0. Layer 0 is a normal layer with its node at its centre, coupled to the skin through the upper half of the layer: conductance `grndk = k₀ / (0.5 dz₀)`, with k₀ the harmonic-mean conductivity of the snow and ice of layer 0. It is solved implicitly with the rest of the column, so `T₀ = grndc[0] + grndd[0]·Tsurf` (`update_tempdiff_params_opt`, `tsoil_diffusion`).
@@ -30,7 +42,7 @@ The surface is now colder in winter (−0.6 to −1.7 K in DJF) and melts more o
 - KAN_L: +0.26 to +0.37 m w.e. (+6 to +9 %), with less refreezing and SMB −0.2 to −0.3 m w.e.;
 - DY2: +0.06 and +0.08 m w.e.; at DY2_2019 most of the extra melt refreezes.
 
-These changes are of the same order as the net energy that the layer-0 reset destroyed on main (about 2 W m⁻², roughly 0.2 m w.e. of melt per year).
+At KAN_L the net yearly imbalance on main was small (about 0.4 W m⁻²). So the change in melt there comes mainly from the timing of the heat exchange between the surface and the subsurface (day and night, and during melt), not from removing a net source or sink of energy.
 
 The surface conductance now follows the subsurface model. Compared with main's surface flux, the median is 3.2 vs 5.4 W m⁻² K⁻¹ at DY2_2012 and 37 vs 23 W m⁻² K⁻¹ at KAN_L_2019.
 
