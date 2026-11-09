@@ -84,6 +84,10 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
     ) = IniVar(time, c)
     # melt below the top layer from absorbed shortwave radiation (m w.e.)
     internal_melt_mweq = np.zeros(len(time))
+    # conductance between the surface and the centre of the first layer
+    # (W m-2 K-1), from the subsurface model. 0 at the start: the first heat
+    # diffusion step (grndd = 0) does not exchange heat with the surface.
+    grndk = np.zeros(len(time))
 
     if np.isnan(c.Tdeep):
         print('Warning: assigning Tdeep')
@@ -142,12 +146,15 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
             sw_absorbed = None
 
         # Step 5/*:  Surface temperature calculation
-        k_eff = 0.021 + 2.5e-6 * rho[:, k] ** 2
-
-        # effective conductivity by Anderson 1976, is ok at limits
-        # https://repository.library.noaa.gov/view/noaa/6392
-        # thickness of the first layer in m weq for thermal transfer
-        thick_first_lay = snic[0, k - 1] + snowc[0, k - 1]
+        # Conductive heat flux into the subsurface, as computed by the
+        # subsurface heat diffusion (implicit), with the coefficients of the
+        # previous time step: the first layer will have the temperature
+        #     T_0 = grndc[0] + grndd[0] Tsurf
+        # and receives from the surface
+        #     G = grndk (Tsurf - T_0) = grndk ((1 - grndd[0]) Tsurf - grndc[0])
+        # so the surface energy budget and the subsurface exchange the same
+        # energy.
+        ground_flux_coef = (grndk[k - 1], grndc[0, k - 1], grndd[0, k - 1])
 
         # Prepare parameters needed for SEB
         EB_prev = 1
@@ -187,8 +194,8 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
             (
                 meltflux[k], Tsurf[k], dTsurf, EB_prev, stop, LRout[k]
              ) = SurfEnergyBudget(
-                SRnet, LRin[k].copy(), Tsurf[k].copy(), k_eff, thick_first_lay,
-                T_ice[:, k].copy(), T_rain[k].copy(), dTsurf, EB_prev,
+                SRnet, LRin[k].copy(), Tsurf[k].copy(), ground_flux_coef,
+                T_rain[k].copy(), dTsurf, EB_prev,
                 SHF[k].copy(), LHF[k].copy(), rainfall[k].copy(), c,
             )
             if stop: break
@@ -212,7 +219,7 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
             dgrain[:, k], zrogl[k],
             Tsurf[k], grndc[:, k], grndd[:, k],
             pgrndcapc[k], pgrndhflx[k], dH_comp[k],
-            snowbkt[k], compaction[:, k], internal_melt_mweq[k],
+            snowbkt[k], compaction[:, k], internal_melt_mweq[k], grndk[k],
         ) = subsurface_opt(
             Tsurf[k].copy(), grndc[:, k - 1].copy(), grndd[:, k - 1].copy(),
             slwc[:, k - 1].copy(), snic[:, k - 1].copy(), snowc[:, k - 1].copy(),
@@ -344,12 +351,12 @@ def variables_preparation(weather_df: pd.DataFrame, c: Struct):
             )
 
 def SurfEnergyBudget(
-    SRnet,  LRin,  Tsurf,  k_eff,  thick_first_lay,  T_ice,  T_rain,
+    SRnet,  LRin,  Tsurf,  ground_flux_coef,  T_rain,
     dTsurf,  EB_prev,  SHF,  LHF,  rainfall,  c,
 ):
     # meltflux[k], Tsurf[k], dTsurf, EB_prev, stop  \
-    # = SurfEnergyBudget (SRnet, LRin[k], Tsurf[k], k_eff,thick_first_lay, \
-    #                     T_ice[:,k], T_rain[k], dTsurf, EB_prev, SHF[k], LHF[k], rainfall[k],c)
+    # = SurfEnergyBudget (SRnet, LRin[k], Tsurf[k], ground_flux_coef, \
+    #                     T_rain[k], dTsurf, EB_prev, SHF[k], LHF[k], rainfall[k],c)
     # SurfEnergyBudget: calculates the surface temperature (Tsurf) and meltflux
     # from the different elements of the energy balance. The surface
     # temperature is adjusted iteratively until equilibrium between fluxes is
@@ -362,12 +369,16 @@ def SurfEnergyBudget(
     # SURFACE ENERGY BUDGET
 
     LRout_mdl = c.em * c.sigma * Tsurf ** 4 + (1 - c.em) * LRin
+    # conductive flux into the subsurface (see GEUS_model):
+    # ground_flux_coef = (grndk, grndc0, grndd0)
+    grndk, grndc0, grndd0 = ground_flux_coef
+    ground_flux = grndk * ((1 - grndd0) * Tsurf - grndc0)
 
     meltflux = (
         SRnet[0] - SRnet[1]
         + LRin - LRout_mdl
         + SHF + LHF
-        - (k_eff[0]) * (Tsurf - T_ice[1]) / thick_first_lay
+        - ground_flux
         + c.rho_water * c.c_w * rainfall * c.dev / c.zdtime * (T_rain - c.T_0)
     )
 
@@ -660,8 +671,13 @@ def SensLatFluxes_bulk_opt(
 
                 L = get_L(u_star, theta, c.es, q, c.g, c.kappa, th_star, q_star)
 
-                if abs((L_prev - L)) < c.L_dif:
-                    # convergence reached, exiting loop
+                if (L >= 0) | (abs((L_prev - L)) < c.L_dif):
+                    # L >= 0: the buoyancy flux (with water vapour) is not
+                    # unstable although theta < Tsurf (e.g. condensation on a
+                    # surface slightly warmer than the air). Exiting, as in
+                    # the stable case, rather than evaluating the unstable
+                    # functions (1 - gamma z / L)**0.25 with L > 0 (NaN).
+                    # Otherwise convergence reached.
                     break
 
             # 2 m temperature and humidity, 10 m wind speed: stability
