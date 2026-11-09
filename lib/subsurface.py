@@ -81,12 +81,14 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
         prhofirn, psnowc, psnic, pslwc, ptsoil, pdgrain, c
     )
 
-    pgrndc, pgrndd, pgrndcapc, pgrndhflx = update_tempdiff_params_opt(
+    pgrndc, pgrndd, pgrndcapc, pgrndhflx, pgrndk = update_tempdiff_params_opt(
         prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_cond, zso_capa, c.zdtime
     )
+    # pts (surface skin temperature) is returned unchanged: ptsoil[0] is now
+    # the temperature of the first layer, not of the surface
     return (psnowc, psnic, pslwc, ptsoil, zrfrz, prhofirn, pdgrain,
-            zrogl, ptsoil[0], pgrndc, pgrndd, pgrndcapc, pgrndhflx, dH_comp,
-            psnowbkt, compaction, internal_melt)
+            zrogl, pts, pgrndc, pgrndd, pgrndcapc, pgrndhflx, dH_comp,
+            psnowbkt, compaction, internal_melt, pgrndk)
 
 
 
@@ -205,17 +207,19 @@ def tsoil_diffusion(pts, pgrndc, pgrndd, ptsoil):
     #   This script was originally developped by Peter Langen (pla@dmi.dk) and
     #   Robert S. Fausto (rsf@geus.dk) in FORTRAN then translated to python by
     #   Baptiste Vandecrux (bav@geus.dk).
-
-    # Upper layer
-    ptsoil[0] = pts
-
-    # Lower layers
-    # update BV2017
-    # for jk = 2:c.jpgrnd
-    #     ptsoil[jk] = pgrndc[jk] + pgrndd[jk] * ptsoil[jk]
-    # original :
-    for jk in range(len(ptsoil) - 1):
-        ptsoil[jk + 1] = pgrndc[jk] + pgrndd[jk] * ptsoil[jk]
+    #
+    #   Back-substitution of the implicit (backward Euler) solver whose
+    #   coefficients are computed by update_tempdiff_params_opt. The surface
+    #   (skin) temperature pts has no heat capacity: it is the temperature at
+    #   the top of layer 0 and is coupled to the centre of layer 0 through the
+    #   conductance of the upper half of layer 0. Layer 0 is a normal layer
+    #   (it used to be set to pts, which created or removed the heat
+    #   C0 (pts - T0) without counting it in the surface energy budget):
+    #       ptsoil[0]  = pgrndc[0]  + pgrndd[0]  * pts
+    #       ptsoil[jk] = pgrndc[jk] + pgrndd[jk] * ptsoil[jk - 1]
+    ptsoil[0] = pgrndc[0] + pgrndd[0] * pts
+    for jk in range(1, len(ptsoil)):
+        ptsoil[jk] = pgrndc[jk] + pgrndd[jk] * ptsoil[jk - 1]
     return ptsoil
 
 
@@ -1074,25 +1078,16 @@ def update_tempdiff_params_opt(
     # Calculate midpoint volume-weighted versions of capa (heat capacity) and
     # kappa (thermal conductivity)
 
-    # PLA densification (Feb 2015) Update BV2017
-    # The first layer should be in equilibrium with the surface temperature.
-    # Therefore first two nodes are seperated by all of layer 1 and half of
-    # layer 2.
-    # volume of snow in upper layer:
-    snowV1[0] = psnowc[0] * 999.8395 / prhofirn[0]
-    # volume of snow in lower half layer:
-    snowV2[0] = 0.5 * psnowc[1] * 999.8395 / prhofirn[1]
-    # volume of ice in both layer:
-    iceV[0] = (psnic[0] + 0.5 * psnic[1]) * 999.8395 / 900
-
-    # For following nodes, two neighboring nodes are separated by half of the
-    # upper layer and half of the lower layer
+    # Each temperature is at the centre of its layer, including layer 0 (the
+    # surface temperature is at the top of layer 0, see tsoil_diffusion), so
+    # two neighbouring nodes are separated by half of the upper layer and half
+    # of the lower layer.
     # volume of snow in upper half layer:
-    snowV1[1:] = 0.5 * psnowc[1:] * 999.8395 / prhofirn[1:]
+    snowV1[:] = 0.5 * psnowc * 999.8395 / prhofirn
     # volume of snow in lower half layer:
-    snowV2[1:-1] = 0.5 * psnowc[2:] * 999.8395 / prhofirn[2:]
+    snowV2[:-1] = 0.5 * psnowc[1:] * 999.8395 / prhofirn[1:]
     # volume of ice in both half layers:
-    iceV[1:-1] = 0.5 * (psnic[1:-1] + psnic[2:]) * 1.1109327777777778
+    iceV[:-1] = 0.5 * (psnic[:-1] + psnic[1:]) * 1.1109327777777778
 
     # Bottom layer zcapa asnp.suming below is ice to same thickness (at least)
     snowV2[-1] = 0
@@ -1189,13 +1184,38 @@ def update_tempdiff_params_opt(
     #     pgrndd[jk - 1] = zkappa_abs[jk - 1] * z1
 
     pgrndc, pgrndd = compute_pgrndc_pgrndd(ptsoil, zcapa_abs, zkappa_abs, pgrndd, pgrndc)
-    #   ---------------------------------------
-    #   COMPUTATION OFSIVE FLUX FROM GROUND AND
-    #   CALORIFIC CAPACITY OF THE GROUND:
-    #   ---------------------------------------------------------
-    pgrndhflx = zkappa_abs[0] * (pgrndc[0] + (pgrndd[0] - 1) * ptsoil[0])
-    pgrndcapc = zcapa_abs[0] * zdtime + zdtime * (1 - pgrndd[0]) * zkappa_abs[0]
-    return pgrndc, pgrndd, pgrndcapc, pgrndhflx
+    # pgrndc[jk], pgrndd[jk] now give node jk+1 from node jk.
+
+    # Top boundary: surface skin (no heat capacity, temperature pts) coupled
+    # to the centre of layer 0 through the upper half of layer 0, with the
+    # conductance (W m-2 K-1)
+    #     pgrndk = k_0 / (0.5 dz_0)
+    # where k_0 is the conductivity of layer 0 (harmonic mean of its snow and
+    # ice, as between the nodes). The flux into the subsurface is then
+    #     G = pgrndk (pts - T_0_new)
+    thick0 = max(thickness_dry_m[0], 1e-10)
+    snow_frac0 = psnowc[0] * 999.8395 / prhofirn[0] / thick0
+    ice_frac0 = psnic[0] * 1.1109327777777778 / thick0
+    k0 = 1 / (snow_frac0 / zsn_condF(prhofirn[0]) + ice_frac0 / zso_cond[0])
+    pgrndk = k0 / (0.5 * thick0)
+
+    # Shift the coefficients by one slot so that slot jk gives node jk from
+    # node jk-1, and add slot 0 giving node 0 from the skin temperature.
+    # (the last slot only seeded the recursion and is not needed)
+    pgrndc[1:] = pgrndc[:-1].copy()
+    pgrndd[1:] = pgrndd[:-1].copy()
+    # balance of layer 0 (backward Euler), with T_1 = pgrndc[1] + pgrndd[1] T_0:
+    #   C_0/dt (T_0 - T_0_old) = pgrndk (pts - T_0) - zkappa_abs[0] (T_0 - T_1)
+    z1 = 1 / (zcapa_abs[0] + pgrndk + zkappa_abs[0] * (1 - pgrndd[1]))
+    pgrndc[0] = (ptsoil[0] * zcapa_abs[0] + zkappa_abs[0] * pgrndc[1]) * z1
+    pgrndd[0] = pgrndk * z1
+
+    # Diagnostics: conductive flux from the subsurface to the surface (W m-2,
+    # positive upwards) if the surface stays at the current temperature of
+    # layer 0, and heat capacity of layer 0 (J m-2 K-1)
+    pgrndhflx = pgrndk * (pgrndc[0] + (pgrndd[0] - 1) * ptsoil[0])
+    pgrndcapc = zcapa_abs[0] * zdtime
+    return pgrndc, pgrndd, pgrndcapc, pgrndhflx, pgrndk
 
 # Function added for a faster execution
 @njit
