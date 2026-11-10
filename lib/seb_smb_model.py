@@ -15,7 +15,8 @@ import sys
 from numba import njit
 import pickle
 from lib.initialization import Struct, IniVar
-from lib.subsurface import subsurface_opt, calc_snowthick_m, first_ice_layer
+from lib.subsurface import (subsurface_opt, calc_snowthick_m, first_ice_layer,
+                            update_tempdiff_params_opt, ice_heats)
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 plt.close('all')
@@ -92,6 +93,20 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
     if np.isnan(c.Tdeep):
         print('Warning: assigning Tdeep')
         c.Tdeep = T_ice[-1,-1]
+
+    # First time step: heat diffusion coefficients, surface conductance and
+    # snow thickness computed from the initial state (initial state csv files
+    # or spin-up), as they are at the end of every time step. They used to be
+    # grndc = T, grndd = 0 (no heat exchange with the surface during the first
+    # step) for the csv files, or the saved coefficients without the matching
+    # surface conductance for a spin-up, whose snowthick was not set.
+    c.rho_fresh_snow = rho_snow
+    zso_capa, zso_cond = ice_heats(T_ice[:, -1], c)
+    grndc[:, -1], grndd[:, -1], _, _, grndk[-1] = update_tempdiff_params_opt(
+        rhofirn[:, -1], c.Tdeep, snowc[:, -1], snic[:, -1], slwc[:, -1],
+        T_ice[:, -1].copy(), zso_cond, zso_capa, c.zdtime)
+    snowthick[-1] = calc_snowthick_m(
+        snowc[:, -1], snic[:, -1], slwc[:, -1], rhofirn[:, -1], snowbkt[-1], c)
     # c = CalculateMeanAccumulation(time,snowfall, c)
 
     # potential temperature
