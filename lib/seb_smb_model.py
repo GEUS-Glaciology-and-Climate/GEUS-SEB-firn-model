@@ -15,7 +15,7 @@ import sys
 from numba import njit
 import pickle
 from lib.initialization import Struct, IniVar
-from lib.subsurface import subsurface_opt, calc_snowthick_m
+from lib.subsurface import subsurface_opt, calc_snowthick_m, first_ice_layer
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 plt.close('all')
@@ -117,9 +117,10 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
             + snic[:, k - 1] * (c.rho_water / c.rho_ice)
                        )
 
-        depth_m = np.cumsum(thickness_m, 0)
-
-        ind_ice = np.argmax(depth_m > snowthick[k])
+        # first ice layer below the snow (used for SW penetration). Same
+        # criterion as snowthick. (was np.argmax(depth_m > snowthick), which
+        # gives 0, i.e. all ice, when snowthick reaches the column bottom)
+        ind_ice = first_ice_layer(snowc[:, k - 1], snic[:, k - 1], slwc[:, k - 1], c)
 
         rho[:, k] = (
             (snowc[:, k - 1] + snic[:, k - 1] + slwc[:, k - 1])
@@ -167,12 +168,14 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
                 # fresh snow
                 z_0 = c.z0_fresh_snow
             else:
-                # old snow from Lefebre et al (2003) JGR
-                z_0 = max(
+                # old snow from Lefebre et al (2003) JGR: from z0_old_snow at
+                # 600 kg m-3 to z0_ice at 920 kg m-3 (capped at z0_ice:
+                # rho[0, k] includes the liquid water and can exceed 920)
+                z_0 = min(c.z0_ice, max(
                     c.z0_old_snow,
                     c.z0_old_snow
                     + (c.z0_ice - c.z0_old_snow) * (rho[0, k] - 600) / (920 - 600),
-                )
+                ))
 
         else:
             # ice roughness length
@@ -200,7 +203,9 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
             )
             if stop: break
 
-        if (findbalance == c.iter_max_EB) & (abs(meltflux[k]) >= 10 * c.EB_max):
+        # (range(1, iter_max_EB) ends at iter_max_EB - 1: the test used to be
+        # findbalance == iter_max_EB, so this was never printed)
+        if (not stop) & (abs(meltflux[k]) >= 10 * c.EB_max):
             print("Problem closing energy budget")
 
         # Step 6/*:  Mass Budget in mweq
@@ -284,6 +289,8 @@ def variables_preparation(weather_df: pd.DataFrame, c: Struct):
 
     T = weather_df.AirTemperatureC.values + 273.15
     z_T = weather_df.HeightTemperaturem.values
+    # (pres is needed by SpecHumSat below; it used to be read after it)
+    pres = weather_df.AirPressurehPa.values
     if 'SpecificHumiditykgkg' in weather_df.columns:
         q = weather_df.SpecificHumiditykgkg.values
         RH = q*np.nan
@@ -294,7 +301,6 @@ def variables_preparation(weather_df: pd.DataFrame, c: Struct):
     z_RH = weather_df.HeightHumiditym.values
     WS = weather_df.WindSpeedms.values
     z_WS = weather_df.HeightWindSpeedm.values
-    pres = weather_df.AirPressurehPa.values
     SRin = weather_df.ShortwaveRadiationDownWm2.values
     SRout = weather_df.ShortwaveRadiationUpWm2.values
     LRin = weather_df.LongwaveRadiationDownWm2.values

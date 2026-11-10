@@ -1260,14 +1260,18 @@ def compute_zcapa(snow_frac_lay_1, prhofirn, ptsoil,snow_frac_lay_2, ice_frac, z
     return zcapa
 
 # @jit
+def first_ice_layer(psnowc, psnic, pslwc, c):
+    """Index of the first layer whose ice content exceeds c.icemax of its
+    mass (as in calc_snowdepth1D), or the number of layers if there is none."""
+    is_ice = psnic > c.icemax * (psnic + psnowc + pslwc)
+    return int(np.argmax(is_ice)) if is_ice.any() else len(psnowc)
+
+
 def calc_snowthick_m(psnowc, psnic, pslwc, prhofirn, psnowbkt, c):
-    """Physical thickness (m) of the snow above the first ice layer, including
-    the snow bucket. A layer is an ice layer when its ice content exceeds
-    c.icemax of its mass (as in calc_snowdepth1D); the layers above it are
+    """Physical thickness (m) of the snow above the first ice layer
+    (first_ice_layer), including the snow bucket; the layers above it are
     counted with their snow and ice."""
-    thickness_weq = psnic + psnowc + pslwc
-    is_ice = psnic > c.icemax * thickness_weq
-    n = np.argmax(is_ice) if is_ice.any() else len(psnowc)
+    n = first_ice_layer(psnowc, psnic, pslwc, c)
     thick_m = (psnowc[:n] * c.rho_water / prhofirn[:n]
                + psnic[:n] * c.rho_water / c.rho_ice).sum()
     return thick_m + psnowbkt * c.rho_water / c.rho_fresh_snow
