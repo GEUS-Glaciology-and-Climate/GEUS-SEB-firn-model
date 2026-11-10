@@ -112,7 +112,11 @@ def load_CARRA_data(*args, resample=True):
         aws_ds = ds.where(ds.stid==c.station, drop=True).load()
 
     if 'altitude' in aws_ds.data_vars:
-        c.altitude= aws_ds.altitude.item()
+        if 'time' in aws_ds.altitude.dims:
+            # time-varying altitude: first value
+            c.altitude= aws_ds.altitude.isel(time=0).squeeze().item()
+        else :
+            c.altitude= aws_ds.altitude.squeeze().item()
     else:
         c.altitude= aws_ds.altitude_mod.item()
 

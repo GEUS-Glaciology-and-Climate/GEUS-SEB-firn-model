@@ -15,7 +15,7 @@ import sys
 from numba import njit
 import pickle
 from lib.initialization import Struct, IniVar
-from lib.subsurface import subsurface_opt
+from lib.subsurface import subsurface_opt, calc_snowthick_m
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 plt.close('all')
@@ -239,12 +239,12 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
             snowc[:, k] / rhofirn[:, k] + snic[:, k] / c.rho_ice
         )
 
-        snowthick[k] = (snowthick[k]
-            + (snowfall[k] + sublimation_mweq[k]) / c.rho_fresh_snow * 1000
-            - dH_comp[k] - melt_mweq[k] / rho[0, k] * 1000
-            )
-
-        if snowthick[k] < 0: snowthick[k] = 0
+        # snow thickness (m) above the first ice layer, diagnosed from the
+        # column. It used to be updated with snowfall, melt and the
+        # compaction of the whole column (dH_comp), so the compaction of the
+        # firn below the seasonal snow reduced it as well.
+        snowthick[k] = calc_snowthick_m(
+            snowc[:, k], snic[:, k], slwc[:, k], rhofirn[:, k], snowbkt[k], c)
 
     if c.spin_up:
         # saving final state for next run

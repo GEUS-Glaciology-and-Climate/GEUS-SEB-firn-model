@@ -793,13 +793,26 @@ def refreeze(psnowc, psnic, pslwc, ptsoil, c):
     # update np.summer 2013 by BV
     # only a fraction C_k * dt of the potential refrozen water is allowed to
     # refreeze during the time step dt. See Illangaskare et al. 1990, eq. 13
-    zpotref = c.Ck * coldcontent * cpiceF(ptsoil) * cfrozen / c.L_fus
+    cp = cpiceF(ptsoil)
+    zpotref = c.Ck * coldcontent * cp * cfrozen / c.L_fus
     zrfrz = np.minimum(zpotref, pslwc)
     pslwc = pslwc - zrfrz
     psnic = psnic + zrfrz
 
-    # Update temperature with c.latent heat of freezing
-    ptsoil = ptsoil + zrfrz * c.L_fus / (cpiceF(273.15) * (psnic - zrfrz + psnowc))
+    # Update temperature with the latent heat of freezing. The latent heat
+    # released, zrfrz * L_fus, reduces the cold content of the layer,
+    # cfrozen * cp * (T_0 - T), and the remaining cold content is shared by the
+    # old frozen mass and the new ice (frozen at T_0):
+    #   (cfrozen + zrfrz) cp (T_0 - T_new) = cfrozen cp (T_0 - T) - zrfrz L_fus
+    # (was T + zrfrz L_fus / (cp(T_0) cfrozen): cp at T_0 while zpotref uses
+    # cp(T), and the new ice given the warmed temperature without its heat)
+    frozen_new = cfrozen + zrfrz
+    cold_left = cfrozen * cp * coldcontent - zrfrz * c.L_fus
+    ptsoil = np.where(
+        (zrfrz > 0) & (frozen_new > 0),
+        c.T_0 - cold_left / (cp * np.where(frozen_new > 0, frozen_new, 1.0)),
+        ptsoil,
+    )
     # pts = ptsoil[0]
     return psnic, pslwc, ptsoil, zrfrz
 
@@ -947,7 +960,7 @@ def split_layer(psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil, c):
         psnic[-1] = c.new_bottom_lay
         pslwc[-1] = 0
         pdgrain[-1] = 1
-        prhofirn[-1] = 1
+        prhofirn[-1] = c.rho_ice  # (was 1 kg m-3) no snow in this layer
         ptsoil[-1] = c.Tdeep
     return psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil
 
@@ -993,38 +1006,43 @@ def sublimation(zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt, 
         # then comes the upper  layers of the column
         while zsnout > c.smallno:
             # Update BV2017: Snow and ice are now melted simultaneously
-            zdel = min(zsnout, psnowc[0] + psnic[0])
-            snow_subl = psnowc[0] / (psnowc[0] + psnic[0]) * zdel
-            ice_subl= psnic[0] / (psnowc[0] + psnic[0]) * zdel
-
-            psnowc[0] = psnowc[0] - snow_subl
-            psnic[0] = psnic[0] - ice_subl
+            frozen = psnowc[0] + psnic[0]
+            zdel = min(zsnout, frozen)
+            if frozen > c.smallno:
+                psnowc[0] = psnowc[0] - psnowc[0] / frozen * zdel
+                psnic[0] = psnic[0] - psnic[0] / frozen * zdel
             zsnout = zsnout - zdel
 
-            if psnowc[0] + psnic[0] + pslwc[0] < c.lim_new_lay - c.smallno:
+            if ((psnowc[0] + psnic[0] + pslwc[0] < c.lim_new_lay - c.smallno)
+                    or (psnowc[0] + psnic[0] <= c.smallno)):
+                # merging layer 1 into layer 2 (split_layer then discards the
+                # content of layer 1). Also when layer 1 has no frozen
+                # material left, so that sublimation continues in layer 2.
                 if (psnowc[1] + psnowc[0]) > c.smallno:
-                    # then merging layer 1 and 2 and placing it in layer 2
                     pdgrain[1] = (psnowc[0] * pdgrain[0] + psnowc[1] * pdgrain[1]) / (
                         psnowc[1] + psnowc[0]
                     )
                     prhofirn[1] = (psnowc[1] + psnowc[0]) / (
                         psnowc[0] / prhofirn[0] + psnowc[1] / prhofirn[1]
                     )
-                    #  Update PLA
-                    ptsoil[1] = (
-                        (psnic[0] + psnowc[0] + pslwc[0]) * ptsoil[0]
-                        + (psnic[1] + psnowc[1] + pslwc[1]) * ptsoil[1]
-                    ) / (
-                        psnic[0] + psnowc[0] + pslwc[0]
-                        + psnic[1] + psnowc[1] + pslwc[1]
-                    )
-
-                    psnowc[1] = psnowc[1] + psnowc[0]
-                    psnic[1] = psnic[1] + psnic[0]
-                    pslwc[1] = pslwc[1] + pslwc[0]
                 else:
+                    # no snow in either layer: grain size and firn density
+                    # are not used
                     pdgrain[1] = 1
                     prhofirn[1] = c.rho_ice
+                # The temperature and the ice and water of layer 1 are merged
+                # in both cases: they used to be merged only when there was
+                # snow, so on bare ice the ice and water of layer 1 were lost
+                # (up to lim_new_lay m w.e. each time).
+                #  Update PLA
+                mass0 = psnic[0] + psnowc[0] + pslwc[0]
+                mass1 = psnic[1] + psnowc[1] + pslwc[1]
+                if mass0 + mass1 > c.smallno:
+                    ptsoil[1] = (mass0 * ptsoil[0] + mass1 * ptsoil[1]) / (mass0 + mass1)
+
+                psnowc[1] = psnowc[1] + psnowc[0]
+                psnic[1] = psnic[1] + psnic[0]
+                pslwc[1] = pslwc[1] + pslwc[0]
 
                 # now top layer is free and another layer can be splitted
                 # elsewhere
@@ -1242,6 +1260,19 @@ def compute_zcapa(snow_frac_lay_1, prhofirn, ptsoil,snow_frac_lay_2, ice_frac, z
     return zcapa
 
 # @jit
+def calc_snowthick_m(psnowc, psnic, pslwc, prhofirn, psnowbkt, c):
+    """Physical thickness (m) of the snow above the first ice layer, including
+    the snow bucket. A layer is an ice layer when its ice content exceeds
+    c.icemax of its mass (as in calc_snowdepth1D); the layers above it are
+    counted with their snow and ice."""
+    thickness_weq = psnic + psnowc + pslwc
+    is_ice = psnic > c.icemax * thickness_weq
+    n = np.argmax(is_ice) if is_ice.any() else len(psnowc)
+    thick_m = (psnowc[:n] * c.rho_water / prhofirn[:n]
+               + psnic[:n] * c.rho_water / c.rho_ice).sum()
+    return thick_m + psnowbkt * c.rho_water / c.rho_fresh_snow
+
+
 def calc_snowdepth1D(psnowc, psnic, pslwc, psnowbkt, c):
     # calc_snowdepth1D: Diagnose snow depth (for use in albefor
     # parameterizations and other places?). Include only the snow above first
