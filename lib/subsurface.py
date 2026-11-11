@@ -2,9 +2,46 @@ import numpy as np
 import lib.percolation as lp
 from numba import jit, njit
 
+def mix_temperature(f1, T1, f2, T2, c):
+    """Temperature of two merged layers, conserving the enthalpy of their
+    frozen mass f (snow + ice). The liquid water is at 0 degC and carries no
+    sensible heat relative to ice at 0 degC: weighting by the total mass (with
+    water), as done before, warmed a cold layer merged with a wet one without
+    any heat source (e.g. +185 kJ m-2 in one merge at KAN_L)."""
+    if f1 + f2 > 0:
+        h = (f1 * enthalpy_per_kg(T1, c) + f2 * enthalpy_per_kg(T2, c)) / (f1 + f2)
+        return temperature_from_enthalpy(h, c)
+    return max(T1, T2)
+
+
+def enthalpy_per_kg(T, c):
+    """Enthalpy of ice/snow at temperature T relative to ice at T_0 (J kg-1):
+    integral of cpiceF (Yen 1981, linear in T) from T_0 to T."""
+    a = 2.7442 / 18 * 1000
+    b = 0.1282 / 18 * 1000
+    return a * (T - c.T_0) + b / 2 * (T ** 2 - c.T_0 ** 2)
+
+
+def temperature_from_enthalpy(h, c):
+    """Inverse of enthalpy_per_kg: temperature (K) of ice/snow with enthalpy
+    h (J kg-1) relative to ice at T_0."""
+    a = 2.7442 / 18 * 1000
+    b = 0.1282 / 18 * 1000
+    T0 = c.T_0
+    return (-a + np.sqrt(a * a + 2 * b * (h + a * T0 + b / 2 * T0 ** 2))) / b
+
+
+def column_enthalpy(psnowc, psnic, pslwc, ptsoil, c):
+    """Enthalpy of the column relative to ice at T_0 (J m-2): sensible heat
+    of the snow and ice, plus the latent heat of the liquid water. The snow
+    bucket is not included (it has no temperature)."""
+    return c.rho_water * np.sum((psnowc + psnic) * enthalpy_per_kg(ptsoil, c)
+                                + pslwc * c.L_fus)
+
+
 def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
                    ptsoil, pdgrain, zsn, zraind, zsnmel, pTdeep, psnowbkt, c,
-                   sw_absorbed=None):
+                   sw_absorbed=None, pgrndk=0.0):
     # HIRHAM subsurface scheme - version 2016
     # Developped by Peter Langen (DMI), Robert Fausto (GEUS)
     # and Baptiste Vandecrux (DTU-GEUS)
@@ -25,13 +62,28 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
     # and the total water equivalent thickness of layer n is
     # thickness_weq(n) = snowc(n)+snic(n)+slwc(n)
     # This thickness is allowed to vary within certain rules.
+    #
+    # Closure diagnostics (returned for the output, see GEUS_model):
+    # - ground_flux: conductive flux from the surface into layer 0 in the
+    #   heat diffusion (W m-2), to compare with the flux used by the SEB.
+    # - mass_error (m w.e.) and energy_error (W m-2): change of the column mass
+    #   (snow bucket included) and enthalpy (from after the heat diffusion)
+    #   minus what entered or left it during the step. c.budget collects the
+    #   terms that are only known inside the routines (snow added or
+    #   sublimated, ice added at the bottom of the column).
+    c.budget = {"mass": 0.0, "energy": 0.0}
+    mass_start = np.sum(psnowc + psnic + pslwc) + psnowbkt
 
     ptsoil = tsoil_diffusion(pts, pgrndc, pgrndd, ptsoil)
+    ground_flux = pgrndk * (pts - ptsoil[0])
+    energy_start = column_enthalpy(psnowc, psnic, pslwc, ptsoil, c)
 
     # shortwave radiation absorbed below the top layer (c.sw_penetration).
     # Applied after the diffusion, which recomputes all layer temperatures.
     internal_melt = 0.0
     if sw_absorbed is not None:
+        frozen = psnowc + psnic
+        c.budget["energy"] += np.sum(sw_absorbed[frozen > c.smallno]) * c.zdtime
         psnowc, psnic, pslwc, ptsoil, internal_melt = sw_heating(
             psnowc, psnic, pslwc, ptsoil, sw_absorbed, c)
 
@@ -47,6 +99,9 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
     )
 
     if ((zsnmel > c.smallno)|(zraind > c.smallno)) & (psnowbkt > c.smallno):
+        # the bucket snow enters the column at min(pts, T_0)
+        c.budget["energy"] += (psnowbkt * c.rho_water
+                               * enthalpy_per_kg(min(pts, c.T_0), c))
         ptsoil[0], psnowc[0], pslwc[0], psnowbkt, prhofirn[0], pdgrain[0] = \
             switch_snowbucket_to_first_layer(ptsoil[0], psnic[0], psnowc[0],
              pslwc[0],pts,psnowbkt, prhofirn[0], pdgrain[0], c.T_0, c.dgrainNew, c.rho_fresh_snow)
@@ -56,12 +111,17 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
     zso_capa, zso_cond = ice_heats(ptsoil, c)
 
     psnowc, psnic, pslwc, ptsoil, psnowbkt = melting(
-        psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn
+        psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn, c
     )
 
     # if c.hetero_percol
     #     [pslwc] = hetero_percol (prhofirn, psnowc, psnic, pslwc, pdgrain, c)
     if ((psnowc+psnic)==0).any():
+        # shift_layers repeats the bottom layer once per melted layer
+        n_melted = np.sum((psnowc + psnic) == 0)
+        c.budget["mass"] += n_melted * (psnowc[-1] + psnic[-1])
+        c.budget["energy"] += (n_melted * c.rho_water * (psnowc[-1] + psnic[-1])
+                               * enthalpy_per_kg(ptsoil[-1], c))
         psnowc, psnic, pdgrain, prhofirn, ptsoil, pgrndc, pgrndd, pslwc = shift_layers(
             psnowc, psnic, pdgrain, prhofirn, ptsoil, pgrndc, pgrndd, pslwc
             )
@@ -84,11 +144,22 @@ def subsurface_opt(pts, pgrndc, pgrndd, pslwc, psnic, psnowc, prhofirn,
     pgrndc, pgrndd, pgrndcapc, pgrndhflx, pgrndk = update_tempdiff_params_opt(
         prhofirn, pTdeep, psnowc, psnic, pslwc, ptsoil, zso_cond, zso_capa, c.zdtime
     )
+
+    # closure: what entered or left the column during the step
+    mass_in = (max(zsn, 0)                  # snowfall/deposition into the bucket
+               + zraind - zrogl + c.budget["mass"])  # (sublimation: in c.budget)
+    energy_in = (c.budget["energy"]
+                 + c.rho_water * c.L_fus * (zsnmel + zraind - zrogl))
+    mass_error = np.sum(psnowc + psnic + pslwc) + psnowbkt - mass_start - mass_in
+    energy_error = (column_enthalpy(psnowc, psnic, pslwc, ptsoil, c)
+                    - energy_start - energy_in) / c.zdtime
+
     # pts (surface skin temperature) is returned unchanged: ptsoil[0] is now
     # the temperature of the first layer, not of the surface
     return (psnowc, psnic, pslwc, ptsoil, zrfrz, prhofirn, pdgrain,
             zrogl, pts, pgrndc, pgrndd, pgrndcapc, pgrndhflx, dH_comp,
-            psnowbkt, compaction, internal_melt, pgrndk)
+            psnowbkt, compaction, internal_melt, pgrndk,
+            ground_flux, mass_error, energy_error)
 
 
 
@@ -155,9 +226,16 @@ def switch_snowbucket_to_first_layer(ptsoil, psnic, psnowc, pslwc,pts,psnowbkt,
     # if there is rain or melt, the fresh snow bucket is added to the snow
     # compartment of the first layer
     # mass-weighted average for temperature
-    ptsoil = (
-        ptsoil * (psnowc + pslwc + psnic) + min(pts, T_0) * psnowbkt
-    ) / (psnowc + pslwc + psnic + psnowbkt)
+    # conserving the enthalpy of the frozen mass (the water is at 0 degC, see
+    # mix_temperature); enthalpy_per_kg and temperature_from_enthalpy written
+    # out here because this function is compiled by numba
+    a = 2.7442 / 18 * 1000
+    b = 0.1282 / 18 * 1000
+    T_bkt = min(pts, T_0)
+    h_lay = a * (ptsoil - T_0) + b / 2 * (ptsoil ** 2 - T_0 ** 2)
+    h_bkt = a * (T_bkt - T_0) + b / 2 * (T_bkt ** 2 - T_0 ** 2)
+    h = (h_lay * (psnowc + psnic) + h_bkt * psnowbkt) / (psnowc + psnic + psnowbkt)
+    ptsoil = (-a + np.sqrt(a * a + 2 * b * (h + a * T_0 + b / 2 * T_0 ** 2))) / b
 
     # snow-mass-weighted average for grain size
     pdgrain = (psnowc * pdgrain + psnowbkt * dgrainNew) / (
@@ -185,11 +263,12 @@ def sw_heating(psnowc, psnic, pslwc, ptsoil, sw_absorbed, c):
     frozen = psnowc + psnic  # m w.e.
     has_frozen = frozen > c.smallno
     energy = np.where(has_frozen, sw_absorbed * c.zdtime, 0.0)  # J m-2
-    heat_capa = cpiceF(ptsoil) * frozen * c.rho_water  # J m-2 K-1
-    cold_content = np.maximum(c.T_0 - ptsoil, 0.0) * heat_capa  # J m-2
+    mass = np.where(has_frozen, frozen, 1.0) * c.rho_water  # kg m-2
+    h = np.minimum(enthalpy_per_kg(ptsoil, c), 0.0)  # J kg-1 (<= 0)
+    cold_content = np.where(has_frozen, -h * mass, 0.0)  # J m-2
     warming = np.minimum(energy, cold_content)
     ptsoil = np.where(has_frozen,
-                      ptsoil + warming / np.where(has_frozen, heat_capa, 1.0),
+                      temperature_from_enthalpy(h + warming / mass, c),
                       ptsoil)
     melt = np.minimum((energy - warming) / c.L_fus / c.rho_water, frozen)  # m w.e.
     snow_part = np.where(has_frozen, psnowc / np.where(has_frozen, frozen, 1.0), 0.0)
@@ -409,7 +488,7 @@ def zsn_condF(prhofirn):
 
 
 # @jit(nopython=True)
-def melting(psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn):
+def melting(psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn, c):
     # melting: Transform an amount zsnmel (m eq) of frozen material into liquid
     # water. Starts at the surface and continues downward as long as more
     # material needs to be melted. Update BV2017: The proportion of ice and snow
@@ -455,24 +534,20 @@ def melting(psnowc, psnic, pslwc, zsnmel, psnowbkt, ptsoil, prhofirn):
             continue
 
         # Update BV2017
-        # How much energy is needed to bring the layer to melting point
-        deltaT = 273.15 - ptsoil[jk]
-        # volumetric heat capacity of the layer in J/m3/K
-        heat_capa_vol = zsn_capaF(prhofirn[jk], ptsoil[jk])
-        volume = (psnic[jk] + psnowc[jk]) * 999.8395 / prhofirn[jk]
-        # heat capacity in J/K
-        heat_capa = heat_capa_vol * volume
-        # energy needed to warm layer to 0degC
-        cold_content = deltaT * heat_capa
-        # in J
-        warming_energy = np.minimum(cold_content, zsnmel * 334000 * 999.8395)  # in J
+        # Energy needed to bring the layer to melting point (J m-2): its cold
+        # content, from the enthalpy relative to ice at T_0 (consistent with
+        # the temperature-dependent heat capacity cpiceF)
+        mass = frozen * c.rho_water  # kg m-2
+        h = min(enthalpy_per_kg(ptsoil[jk], c), 0.0)  # J kg-1
+        cold_content = -h * mass
+        warming_energy = min(cold_content, zsnmel * c.L_fus * c.rho_water)  # J m-2
         if warming_energy < 1e-12:
-            warming_energy=0
+            warming_energy = 0
 
         # warming layer
-        ptsoil[jk] = ptsoil[jk] + warming_energy / heat_capa
+        ptsoil[jk] = temperature_from_enthalpy(h + warming_energy / mass, c)
         # removing the corresponding amount from the prescribed melt
-        zsnmel = zsnmel - warming_energy / 334000 / 999.8395  # in m weq
+        zsnmel = zsnmel - warming_energy / c.L_fus / c.rho_water  # in m weq
         # if we deleted the melt, no need to melt more layers
         if zsnmel < 1e-12:
             break
@@ -623,18 +698,9 @@ def merge_layer(psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil, c):
         pdgrain[i_merg + 1] = 1
         prhofirn[i_merg + 1] = c.rho_ice
 
-    ptsoil[i_merg + 1] = (
-        (psnic[i_merg] + psnowc[i_merg] + pslwc[i_merg]) * ptsoil[i_merg]
-        + (psnic[i_merg + 1] + psnowc[i_merg + 1] + pslwc[i_merg + 1])
-        * ptsoil[i_merg + 1]
-    ) / (
-        psnic[i_merg]
-        + psnowc[i_merg]
-        + pslwc[i_merg]
-        + psnic[i_merg + 1]
-        + psnowc[i_merg + 1]
-        + pslwc[i_merg + 1]
-    )
+    ptsoil[i_merg + 1] = mix_temperature(
+        psnic[i_merg] + psnowc[i_merg], ptsoil[i_merg],
+        psnic[i_merg + 1] + psnowc[i_merg + 1], ptsoil[i_merg + 1], c)
 
     psnowc[i_merg + 1] = psnowc[i_merg + 1] + psnowc[i_merg]
     psnic[i_merg + 1] = psnic[i_merg + 1] + psnic[i_merg]
@@ -672,17 +738,9 @@ def merge_small_layers(prhofirn, psnowc, psnic, pslwc, ptsoil, pdgrain, c):
                     pdgrain[jk + 1] = c.dgrainNew
                     prhofirn[jk + 1] = c.rho_ice
 
-                ptsoil[jk + 1] = (
-                    (psnic[jk] + psnowc[jk] + pslwc[jk]) * ptsoil[jk]
-                    + (psnic[jk + 1] + psnowc[jk + 1] + pslwc[jk + 1]) * ptsoil[jk + 1]
-                ) / (
-                    psnic[jk]
-                    + psnowc[jk]
-                    + pslwc[jk]
-                    + psnic[jk + 1]
-                    + psnowc[jk + 1]
-                    + pslwc[jk + 1]
-                )
+                ptsoil[jk + 1] = mix_temperature(
+                    psnic[jk] + psnowc[jk], ptsoil[jk],
+                    psnic[jk + 1] + psnowc[jk + 1], ptsoil[jk + 1], c)
 
                 psnowc[jk + 1] = psnowc[jk + 1] + psnowc[jk]
                 psnic[jk + 1] = psnic[jk + 1] + psnic[jk]
@@ -793,24 +851,25 @@ def refreeze(psnowc, psnic, pslwc, ptsoil, c):
     # update np.summer 2013 by BV
     # only a fraction C_k * dt of the potential refrozen water is allowed to
     # refreeze during the time step dt. See Illangaskare et al. 1990, eq. 13
-    cp = cpiceF(ptsoil)
-    zpotref = c.Ck * coldcontent * cp * cfrozen / c.L_fus
+    # cold content per kg: -h, with h the enthalpy relative to ice at T_0
+    h = np.minimum(enthalpy_per_kg(ptsoil, c), 0.0)
+    zpotref = c.Ck * (-h) * cfrozen / c.L_fus
     zrfrz = np.minimum(zpotref, pslwc)
     pslwc = pslwc - zrfrz
     psnic = psnic + zrfrz
 
-    # Update temperature with the latent heat of freezing. The latent heat
-    # released, zrfrz * L_fus, reduces the cold content of the layer,
-    # cfrozen * cp * (T_0 - T), and the remaining cold content is shared by the
+    # Update temperature with the latent heat of freezing, conserving the
+    # enthalpy: the latent heat released, zrfrz * L_fus, reduces the cold
+    # content of the layer, and the remaining cold content is shared by the
     # old frozen mass and the new ice (frozen at T_0):
-    #   (cfrozen + zrfrz) cp (T_0 - T_new) = cfrozen cp (T_0 - T) - zrfrz L_fus
+    #   (cfrozen + zrfrz) h_new = cfrozen h + zrfrz L_fus
     # (was T + zrfrz L_fus / (cp(T_0) cfrozen): cp at T_0 while zpotref uses
     # cp(T), and the new ice given the warmed temperature without its heat)
     frozen_new = cfrozen + zrfrz
-    cold_left = cfrozen * cp * coldcontent - zrfrz * c.L_fus
+    h_new = (cfrozen * h + zrfrz * c.L_fus) / np.where(frozen_new > 0, frozen_new, 1.0)
     ptsoil = np.where(
         (zrfrz > 0) & (frozen_new > 0),
-        c.T_0 - cold_left / (cp * np.where(frozen_new > 0, frozen_new, 1.0)),
+        temperature_from_enthalpy(np.minimum(h_new, 0.0), c),
         ptsoil,
     )
     # pts = ptsoil[0]
@@ -860,6 +919,9 @@ def add_snow(zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, pts,
             pslwc[0] = 0
 
             ptsoil[0] = min(pts, c.T_0)
+            if hasattr(c, "budget"):  # closure diagnostics, see subsurface_opt
+                c.budget["energy"] += (psnowbkt * c.rho_water
+                                       * enthalpy_per_kg(ptsoil[0], c))
             prhofirn[0] = c.rho_fresh_snow
             pdgrain[0] = c.dgrainNew
             psnowbkt = 0
@@ -962,6 +1024,10 @@ def split_layer(psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil, c):
         pdgrain[-1] = 1
         prhofirn[-1] = c.rho_ice  # (was 1 kg m-3) no snow in this layer
         ptsoil[-1] = c.Tdeep
+        if hasattr(c, "budget"):  # closure diagnostics, see subsurface_opt
+            c.budget["mass"] += c.new_bottom_lay
+            c.budget["energy"] += (c.new_bottom_lay * c.rho_water
+                                   * enthalpy_per_kg(c.Tdeep, c))
     return psnic, psnowc, pslwc, pdgrain, prhofirn, ptsoil
 
 
@@ -997,17 +1063,23 @@ def sublimation(zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt, 
     if zsn < 0:  # zsn negative means net upward snowfall+sublimation
         zsnout = np.abs(zsn)  # zsnout is the mass the leaves column upwards
 
+        has_budget = hasattr(c, "budget")  # closure diagnostics, see subsurface_opt
         # first  we sublimate the content of the snow bucket
         if psnowbkt > c.smallno:
             pot_subl = min(psnowbkt, zsnout)
             psnowbkt = psnowbkt - pot_subl
             zsnout = zsnout - pot_subl
+            if has_budget:
+                c.budget["mass"] -= pot_subl
 
         # then comes the upper  layers of the column
         while zsnout > c.smallno:
             # Update BV2017: Snow and ice are now melted simultaneously
             frozen = psnowc[0] + psnic[0]
             zdel = min(zsnout, frozen)
+            if has_budget:
+                c.budget["mass"] -= zdel
+                c.budget["energy"] -= zdel * c.rho_water * enthalpy_per_kg(ptsoil[0], c)
             if frozen > c.smallno:
                 psnowc[0] = psnowc[0] - psnowc[0] / frozen * zdel
                 psnic[0] = psnic[0] - psnic[0] / frozen * zdel
@@ -1035,10 +1107,8 @@ def sublimation(zsn, psnowc, psnic, pslwc, pdgrain, prhofirn, ptsoil, psnowbkt, 
                 # snow, so on bare ice the ice and water of layer 1 were lost
                 # (up to lim_new_lay m w.e. each time).
                 #  Update PLA
-                mass0 = psnic[0] + psnowc[0] + pslwc[0]
-                mass1 = psnic[1] + psnowc[1] + pslwc[1]
-                if mass0 + mass1 > c.smallno:
-                    ptsoil[1] = (mass0 * ptsoil[0] + mass1 * ptsoil[1]) / (mass0 + mass1)
+                ptsoil[1] = mix_temperature(psnic[0] + psnowc[0], ptsoil[0],
+                                            psnic[1] + psnowc[1], ptsoil[1], c)
 
                 psnowc[1] = psnowc[1] + psnowc[0]
                 psnic[1] = psnic[1] + psnic[0]

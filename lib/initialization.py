@@ -87,7 +87,7 @@ def IniVar(time, c):
     tsoil[:, -1] = df_ini.temp_degC
     grndc[:, -1] = tsoil[:, -1]
     snowbkt[-1] = 0
-    snowthick[-1] = c.snowthick_ini
+    snowthick[-1] = 0  # set from the initial column in GEUS_model (calc_snowthick_m)
 
     return (rhofirn,  rho, snowc, snic, slwc, dgrain, tsoil, grndc, grndd,
             compaction, zrfrz, zrogl, pgrndcapc, pgrndhflx, dH_comp,

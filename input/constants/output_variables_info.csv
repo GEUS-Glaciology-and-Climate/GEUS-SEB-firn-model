@@ -43,3 +43,6 @@ ws_10m,10 m wind speed,m s^-1
 q_2m,2m specific humidity,g m^-3
 Re,Reynolds number,-
 surface_height,Surface height,m
+mass_error_mweq,Mass closure error of the subsurface column per time step (change of mass minus inputs and outputs; should be ~0),m w.e.
+energy_error,Energy closure error of the subsurface column per time step (change of enthalpy minus inputs and outputs; should be ~0),Wm-2
+ground_flux_error,Conductive flux used by the surface energy budget minus the flux received by the first layer in the heat diffusion (should be ~0),Wm-2

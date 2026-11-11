@@ -7,8 +7,9 @@ es_100,1013.246,hPa,saturation vapour pressure at the steam point temperature
 em,0.98,-,longwave surface emissivity
 ext_air,1.50E-04,m-1,extinction coefficient of shortwave radiation in air for clear-sky conditions
 ext_air_cl,1.50E-04,m-1,cloud-dependent add-on to the extinction coefficient of shortwave radiation in air
-ext_ice,5,m-1,extinction coefficient of shortwave radiation in ice (no penetration if set to 1e10)
-ext_snow,20,m-1,extinction coefficient of shortwave radiation in snow (no penetration if set to 1e10)
+ext_ice,1.5,m-1,extinction coefficient of the penetrating shortwave radiation in ice (Taylor and Feltham 2005; Woods and Hewitt 2023; observed 0.9-8 m-1 for 350-750 nm on the Greenland ice sheet: Cooper et al. 2021)
+ext_snow,20,m-1,extinction coefficient of the penetrating shortwave radiation in snow (range 4-40 m-1: Greuell and Maykut 1977)
+sw_surface_fraction,0.36,-,fraction of the net shortwave radiation absorbed at the surface; the rest penetrates with ext_snow and ext_ice (Greuell and Konzelmann 1994; Woods and Hewitt 2023)
 g,9.82,m s-2,gravitational acceleration at sea level (80 N: 9.83; 60 N: 9.82)
 gamma,16,-,flux-profile correction constant for unstable conditions (Paulson 1970; Dyer 1974)
 kappa,0.4,-,von Karman constant (0.35-0.42)
