@@ -73,18 +73,21 @@ def IniVar(time, c):
             pass
 
     df_ini = InitializationSubsurface(c)
-    rhofirn[:, -1] = df_ini.rhofirn
-    rho[:, -1] = df_ini.rhofirn
-    snic[:, -1] = df_ini.snic
-    snowc[:, -1] = df_ini.snowc
-    if (df_ini.rhofirn == 900 ).all():
-        snic[:, -1] = df_ini.snowc
-        snowc[:, -1] = df_ini.snic
+    # Layers at or above the density of ice are ice (snic), with the model's
+    # ice density. (Only a profile entirely at 900 kg m-3 used to be converted
+    # to ice; denser layers, e.g. up to 939 kg m-3 in the KAN_U profile, were
+    # kept as snow denser than ice: negative pore space, and a jump in layer
+    # volume at the first densification step, which caps rhofirn at rho_ice.)
+    is_ice = (df_ini.rhofirn >= c.rho_ice).values
+    rhofirn[:, -1] = np.minimum(df_ini.rhofirn, c.rho_ice)
+    rho[:, -1] = rhofirn[:, -1]
+    snic[:, -1] = np.where(is_ice, df_ini.snowc + df_ini.snic, df_ini.snic)
+    snowc[:, -1] = np.where(is_ice, 0, df_ini.snowc)
     dgrain[:, -1] = df_ini.grain_size_mm
     tsoil[:, -1] = df_ini.temp_degC
     grndc[:, -1] = tsoil[:, -1]
     snowbkt[-1] = 0
-    snowthick[-1] = c.snowthick_ini
+    snowthick[-1] = 0  # set from the initial column in GEUS_model (calc_snowthick_m)
 
     return (rhofirn,  rho, snowc, snic, slwc, dgrain, tsoil, grndc, grndd,
             compaction, zrfrz, zrogl, pgrndcapc, pgrndhflx, dH_comp,

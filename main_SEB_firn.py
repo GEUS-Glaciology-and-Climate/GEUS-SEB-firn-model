@@ -127,7 +127,6 @@ def run_SEB_firn(
     if c.altitude<1500:
         c.new_bottom_lay=30
     # assigning constants specific to this simulation
-    c.snowthick_ini = 0.1
     c.z_max = 70
 
     # assgning deep temperature
@@ -165,6 +164,8 @@ def run_SEB_firn(
             grndc, grndd, pgrndcapc, pgrndhflx,
             dH_comp, df_out["snowbkt"], compaction, df_out['snowthick'],
             df_out["internal_melt_mweq"],
+            df_out["mass_error_mweq"], df_out["energy_error"],
+            df_out["ground_flux_error"],
         ) = GEUS_model(df_in, c)
     except Exception as e:
         print(c.station, e); traceback.print_exc()

@@ -15,7 +15,8 @@ import sys
 from numba import njit
 import pickle
 from lib.initialization import Struct, IniVar
-from lib.subsurface import subsurface_opt, calc_snowthick_m
+from lib.subsurface import (subsurface_opt, calc_snowthick_m, first_ice_layer,
+                            update_tempdiff_params_opt, ice_heats)
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 plt.close('all')
@@ -88,10 +89,30 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
     # (W m-2 K-1), from the subsurface model. 0 at the start: the first heat
     # diffusion step (grndd = 0) does not exchange heat with the surface.
     grndk = np.zeros(len(time))
+    # closure diagnostics (see subsurface_opt): mass (m w.e.) and energy
+    # (W m-2) errors of the subsurface column, and difference between the
+    # conductive flux used by the SEB and the one received by the subsurface
+    mass_error_mweq = np.zeros(len(time))
+    energy_error = np.zeros(len(time))
+    ground_flux_error = np.zeros(len(time))
 
     if np.isnan(c.Tdeep):
         print('Warning: assigning Tdeep')
         c.Tdeep = T_ice[-1,-1]
+
+    # First time step: heat diffusion coefficients, surface conductance and
+    # snow thickness computed from the initial state (initial state csv files
+    # or spin-up), as they are at the end of every time step. They used to be
+    # grndc = T, grndd = 0 (no heat exchange with the surface during the first
+    # step) for the csv files, or the saved coefficients without the matching
+    # surface conductance for a spin-up, whose snowthick was not set.
+    c.rho_fresh_snow = rho_snow
+    zso_capa, zso_cond = ice_heats(T_ice[:, -1], c)
+    grndc[:, -1], grndd[:, -1], _, _, grndk[-1] = update_tempdiff_params_opt(
+        rhofirn[:, -1], c.Tdeep, snowc[:, -1], snic[:, -1], slwc[:, -1],
+        T_ice[:, -1].copy(), zso_cond, zso_capa, c.zdtime)
+    snowthick[-1] = calc_snowthick_m(
+        snowc[:, -1], snic[:, -1], slwc[:, -1], rhofirn[:, -1], snowbkt[-1], c)
     # c = CalculateMeanAccumulation(time,snowfall, c)
 
     # potential temperature
@@ -117,9 +138,10 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
             + snic[:, k - 1] * (c.rho_water / c.rho_ice)
                        )
 
-        depth_m = np.cumsum(thickness_m, 0)
-
-        ind_ice = np.argmax(depth_m > snowthick[k])
+        # first ice layer below the snow (used for SW penetration). Same
+        # criterion as snowthick. (was np.argmax(depth_m > snowthick), which
+        # gives 0, i.e. all ice, when snowthick reaches the column bottom)
+        ind_ice = first_ice_layer(snowc[:, k - 1], snic[:, k - 1], slwc[:, k - 1], c)
 
         rho[:, k] = (
             (snowc[:, k - 1] + snic[:, k - 1] + slwc[:, k - 1])
@@ -167,12 +189,14 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
                 # fresh snow
                 z_0 = c.z0_fresh_snow
             else:
-                # old snow from Lefebre et al (2003) JGR
-                z_0 = max(
+                # old snow from Lefebre et al (2003) JGR: from z0_old_snow at
+                # 600 kg m-3 to z0_ice at 920 kg m-3 (capped at z0_ice:
+                # rho[0, k] includes the liquid water and can exceed 920)
+                z_0 = min(c.z0_ice, max(
                     c.z0_old_snow,
                     c.z0_old_snow
                     + (c.z0_ice - c.z0_old_snow) * (rho[0, k] - 600) / (920 - 600),
-                )
+                ))
 
         else:
             # ice roughness length
@@ -200,11 +224,16 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
             )
             if stop: break
 
-        if (findbalance == c.iter_max_EB) & (abs(meltflux[k]) >= 10 * c.EB_max):
+        # (range(1, iter_max_EB) ends at iter_max_EB - 1: the test used to be
+        # findbalance == iter_max_EB, so this was never printed)
+        if (not stop) & (abs(meltflux[k]) >= 10 * c.EB_max):
             print("Problem closing energy budget")
 
         # Step 6/*:  Mass Budget in mweq
-        melt_mweq[k] = meltflux[k] * c.zdtime / c.L_fus / c.rho_water
+        # (no negative melt: when the SEB iteration does not converge, the
+        # remaining imbalance in meltflux can be negative; it is reported by
+        # the warning above and was ignored by melting() anyway)
+        melt_mweq[k] = max(meltflux[k], 0) * c.zdtime / c.L_fus / c.rho_water
         # evaporation/condensation on a melting surface, sublimation/deposition
         # otherwise (same latent heat as in SensLatFluxes_bulk_opt)
         L_heat = latent_heat(Tsurf[k], c)
@@ -220,6 +249,7 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
             Tsurf[k], grndc[:, k], grndd[:, k],
             pgrndcapc[k], pgrndhflx[k], dH_comp[k],
             snowbkt[k], compaction[:, k], internal_melt_mweq[k], grndk[k],
+            ground_flux_subsurface, mass_error_mweq[k], energy_error[k],
         ) = subsurface_opt(
             Tsurf[k].copy(), grndc[:, k - 1].copy(), grndd[:, k - 1].copy(),
             slwc[:, k - 1].copy(), snic[:, k - 1].copy(), snowc[:, k - 1].copy(),
@@ -228,8 +258,11 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
             rainfall[k].copy(),  # rain
             melt_mweq[k].copy(),  # melt
             c.Tdeep, snowbkt[k - 1].copy(), c,
-            sw_absorbed=sw_absorbed,
+            sw_absorbed=sw_absorbed, pgrndk=grndk[k - 1],
         )
+        g_k, g_c0, g_d0 = ground_flux_coef
+        ground_flux_error[k] = (g_k * ((1 - g_d0) * Tsurf[k] - g_c0)
+                                - ground_flux_subsurface)
         if ((snowc[:, k]+snic[:, k]) == 0).any():
             print((snowc[:, k]+snic[:, k]) == 0)
             print(wtf)
@@ -262,7 +295,8 @@ def GEUS_model(df_in: pd.DataFrame, c: Struct):
             sublimation_mweq, SRin, SRout, LRin, LRout,
             snowc, snic, slwc, T_ice, zrfrz, rhofirn, dgrain,
             zrogl, Tsurf, grndc, grndd, pgrndcapc, pgrndhflx, dH_comp,
-            snowbkt, compaction, snowthick, internal_melt_mweq)
+            snowbkt, compaction, snowthick, internal_melt_mweq,
+            mass_error_mweq, energy_error, ground_flux_error)
 
 
 def IniRhoSnow(T, WS, c: Struct):
@@ -284,6 +318,8 @@ def variables_preparation(weather_df: pd.DataFrame, c: Struct):
 
     T = weather_df.AirTemperatureC.values + 273.15
     z_T = weather_df.HeightTemperaturem.values
+    # (pres is needed by SpecHumSat below; it used to be read after it)
+    pres = weather_df.AirPressurehPa.values
     if 'SpecificHumiditykgkg' in weather_df.columns:
         q = weather_df.SpecificHumiditykgkg.values
         RH = q*np.nan
@@ -294,7 +330,6 @@ def variables_preparation(weather_df: pd.DataFrame, c: Struct):
     z_RH = weather_df.HeightHumiditym.values
     WS = weather_df.WindSpeedms.values
     z_WS = weather_df.HeightWindSpeedm.values
-    pres = weather_df.AirPressurehPa.values
     SRin = weather_df.ShortwaveRadiationDownWm2.values
     SRout = weather_df.ShortwaveRadiationUpWm2.values
     LRin = weather_df.LongwaveRadiationDownWm2.values
@@ -411,10 +446,12 @@ def SurfEnergyBudget(
 
 
 def SRbalance(SRnet_surf, ind_ice, thickness_m, c):
-    """Shortwave radiation penetrating the snow and ice layers, with
-    Beer-Lambert extinction (Greuell and Maykut, 1977): extinction
-    coefficient c.ext_snow in the snowpack (layers above ind_ice) and c.ext_ice
-    in the ice below.
+    """Shortwave radiation penetrating the snow and ice layers. A fraction
+    c.sw_surface_fraction of the net shortwave radiation (mostly near
+    infrared) is absorbed at the surface; the rest penetrates with
+    Beer-Lambert extinction (Greuell and Konzelmann, 1994): extinction
+    coefficient c.ext_snow in the snowpack (layers above ind_ice) and
+    c.ext_ice in the ice below.
 
     Inputs:
         SRnet_surf   net shortwave radiation at the surface, SRin - SRout (W m-2)
@@ -426,7 +463,8 @@ def SRbalance(SRnet_surf, ind_ice, thickness_m, c):
         SRnet        downwelling shortwave flux at the top of each layer
                      (W m-2): SRnet[0] = SRnet_surf, and SRnet[i] - SRnet[i+1]
                      is absorbed in layer i (used by SurfEnergyBudget for the
-                     top layer)
+                     top layer, which gets the surface fraction and what the
+                     penetrating part leaves in layer 0)
         sw_absorbed  shortwave radiation absorbed in each layer below the top
                      one (W m-2); sw_absorbed[0] = 0 as the top layer is in
                      the surface energy budget. The bottom layer absorbs what
@@ -448,7 +486,10 @@ def SRbalance(SRnet_surf, ind_ice, thickness_m, c):
         )
     else:
         optical_depth = c.ext_ice * depth_top
-    SRnet = SRnet_surf * np.exp(-optical_depth)
+    # penetrating part, from the surface down
+    SRnet = (1 - c.sw_surface_fraction) * SRnet_surf * np.exp(-optical_depth)
+    # the surface fraction is absorbed at the top of layer 0
+    SRnet[0] = SRnet_surf
     sw_absorbed = SRnet - np.append(SRnet[1:], 0.0)
     sw_absorbed[0] = 0.0
     return SRnet, sw_absorbed

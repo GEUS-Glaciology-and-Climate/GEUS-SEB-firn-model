@@ -200,8 +200,11 @@ def load_CARRA_data(*args, resample=True):
         df_carra['Snowfallmweq'] = df_carra['Snowfallmweq'] / 3
         df_carra['Rainfallmweq'] = df_carra['Rainfallmweq'] / 3
 
-    df_carra['Rainfallmweq'] = df_carra['Rainfallmweq'].fillna(0)
-    df_carra['Snowfallmweq'] = df_carra['Snowfallmweq'].fillna(0)
+    # no negative precipitation (tiny negative values, ~1e-8 m w.e., come from
+    # the interpolation; the subsurface model ignores them while the SMB
+    # output counted them)
+    df_carra['Rainfallmweq'] = df_carra['Rainfallmweq'].fillna(0).clip(lower=0)
+    df_carra['Snowfallmweq'] = df_carra['Snowfallmweq'].fillna(0).clip(lower=0)
     return df_carra
 
 def load_surface_input_data(c, resample=True):

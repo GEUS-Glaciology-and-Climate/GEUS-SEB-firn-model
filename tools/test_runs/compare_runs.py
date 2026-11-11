@@ -5,7 +5,9 @@ For every test case (<site>_<year>) found in either run, writes to --out:
     <site>_<year>_cumulative_runoff_refreezing.png
     <site>_<year>_lwc_profiles.png   total LWC, LWC profiles of both runs and
                                      their difference
-    summary.md            table of annual totals and differences
+    summary.md            table of annual totals and differences, and the
+                          closure checks (mass, energy, surface-subsurface
+                          conductive flux) of both runs
     PR_description.md     template for the PR description, with the table
                           and the figures (if --image-url-prefix is given)
 
@@ -25,7 +27,8 @@ import xarray as xr
 
 # variables compared, all in m w.e. per time step in <site>_surface.nc
 VARIABLES = {
-    "melt_mweq": "Melt",
+    "total_melt_mweq": "Total melt",  # surface + internal, computed in load_case
+    "melt_mweq": "Surface melt",
     "internal_melt_mweq": "Internal melt",
     "runoff_mweq": "Runoff",
     "refreezing_mweq": "Refreezing",
@@ -33,8 +36,22 @@ VARIABLES = {
     "smb_mweq": "SMB",
 }
 FIGURES = {
-    "cumulative_melt_smb": ["melt_mweq", "smb_mweq"],
+    # melt from absorbed shortwave below the surface (internal melt) is
+    # meltwater like surface melt: it reaches the SMB through runoff.
+    # "melt_stack": internal melt and internal + surface melt on one panel
+    "cumulative_melt_smb": ["melt_stack", "smb_mweq"],
     "cumulative_runoff_refreezing": ["runoff_mweq", "refreezing_mweq"],
+}
+# Closure diagnostics written by the model (per time step) and tolerances.
+# The model conserves mass and enthalpy exactly (all routines use the same
+# enthalpy, see lib/subsurface.py), so the errors are at round-off level
+# (< 1e-13 m w.e., < 1e-9 W m-2 on the test runs). Earlier bugs gave errors of
+# 0.05 m w.e. (#20), 16-21 W m-2 (#19) or 17 W m-2 in one step (#21).
+CLOSURE = {  # variable: (label, statistic, tolerance, unit)
+    "mass_error_mweq": ("Mass error, max per step", "max_abs", 1e-9, "m w.e."),
+    "energy_error": ("Energy error, mean of abs", "mean_abs", 1e-6, "W m-2"),
+    "energy_error_max": ("Energy error, max per step", "max_abs", 1e-6, "W m-2"),
+    "ground_flux_error": ("SEB vs subsurface conductive flux, max", "max_abs", 1e-6, "W m-2"),
 }
 
 
@@ -53,7 +70,34 @@ def load_case(run_dir, case):
         return None
     with xr.open_dataset(files[0]) as ds:
         variables = [v for v in VARIABLES if v in ds]
-        return ds[variables].to_dataframe()
+        df = ds[variables].to_dataframe()
+    if "melt_mweq" in df:
+        df["total_melt_mweq"] = df.melt_mweq + df.get("internal_melt_mweq", 0)
+    return df[[v for v in VARIABLES if v in df]]
+
+
+def plot_melt_stack(ax, base, head, base_name, head_name):
+    """Cumulative melt of both runs on one panel, additive: internal melt
+    (dashed) and internal + surface melt = total melt (solid). The gap between
+    the two lines is the surface melt (shaded for the head run)."""
+    for df, label, color, lw in [(base, base_name, "0.4", 2.5),
+                                 (head, head_name, "tab:red", 1.2)]:
+        if df is None or "total_melt_mweq" not in df:
+            continue
+        total = df.total_melt_mweq.cumsum()
+        internal = (df.internal_melt_mweq.cumsum() if "internal_melt_mweq" in df
+                    else total * 0)
+        ax.plot(total.index, total.values, color=color, lw=lw,
+                label=f"{label}, internal + surface: {total.iloc[-1]:.3f}")
+        ax.plot(internal.index, internal.values, color=color, lw=lw, ls="--",
+                label=f"{label}, internal: {internal.iloc[-1]:.3f}")
+        if df is head:
+            ax.fill_between(total.index, internal.values, total.values,
+                            color=color, alpha=0.12, lw=0,
+                            label=f"{label}, surface: {total.iloc[-1] - internal.iloc[-1]:.3f}")
+    ax.set_ylabel("Cumulative melt\n(m w.e.)")
+    ax.legend(loc="upper left", fontsize=8)
+    ax.grid(alpha=0.3)
 
 
 def plot_case(case, base, head, base_name, head_name, out_dir):
@@ -62,6 +106,9 @@ def plot_case(case, base, head, base_name, head_name, out_dir):
     for fig_name, variables in FIGURES.items():
         fig, axes = plt.subplots(len(variables), 1, figsize=(8, 6), sharex=True)
         for ax, var in zip(np.atleast_1d(axes), variables):
+            if var == "melt_stack":
+                plot_melt_stack(ax, base, head, base_name, head_name)
+                continue
             for df, label, style in [(base, base_name, dict(color="0.4", lw=2.5)),
                                      (head, head_name, dict(color="tab:red", lw=1.2))]:
                 if df is not None and var in df:
@@ -183,6 +230,51 @@ def summary_table(cases, runs, base_name, head_name):
     return lines, identical
 
 
+def load_closure(run_dir, case):
+    """Closure diagnostics of one test case as a DataFrame, or None when the
+    run did not write them (older model versions)."""
+    files = glob.glob(os.path.join(run_dir, case, "*", "*_surface.nc"))
+    if not files:
+        return None
+    with xr.open_dataset(files[0]) as ds:
+        variables = [v for v in ["mass_error_mweq", "energy_error", "ground_flux_error"]
+                     if v in ds]
+        if not variables:
+            return None
+        df = ds[variables].to_dataframe()
+    if "energy_error" in df:
+        df["energy_error_max"] = df["energy_error"]
+    return df
+
+
+def closure_table(cases, run_dirs, names):
+    """Markdown table of the closure checks of each run. Returns the lines and
+    whether every available check of the last run (the PR) passed."""
+    lines = ["### Closure checks", "",
+             "Mass and energy closure of the subsurface column and agreement of the "
+             "conductive flux between the surface energy budget and the subsurface "
+             "(OK: within tolerance, FAIL: not, n/a: not written by this version).", "",
+             "| Test case | Check | Tolerance | " + " | ".join(names) + " |",
+             "|---|---|---|" + "---|" * len(names)]
+    head_ok = True
+    for case in cases:
+        dfs = [load_closure(d, case) for d in run_dirs]
+        for var, (label, stat, tol, unit) in CLOSURE.items():
+            cells = []
+            for i, df in enumerate(dfs):
+                if df is None or var not in df:
+                    cells.append("n/a")
+                    continue
+                v = df[var].abs()
+                value = v.max() if stat == "max_abs" else v.mean()
+                ok = bool(value <= tol)
+                if i == len(dfs) - 1 and not ok:
+                    head_ok = False
+                cells.append(f"{'OK' if ok else 'FAIL'} {value:.2g}")
+            lines.append(f"| {case} | {label} | {tol:g} {unit} | " + " | ".join(cells) + " |")
+    return lines, head_ok
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-runs", required=True)
@@ -225,8 +317,13 @@ def main():
               ""]
     verdict = (["**All compared variables are identical.**", ""] if identical and cases
                else [])
-    summary = header + verdict + table + [""] + missing
-    with open(os.path.join(args.out, "summary.md"), "w") as f:
+    closure, closure_ok = closure_table(
+        cases, [args.base_runs, args.head_runs], [args.base_name, args.head_name])
+    if not closure_ok:
+        closure = ["**WARNING: closure check failed for " + args.head_name + ".**", ""] + closure
+        print("WARNING: closure check failed for", args.head_name)
+    summary = header + verdict + table + [""] + missing + [""] + closure
+    with open(os.path.join(args.out, "summary.md"), "w", encoding="utf-8") as f:
         f.write("\n".join(summary) + "\n")
 
     description = ["## Changes", "", "<!-- describe the bug fix and why it is needed -->", "",
@@ -238,7 +335,7 @@ def main():
                 description += [f'<img src="{prefix}/{name}?raw=true" alt="">'
                                 for prefix in args.image_url_prefix]
             description.append("")
-    with open(os.path.join(args.out, "PR_description.md"), "w") as f:
+    with open(os.path.join(args.out, "PR_description.md"), "w", encoding="utf-8") as f:
         f.write("\n".join(description) + "\n")
 
     print("\n".join(summary))
